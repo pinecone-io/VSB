@@ -19,12 +19,13 @@ class Dataset:
     Google Cloud Storage bucket and are downloaded on-demand on first access,
     then cached on the local machine.
     """
+
     gcs_bucket = "pinecone-datasets-dev"
 
     @staticmethod
     def split_dataframe(df: pandas.DataFrame, batch_size) -> Iterator[pandas.DataFrame]:
         for i in range(0, len(df), batch_size):
-            batch = df.iloc[i: i + batch_size]
+            batch = df.iloc[i : i + batch_size]
             yield batch
 
     @staticmethod
@@ -83,9 +84,9 @@ class Dataset:
         # to use for documents into a pandas dataframe.
         self.documents = self._load_parquet_dataset("passages", limit=self.limit)
 
-    def setup_queries(self,
-                      load_queries: bool = True,
-                      doc_sample_fraction: float = 1.0):
+    def setup_queries(
+        self, load_queries: bool = True, doc_sample_fraction: float = 1.0
+    ):
 
         # If there is an explicit 'queries' dataset, then load that and use
         # for querying, otherwise use documents directly.
@@ -93,7 +94,8 @@ class Dataset:
             self.queries = self._load_parquet_dataset("queries")
         if not self.queries.empty:
             logging.info(
-                f"Using {len(self.queries)} query vectors loaded from dataset 'queries' table")
+                f"Using {len(self.queries)} query vectors loaded from dataset 'queries' table"
+            )
         else:
             # Queries expect a different schema than documents.
             # Documents looks like:
@@ -105,7 +107,9 @@ class Dataset:
             # 'vector' field of queries is currently used).
             if self.documents.empty:
                 self.load_documents()
-            assert not self.documents.empty, "Cannot sample 'documents' to use for queries as it is empty"
+            assert (
+                not self.documents.empty
+            ), "Cannot sample 'documents' to use for queries as it is empty"
             self.queries = self.documents[["values"]].copy()
             self.queries.rename(columns={"values": "vector"}, inplace=True)
 
@@ -115,9 +119,12 @@ class Dataset:
             self.queries = self.queries.sample(frac=doc_sample_fraction, random_state=1)
             logging.info(
                 f"Using {doc_sample_fraction * 100}% of documents' dataset "
-                f"for query data ({len(self.queries)} sampled)")
+                f"for query data ({len(self.queries)} sampled)"
+            )
 
-    def upsert_into_index(self, index_host, api_key, skip_if_count_identical: bool = False):
+    def upsert_into_index(
+        self, index_host, api_key, skip_if_count_identical: bool = False
+    ):
         """
         Upsert the datasets' documents into the specified index.
         :param index_host: Pinecone index to upsert into (must already exist)
@@ -127,16 +134,20 @@ class Dataset:
         pinecone = PineconeGRPC(api_key)
         index = pinecone.Index(host=index_host)
         if skip_if_count_identical:
-            if index.describe_index_stats()['total_vector_count'] == len(self.documents):
+            if index.describe_index_stats()["total_vector_count"] == len(
+                self.documents
+            ):
                 logging.info(
-                    f"Skipping upsert as index already has same number of documents as dataset ({len(self.documents)}")
+                    f"Skipping upsert as index already has same number of documents as dataset ({len(self.documents)}"
+                )
                 return
 
         upserted_count = self._upsert_from_dataframe(index)
         if upserted_count != len(self.documents):
             logging.warning(
                 f"Not all records upserted successfully. Dataset count:{len(self.documents)},"
-                f" upserted count:{upserted_count}")
+                f" upserted count:{upserted_count}"
+            )
 
     def prune_documents(self):
         """
@@ -144,11 +155,15 @@ class Dataset:
         (it can consume a significant amount of memory).
         """
         del self.documents
-        logging.debug(f"After pruning, 'queries' memory usage:{self.queries.memory_usage()}")
+        logging.debug(
+            f"After pruning, 'queries' memory usage:{self.queries.memory_usage()}"
+        )
 
     def _download_dataset_files(self):
         self.cache.mkdir(parents=True, exist_ok=True)
-        logging.debug(f"Checking for existence of dataset '{self.name}' in dataset cache '{self.cache}'")
+        logging.debug(
+            f"Checking for existence of dataset '{self.name}' in dataset cache '{self.cache}'"
+        )
         client = Client.create_anonymous_client()
         bucket: Bucket = client.bucket(Dataset.gcs_bucket)
         blobs = [b for b in bucket.list_blobs(prefix=self.name + "/")]
@@ -173,19 +188,23 @@ class Dataset:
         to_download = [b for b in filter(lambda b: should_download(b), blobs)]
         if not to_download:
             return
-        pbar = tqdm(desc="Downloading datset",
-                    total=sum([b.size for b in to_download]),
-                    unit="Bytes",
-                    unit_scale=True)
+        pbar = tqdm(
+            desc="Downloading datset",
+            total=sum([b.size for b in to_download]),
+            unit="Bytes",
+            unit_scale=True,
+        )
         for blob in to_download:
-            logging.debug(f"Dataset file '{blob.name}' not found in cache - will be downloaded")
+            logging.debug(
+                f"Dataset file '{blob.name}' not found in cache - will be downloaded"
+            )
             dest_path = self.cache / blob.name
             dest_path.parent.mkdir(parents=True, exist_ok=True)
             blob.download_to_filename(self.cache / blob.name)
             pbar.update(blob.size)
 
     def _load_parquet_dataset(self, kind, limit=0):
-        parquet_files = [f for f in (self.cache / self.name).glob(kind + '/*.parquet')]
+        parquet_files = [f for f in (self.cache / self.name).glob(kind + "/*.parquet")]
         if not len(parquet_files):
             return pandas.DataFrame()
 
@@ -203,7 +222,9 @@ class Dataset:
             fields = set(dataset.schema.names)
             missing = fields.difference(required)
             if len(missing) > 0:
-                raise ValueError(f"Missing required fields ({missing}) for passages from dataset '{self.name}'")
+                raise ValueError(
+                    f"Missing required fields ({missing}) for passages from dataset '{self.name}'"
+                )
             # Also load in supported optional fields.
             optional = set(["sparse_values", "metadata"])
             columns = list(required.union((fields.intersection(optional))))
@@ -224,13 +245,19 @@ class Dataset:
             required = set(["top_k", "blob"])
             missing = required.difference(fields)
             if len(missing) > 0:
-                raise ValueError(f"Missing required fields ({missing}) for queries from dataset '{self.name}'")
+                raise ValueError(
+                    f"Missing required fields ({missing}) for queries from dataset '{self.name}'"
+                )
             value_field = set(["values", "vector"]).intersection(fields)
             match len(value_field):
                 case 0:
-                    raise ValueError(f"Missing required search vector field ('values' or 'vector') queries from dataset '{self.name}'")
+                    raise ValueError(
+                        f"Missing required search vector field ('values' or 'vector') queries from dataset '{self.name}'"
+                    )
                 case 2:
-                    raise ValueError(f"Multiple search vector fields ('values' and 'vector') present in queries from dataset '{self.name}'")
+                    raise ValueError(
+                        f"Multiple search vector fields ('values' and 'vector') present in queries from dataset '{self.name}'"
+                    )
                 case 1:
                     required = required | value_field
             # Also load in supported optional fields.
@@ -238,7 +265,9 @@ class Dataset:
             columns = list(required.union((fields.intersection(optional))))
             metadata_column = "filter"
         else:
-            raise ValueError(f"Unsupported kind '{kind}' - must be one of (documents, queries)")
+            raise ValueError(
+                f"Unsupported kind '{kind}' - must be one of (documents, queries)"
+            )
         # Note: We to specify pandas.ArrowDtype as the types mapper to use pyarrow datatypes in the
         # resulting DataFrame. This is significant as (for reasons unknown) it allows subsequent
         # samples() of the DataFrame to be "disconnected" from the original underlying pyarrow data,
@@ -251,9 +280,10 @@ class Dataset:
         # And drop any columns which all values are missing - e.g. not all
         # datasets have sparse_values, but the parquet file may still have
         # the (empty) column present.
-        df.dropna(axis='columns', how="all", inplace=True)
+        df.dropna(axis="columns", how="all", inplace=True)
 
         if metadata_column in df:
+
             def cleanup_null_values(metadata):
                 # Null metadata values are not supported, remove any key
                 # will a null value.
@@ -271,7 +301,9 @@ class Dataset:
                     return metadata
                 if isinstance(metadata, str):
                     return json.loads(metadata)
-                raise TypeError(f"metadata must be a string or dict (found {type(metadata)})")
+                raise TypeError(
+                    f"metadata must be a string or dict (found {type(metadata)})"
+                )
 
             def prepare_metadata(metadata):
                 return cleanup_null_values(convert_metadata_to_dict(metadata))
@@ -310,10 +342,10 @@ class Dataset:
             # However, converting the entire sub-frame's column back to a Python object before calling
             # upsert_from_dataframe() is significantly faster, such that the overall upsert throughput
             # (including the actual server-side work) is around 2x greater if we pre-convert.
-            converted = sub_frame.astype(dtype={'values': object})
-            resp = index.upsert_from_dataframe(converted,
-                                               batch_size=200,
-                                               show_progress=False)
+            converted = sub_frame.astype(dtype={"values": object})
+            resp = index.upsert_from_dataframe(
+                converted, batch_size=200, show_progress=False
+            )
             upserted_count += resp.upserted_count
             pbar.update(len(sub_frame))
         return upserted_count
