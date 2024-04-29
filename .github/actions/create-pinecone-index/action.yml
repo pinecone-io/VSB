@@ -32,18 +32,18 @@ inputs:
 outputs:
   index_name:
     description: 'The name of the index, including randomized suffix'
-    value: ${{ steps.create-index.outputs.index_name }}
+    value: ${{ steps.create-pinecone-index.outputs.index_name }}
   index_host:
     description: 'The host of the index, including randomized suffix'
-    value: ${{ steps.create-index.outputs.index_host }}
+    value: ${{ steps.create-pinecone-index.outputs.index_host }}
 
 runs:
   using: 'composite'
   steps:
     - name: Create index
-      id: create-index
+      id: create-pinecone-index
       shell: bash
-      run: poetry run python3 tests/scripts/create_index.py
+      run: poetry run python3 tests/scripts/create_pinecone_index.py
       env:
         PINECONE_API_KEY: ${{ inputs.PINECONE_API_KEY }}
         NAME_PREFIX: ${{ inputs.name_prefix }}
