@@ -22,7 +22,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9", "3.10", "3.11"]
+        python-version: ["3.11"]
         environment: ['serverless', 'pod']
 
     steps:
@@ -60,7 +60,7 @@ jobs:
         poetry run pytest
       env:
         PINECONE_API_KEY: '${{ secrets.PINECONE_API_KEY }}'
-        INDEX_HOST: ${{ steps.create-index.outputs.index_host }}
+        INDEX_NAME: ${{ steps.create-index.outputs.index_name }}
     - name: Delete test index
       if: always()
       uses: ./.github/actions/delete-index

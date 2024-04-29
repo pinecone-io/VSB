@@ -2,7 +2,7 @@ import os
 import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
-from dataset import Dataset
+from vsb.workloads.dataset import Dataset
 import pytest
 
 
@@ -10,7 +10,7 @@ class TestDataset:
 
     def test_limit(self):
         limit = 123
-        name = "langchain-python-docs-text-embedding-ada-002"
+        name = "mnist"
         dataset = Dataset(name, limit=limit)
         # Sanity check that the complete dataset size is greater than what
         # we are going to limit to.
