@@ -15,7 +15,7 @@ runs:
   steps:
     - name: Delete index
       shell: bash
-      run: poetry run python3 tests/scripts/delete_index.py
+      run: poetry run python3 tests/scripts/delete_pinecone_index.py
       env:
         PINECONE_API_KEY: ${{ inputs.PINECONE_API_KEY }}
         INDEX_NAME: ${{ inputs.index_name }}
