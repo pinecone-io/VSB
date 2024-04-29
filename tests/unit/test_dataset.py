@@ -10,7 +10,7 @@ class TestDataset:
 
     def test_limit(self):
         limit = 123
-        name = "langchain-python-docs-text-embedding-ada-002"
+        name = "mnist"
         dataset = Dataset(name, limit=limit)
         # Sanity check that the complete dataset size is greater than what
         # we are going to limit to.
