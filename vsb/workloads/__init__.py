@@ -15,7 +15,9 @@ class Workload(Enum):
         match self:
             case Workload.Mnist:
                 from .mnist.mnist import Mnist
+
                 return Mnist()
             case Workload.MnistTest:
                 from .mnist.mnist import MnistTest
+
                 return MnistTest()

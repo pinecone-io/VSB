@@ -13,6 +13,7 @@ class Mnist(ParquetWorkload):
 class MnistTest(ParquetWorkload):
     """Reduced, "test" variant of mnist; with 1% of the full dataset (600
     passages and 100 queries)."""
+
     def __init__(self):
         super().__init__("mnist", 600, 100)
 

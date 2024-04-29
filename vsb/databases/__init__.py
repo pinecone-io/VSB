@@ -5,15 +5,18 @@ from .base import DB
 class Database(Enum):
     """Set of supported database backends, the value is the string used to
     specify via --database="""
+
     Pinecone = "pinecone"
     PGVector = "pgvector"
 
     def build(self, config: dict) -> DB:
-        """Construct an instance of """
+        """Construct an instance of DB based on the database enum value"""
         match self:
             case Database.Pinecone:
                 from .pinecone.pinecone import PineconeDB
+
                 return PineconeDB(config)
             case Database.PGVector:
                 from .pgvector.pgvector import PGVectorDB
+
                 return PGVectorDB()
