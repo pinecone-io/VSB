@@ -1,23 +1,20 @@
-from ..base import VectorWorkload
 from ..dataset import Dataset
+from ..parquet_workload.parquet_workload import ParquetWorkload
 
 
-class MNIST(VectorWorkload):
+class Mnist(ParquetWorkload):
     def __init__(self):
-        print("MNIST::__init__")
-        self.dataset = Dataset(name="mnist")
-        self.dataset.load_documents()
-        print(self.dataset.documents)
-        self.records = Dataset.split_dataframe(self.dataset.documents, 100)
-        print(self.records)
-        self.operation_count = 0
-        self.operation_limit = 10
+        super().__init__("mnist")
 
-    def next_record_batch(self):
-        print("MNIST::next_record_batch")
+    def name(self) -> str:
+        return "mnist"
 
-    def execute_next_request(self, db) ->bool:
-        print("MNIST::execute_next_request")
-        self.operation_count += 1
-        return self.operation_count < self.operation_limit
 
+class MnistTest(ParquetWorkload):
+    """Reduced, "test" variant of mnist; with 1% of the full dataset (600
+    passages and 100 queries)."""
+    def __init__(self):
+        super().__init__("mnist", 600, 100)
+
+    def name(self) -> str:
+        return "mnist-test"

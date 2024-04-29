@@ -1,13 +1,13 @@
 [tool.poetry]
-name = "locust-pinecone"
+name = "VSB"
 version = "0.1.0"
-description = "A load-testing tool for Pinecone, built on the Locust framework"
+description = "A vector search benchmarking suite, built on the Locust framework"
 authors = ["Pinecone Systems, Inc. <support@pinecone.io>"]
 readme = "README.md"
 package-mode = false
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = "^3.11"
 locust = "^2.26.0"
 pandas = "^2.2.1"
 google-cloud-storage = "^2.14.0"
@@ -16,6 +16,7 @@ python-dotenv = "^1.0.1"
 pyarrow = "^15.0.0"
 pinecone-client = {version = "^3.2.2", extras = ["grpc"]}
 tabulate = "^0.9.0"
+pydantic = "^2.7.1"
 
 
 [tool.poetry.group.dev.dependencies]

@@ -1,10 +1,7 @@
 from abc import ABC, abstractmethod
 from enum import Enum, auto
 
-
-class Request(Enum):
-    Upsert = auto()
-    Search = auto()
+from vsb.vsb_types import Record, SearchRequest
 
 
 class Index(ABC):
@@ -16,22 +13,16 @@ class Index(ABC):
     """
 
     @abstractmethod
-    def upsert(self, ident, vector, metadata):
+    def upsert(self, key, vector, metadata):
         raise NotImplementedError
 
     @abstractmethod
-    def search(self, query_vector):
+    def upsert_batch(self, batch: list[Record]):
         raise NotImplementedError
 
-    def do_request(self, request):
-        print(f"Got request: {request}")
-        match request.operation:
-            case Request.Upsert:
-                self.upsert(request.id, request.vector, request.metadata)
-                return
-            case Request.Search:
-                response = self.search(request.q_vector)
-                # Record timing, calculate Recall etc.
+    @abstractmethod
+    def search(self, request: SearchRequest) -> list[str]:
+        raise NotImplementedError
 
 
 class DB(ABC):
@@ -41,5 +32,5 @@ class DB(ABC):
     """
 
     @abstractmethod
-    def create_index(self, tenant: str) -> Index:
+    def get_index(self, tenant: str) -> Index:
         raise NotImplementedError

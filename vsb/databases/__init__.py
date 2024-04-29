@@ -8,12 +8,12 @@ class Database(Enum):
     Pinecone = "pinecone"
     PGVector = "pgvector"
 
-    def build(self) -> DB:
+    def build(self, config: dict) -> DB:
         """Construct an instance of """
         match self:
             case Database.Pinecone:
                 from .pinecone.pinecone import PineconeDB
-                return PineconeDB()
+                return PineconeDB(config)
             case Database.PGVector:
                 from .pgvector.pgvector import PGVectorDB
                 return PGVectorDB()

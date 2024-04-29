@@ -1,3 +1,5 @@
+from collections.abc import Iterator
+
 from google.cloud.storage import Bucket, Client, transfer_manager
 import json
 import logging
@@ -20,7 +22,7 @@ class Dataset:
     gcs_bucket = "pinecone-datasets-dev"
 
     @staticmethod
-    def split_dataframe(df, batch_size):
+    def split_dataframe(df: pandas.DataFrame, batch_size) -> Iterator[pandas.DataFrame]:
         for i in range(0, len(df), batch_size):
             batch = df.iloc[i: i + batch_size]
             yield batch
@@ -79,7 +81,7 @@ class Dataset:
 
         # Load the parquet dataset (made up of one or more parquet files),
         # to use for documents into a pandas dataframe.
-        self.documents = self._load_parquet_dataset("documents", limit=self.limit)
+        self.documents = self._load_parquet_dataset("passages", limit=self.limit)
 
     def setup_queries(self,
                       load_queries: bool = True,
@@ -185,15 +187,55 @@ class Dataset:
     def _load_parquet_dataset(self, kind, limit=0):
         parquet_files = [f for f in (self.cache / self.name).glob(kind + '/*.parquet')]
         if not len(parquet_files):
-            return pandas.DataFrame
+            return pandas.DataFrame()
 
         dataset = ParquetDataset(parquet_files)
         # Read only the columns that Pinecone SDK makes use of.
         if kind == "documents":
             columns = ["id", "values", "sparse_values", "metadata"]
             metadata_column = "metadata"
+        elif kind == "passages":
+            # 'passages' format used by benchmarking datasets (e.g. mnist,
+            # nq-769-tasb, yfcc, ...). Always has 'id' and 'values' fields;
+            # may optionally have `sparse_values` and `metadata`.
+            # Validate required fields are present.
+            required = set(["id", "values"])
+            fields = set(dataset.schema.names)
+            missing = fields.difference(required)
+            if len(missing) > 0:
+                raise ValueError(f"Missing required fields ({missing}) for passages from dataset '{self.name}'")
+            # Also load in supported optional fields.
+            optional = set(["sparse_values", "metadata"])
+            columns = list(required.union((fields.intersection(optional))))
+            metadata_column = "metadata"
         elif kind == "queries":
-            columns = ["vector", "sparse_vector",  "filter", "top_k", "blob"]
+            # 'queries' format which consists of query input parameters
+            # and expected results.
+            # * Required fields:
+            #   - top_k
+            #   - values or vector: dense search vector
+            #   - ground truth nearest neighbours (stored in 'blob' field)
+            # * Optional fields:
+            #   - id: query identifier.
+            #   - sparse_vector: sparse search vector.
+            #   - filter: metadata filter
+            fields = set(dataset.schema.names)
+            # Validate required fields are present.
+            required = set(["top_k", "blob"])
+            missing = required.difference(fields)
+            if len(missing) > 0:
+                raise ValueError(f"Missing required fields ({missing}) for queries from dataset '{self.name}'")
+            value_field = set(["values", "vector"]).intersection(fields)
+            match len(value_field):
+                case 0:
+                    raise ValueError(f"Missing required search vector field ('values' or 'vector') queries from dataset '{self.name}'")
+                case 2:
+                    raise ValueError(f"Multiple search vector fields ('values' and 'vector') present in queries from dataset '{self.name}'")
+                case 1:
+                    required = required | value_field
+            # Also load in supported optional fields.
+            optional = set(["id", "sparse_vector", "filter"])
+            columns = list(required.union((fields.intersection(optional))))
             metadata_column = "filter"
         else:
             raise ValueError(f"Unsupported kind '{kind}' - must be one of (documents, queries)")
