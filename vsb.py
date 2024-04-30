@@ -41,6 +41,7 @@ class VectorSearchUser(User):
 
     """Represents a single user (aka client) performing requests against
     a particular Backend."""
+
     def __init__(self, environment):
         super().__init__(environment)
         self.database = environment.database
@@ -134,6 +135,13 @@ def main():
         default=1,
         help="Number of clients concurrently accessing the database",
     )
+    parser.add_argument(
+        "--cache_dir",
+        type=str,
+        default="/tmp/VSB/cache",
+        help="Directory to store downloaded datasets",
+    )
+
     # TODO: These shouldn't be hardcoded - they should be based on the
     # specified database - e.g. pgvector knows nothing about API keys.
     # Preferably some form of generic way of specifying - e.g.
@@ -151,7 +159,7 @@ def main():
     opts = env.options
     db_config = {"api_key": opts.api_key, "index_name": opts.index_name}
     env.database = Database(env.options.database).build(db_config)
-    env.workload = Workload(env.options.workload).build()
+    env.workload = Workload(env.options.workload).get_class()(options.cache_dir)
 
     runner = env.create_local_runner()
 

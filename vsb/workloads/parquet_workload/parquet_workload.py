@@ -12,8 +12,10 @@ class ParquetWorkload(VectorWorkload):
     from a second set of parquet files.
     """
 
-    def __init__(self, dataset_name: str, limit: int = 0, query_limit: int = 0):
-        self.dataset = Dataset(dataset_name, limit=limit)
+    def __init__(
+        self, dataset_name: str, cache_dir: str, limit: int = 0, query_limit: int = 0
+    ):
+        self.dataset = Dataset(dataset_name, cache_dir=cache_dir, limit=limit)
         self.dataset.load_documents()
         # TODO: At parquet level should probably just iterate across entire row
         # groups, if the DB wants to split further they can chose to.
