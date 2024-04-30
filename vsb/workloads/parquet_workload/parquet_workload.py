@@ -23,9 +23,7 @@ class ParquetWorkload(VectorWorkload, ABC):
         # groups, if the DB wants to split further they can chose to.
         self.records = Dataset.split_dataframe(self.dataset.documents, 200)
 
-        self.dataset.setup_queries()
-        if query_limit:
-            self.dataset.queries = self.dataset.queries[:query_limit]
+        self.dataset.setup_queries(load_queries=True, query_limit=query_limit)
         self.queries = self.dataset.queries.itertuples(index=False)
 
         # Map of index tenants to the Index instance. Lazily populated as

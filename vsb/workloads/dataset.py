@@ -85,13 +85,12 @@ class Dataset:
         self.documents = self._load_parquet_dataset("passages", limit=self.limit)
 
     def setup_queries(
-        self, load_queries: bool = True, doc_sample_fraction: float = 1.0
+        self, load_queries: bool = True, doc_sample_fraction: float = 1.0, query_limit=0
     ):
-
         # If there is an explicit 'queries' dataset, then load that and use
         # for querying, otherwise use documents directly.
         if load_queries:
-            self.queries = self._load_parquet_dataset("queries")
+            self.queries = self._load_parquet_dataset("queries", limit=query_limit)
         if not self.queries.empty:
             logging.info(
                 f"Using {len(self.queries)} query vectors loaded from dataset 'queries' table"
