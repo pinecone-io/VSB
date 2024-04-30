@@ -2,7 +2,6 @@ from abc import ABC
 
 from ..base import VectorWorkload
 from ..dataset import Dataset
-from ...databases.base import Index
 from ...vsb_types import Record, SearchRequest
 
 
@@ -25,10 +24,6 @@ class ParquetWorkload(VectorWorkload, ABC):
 
         self.dataset.setup_queries(load_queries=True, query_limit=query_limit)
         self.queries = self.dataset.queries.itertuples(index=False)
-
-        # Map of index tenants to the Index instance. Lazily populated as
-        # requests are accessed for a particular tenant.
-        self.indexes = dict()
 
     def next_record_batch(self) -> (str, list[Record]):
         try:

@@ -60,7 +60,7 @@ class VectorSearchUser(User):
         try:
             (tenant, vectors) = self.workload.next_record_batch()
             if vectors:
-                index = self.database.get_index(tenant)
+                index = self.database.get_namespace(tenant)
 
                 start = time.perf_counter()
                 index.upsert_batch(vectors)
@@ -85,7 +85,7 @@ class VectorSearchUser(User):
         (tenant, request) = self.workload.next_request()
         if request:
             try:
-                index = self.database.get_index(tenant)
+                index = self.database.get_namespace(tenant)
 
                 start = time.perf_counter()
                 index.search(request)
