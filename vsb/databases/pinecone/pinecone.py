@@ -13,7 +13,6 @@ class PineconeIndex(Index):
         raise NotImplementedError
 
     def upsert_batch(self, batch: list[Record]):
-
         self.index.upsert(batch)
 
     def search(self, request: SearchRequest) -> list[str]:
@@ -23,9 +22,9 @@ class PineconeIndex(Index):
 
 
 class PineconeDB(DB):
-    def __init__(self, config: dict):
-        self.pc = PineconeGRPC(config["api_key"])
-        self.index = self.pc.Index(name=config["index_name"])
+    def __init__(self, config):
+        self.pc = PineconeGRPC(config.pinecone_api_key)
+        self.index = self.pc.Index(name=config.pinecone_index_name)
 
     def get_index(self, tenant: str) -> Index:
         return PineconeIndex(self.index, tenant)
