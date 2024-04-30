@@ -1,12 +1,12 @@
 from pinecone.grpc import PineconeGRPC, GRPCIndex
 
-from ..base import DB, Index
+from ..base import DB, Namespace
 from ...vsb_types import Vector, Record, SearchRequest
 
 
-class PineconeIndex(Index):
-    def __init__(self, index: GRPCIndex, tenent: str):
-        # TODO: Support multiple indexes (namesspaces)
+class PineconeNamespace(Namespace):
+    def __init__(self, index: GRPCIndex, namespace: str):
+        # TODO: Support multiple namespaces
         self.index = index
 
     def upsert(self, ident, vector, metadata):
@@ -26,5 +26,5 @@ class PineconeDB(DB):
         self.pc = PineconeGRPC(config.pinecone_api_key)
         self.index = self.pc.Index(name=config.pinecone_index_name)
 
-    def get_index(self, tenant: str) -> Index:
-        return PineconeIndex(self.index, tenant)
+    def get_namespace(self, namespace: str) -> Namespace:
+        return PineconeNamespace(self.index, namespace)

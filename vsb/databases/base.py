@@ -4,12 +4,15 @@ from enum import Enum, auto
 from vsb.vsb_types import Record, SearchRequest
 
 
-class Index(ABC):
-    """Abstract class with represents an index or one or more vector records.
+class Namespace(ABC):
+    """Abstract class with represents a set of one or more vector records
+    grouped together by some logical association (e.g. a single tenant / user).
+    A Database consists of one or more Namespaces, and each record exists
+    in exactly one namespace.
     Specific implementations should subclass this and implement all abstract
     methods.
     Instance of this (derived) class are typically created via the corresponding
-    (concrete) DB create_index() method.
+    (concrete) DB get_namespace() method.
     """
 
     @abstractmethod
@@ -26,11 +29,12 @@ class Index(ABC):
 
 
 class DB(ABC):
-    """Abstract class which represents a database which can store vector
-    records in one or more Indexes. Specific Vector DB implementations should
-    subclass this and implement all abstract methods.
+    """Abstract class which represents a vector database made up of one or more
+    Namespaces, where each Namespace contains one or more records.
+
+    Specific Vector DB implementations should subclass this and implement all abstract methods.
     """
 
     @abstractmethod
-    def get_index(self, tenant: str) -> Index:
+    def get_namespace(self, namespace_name: str) -> Namespace:
         raise NotImplementedError
