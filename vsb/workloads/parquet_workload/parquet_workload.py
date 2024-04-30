@@ -1,10 +1,12 @@
+from abc import ABC
+
 from ..base import VectorWorkload
 from ..dataset import Dataset
 from ...databases.base import Index
 from ...vsb_types import Record, SearchRequest
 
 
-class ParquetWorkload(VectorWorkload):
+class ParquetWorkload(VectorWorkload, ABC):
     """A static workload which is implemented by reading records and query from
     two sets of parquet files.
     The initial records for the workload are loaded from one set of parquet

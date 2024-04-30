@@ -13,7 +13,7 @@ from tqdm import tqdm, trange
 class Dataset:
     """
     Represents a Dataset used as the source of documents and/or queries for
-    Pinecone index operations.
+    Vector Search operations.
     The set of datasets are taken from the Pinecone public datasets
     (https://docs.pinecone.io/docs/using-public-datasets), which reside in a
     Google Cloud Storage bucket and are downloaded on-demand on first access,
