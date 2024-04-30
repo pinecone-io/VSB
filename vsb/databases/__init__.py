@@ -9,14 +9,14 @@ class Database(Enum):
     Pinecone = "pinecone"
     PGVector = "pgvector"
 
-    def build(self, config: dict) -> DB:
-        """Construct an instance of DB based on the database enum value"""
+    def get_class(self) -> type[DB]:
+        """Return the DB class to use, based on the value of the enum"""
         match self:
             case Database.Pinecone:
                 from .pinecone.pinecone import PineconeDB
 
-                return PineconeDB(config)
+                return PineconeDB
             case Database.PGVector:
                 from .pgvector.pgvector import PGVectorDB
 
-                return PGVectorDB()
+                return PGVectorDB

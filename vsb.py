@@ -17,7 +17,7 @@ from locust.stats import (
 
 from vsb.databases import Database
 from vsb.workloads import Workload
-import argparse
+import configargparse
 import gevent
 import locust.stats
 import logging
@@ -116,7 +116,9 @@ class VectorSearchUser(User):
 
 
 def main():
-    parser = argparse.ArgumentParser(prog="VCB", description="Vector Search Bench")
+    parser = configargparse.ArgumentParser(
+        prog="VCB", description="Vector Search Bench"
+    )
     parser.add_argument(
         "--database",
         required=True,
@@ -142,12 +144,19 @@ def main():
         help="Directory to store downloaded datasets",
     )
 
-    # TODO: These shouldn't be hardcoded - they should be based on the
-    # specified database - e.g. pgvector knows nothing about API keys.
-    # Preferably some form of generic way of specifying - e.g.
-    #   --database_options=<JSON or similar key=value,key2=value syntax>).
-    parser.add_argument("--api_key", type=str)
-    parser.add_argument("--index_name", type=str)
+    pinecone_group = parser.add_argument_group("Options specific to pinecone database")
+    pinecone_group.add_argument(
+        "--pinecone_api_key",
+        type=str,
+        help="API Key to connect to Pinecone index",
+        env_var="VSB__PINECONE_API_KEY",
+    )
+    pinecone_group.add_argument(
+        "--pinecone_index_name",
+        type=str,
+        help="Name of Pinecone index to connect to",
+        env_var="VSB__PINECONE_INDEX_NAME",
+    )
 
     options = parser.parse_args()
 
@@ -155,10 +164,7 @@ def main():
     env = Environment(user_classes=[VectorSearchUser], events=events)
     env.options = options
 
-    # TODO: Make this more generic for different databases.
-    opts = env.options
-    db_config = {"api_key": opts.api_key, "index_name": opts.index_name}
-    env.database = Database(env.options.database).build(db_config)
+    env.database = Database(env.options.database).get_class()(options)
     env.workload = Workload(env.options.workload).get_class()(options.cache_dir)
 
     runner = env.create_local_runner()
