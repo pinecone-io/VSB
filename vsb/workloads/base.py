@@ -1,11 +1,31 @@
 from abc import ABC, abstractmethod
 
-from vsb.vsb_types import Record, SearchRequest
+from vsb.vsb_types import Record, SearchRequest, DistanceMetric
 
 
 class VectorWorkload(ABC):
+    @property
     @abstractmethod
     def name(self) -> str:
+        """
+        The name of this workload.
+        """
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def dimensions(self) -> int:
+        """
+        The dimensions of (dense) vectors for this workload.
+        """
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def metric(self) -> DistanceMetric:
+        """
+        The distance metric of this workload.
+        """
         raise NotImplementedError
 
     @abstractmethod

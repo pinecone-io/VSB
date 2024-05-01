@@ -69,7 +69,7 @@ class VectorSearchUser(User):
                 elapsed_ms = (stop - start) * 1000.0
                 self.environment.events.request.fire(
                     request_type="Populate",
-                    name=self.workload.name(),
+                    name=self.workload.name,
                     response_time=elapsed_ms,
                     response_length=0,
                 )
@@ -94,7 +94,7 @@ class VectorSearchUser(User):
                 elapsed_ms = (stop - start) * 1000.0
                 self.environment.events.request.fire(
                     request_type="Search",
-                    name=self.workload.name(),
+                    name=self.workload.name,
                     response_time=elapsed_ms,
                     response_length=0,
                 )
@@ -164,8 +164,12 @@ def main():
     env = Environment(user_classes=[VectorSearchUser], events=events)
     env.options = options
 
-    env.database = Database(env.options.database).get_class()(options)
     env.workload = Workload(env.options.workload).get_class()(options.cache_dir)
+    env.database = Database(env.options.database).get_class()(
+        dimensions=env.workload.dimensions,
+        metric=env.workload.metric,
+        config=vars(options),
+    )
 
     runner = env.create_local_runner()
 

@@ -1,7 +1,7 @@
 from pinecone.grpc import PineconeGRPC, GRPCIndex
 
 from ..base import DB, Namespace
-from ...vsb_types import Vector, Record, SearchRequest
+from ...vsb_types import Vector, Record, SearchRequest, DistanceMetric
 
 
 class PineconeNamespace(Namespace):
@@ -22,9 +22,21 @@ class PineconeNamespace(Namespace):
 
 
 class PineconeDB(DB):
-    def __init__(self, config):
-        self.pc = PineconeGRPC(config.pinecone_api_key)
-        self.index = self.pc.Index(name=config.pinecone_index_name)
+    def __init__(self, dimensions: int, metric: DistanceMetric, config: dict):
+        self.pc = PineconeGRPC(config["pinecone_api_key"])
+        index_name = config["pinecone_index_name"]
+        self.index = self.pc.Index(name=index_name)
+        info = self.pc.describe_index(index_name)
+        index_dims = info["dimension"]
+        if dimensions != index_dims:
+            raise ValueError(
+                f"PineconeDB index '{index_name}' has incorrect dimensions - expected:{dimensions}, found:{index_dims}"
+            )
+        index_metric = info["metric"]
+        if metric.value != index_metric:
+            raise ValueError(
+                f"PineconeDB index '{index_name}' has incorrect metric - expected:{metric.value}, found:{index_metric}"
+            )
 
     def get_namespace(self, namespace: str) -> Namespace:
         return PineconeNamespace(self.index, namespace)

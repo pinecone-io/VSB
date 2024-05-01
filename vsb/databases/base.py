@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from enum import Enum, auto
 
-from vsb.vsb_types import Record, SearchRequest
+from vsb.vsb_types import Record, SearchRequest, DistanceMetric
 
 
 class Namespace(ABC):
@@ -34,6 +34,10 @@ class DB(ABC):
 
     Specific Vector DB implementations should subclass this and implement all abstract methods.
     """
+
+    @abstractmethod
+    def __init__(self, dimensions: int, metric: DistanceMetric, config: dict) -> None:
+        raise NotImplementedError
 
     @abstractmethod
     def get_namespace(self, namespace_name: str) -> Namespace:
