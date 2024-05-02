@@ -79,7 +79,7 @@ class TestPinecone:
             workload="mnist-test",
             api_key=api_key,
             index_name=index_name,
-            extra_args=["--clients", "4"],
+            extra_args=["--clients=4"],
         )
         # TODO: Check more here when vsb output is more structured.
         assert proc.returncode == 0
