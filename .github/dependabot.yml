@@ -9,8 +9,3 @@ updates:
     directory: "/"
     schedule:
       interval: "daily"
-    allow:
-      # Allow updates for Pinecone SDK.
-      - dependency-name: "pinecone-client*"
-      # Allow updates for locust itself.
-      - dependency-name: "locust"
