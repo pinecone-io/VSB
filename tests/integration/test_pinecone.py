@@ -71,3 +71,15 @@ class TestPinecone:
         )
         # TODO: Check more here when vsb output is more structured.
         assert proc.returncode == 0
+
+    def test_mnist_concurrent(self, api_key, index_name):
+        # Test "-test" variant of mnist loads and runs successfully with
+        # concurrent clients
+        (proc, stdout, stderr) = spawn_vsb(
+            workload="mnist-test",
+            api_key=api_key,
+            index_name=index_name,
+            extra_args=["--clients", "4"],
+        )
+        # TODO: Check more here when vsb output is more structured.
+        assert proc.returncode == 0
