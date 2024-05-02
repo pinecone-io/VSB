@@ -74,12 +74,24 @@ class TestPinecone:
 
     def test_mnist_concurrent(self, api_key, index_name):
         # Test "-test" variant of mnist loads and runs successfully with
-        # concurrent clients
+        # concurrent users
         (proc, stdout, stderr) = spawn_vsb(
             workload="mnist-test",
             api_key=api_key,
             index_name=index_name,
-            extra_args=["--clients=4"],
+            extra_args=["--users=4"],
+        )
+        # TODO: Check more here when vsb output is more structured.
+        assert proc.returncode == 0
+
+    def test_mnist_multiprocess(self, api_key, index_name):
+        # Test "-test" variant of mnist loads and runs successfully with
+        # concurrent processes and users.
+        (proc, stdout, stderr) = spawn_vsb(
+            workload="mnist-test",
+            api_key=api_key,
+            index_name=index_name,
+            extra_args=["--processes=2", "--users=4"],
         )
         # TODO: Check more here when vsb output is more structured.
         assert proc.returncode == 0
