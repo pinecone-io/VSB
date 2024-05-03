@@ -145,5 +145,18 @@ class TestPinecone:
             index_name=index_name,
             extra_args=["--processes=2", "--users=4"],
         )
-        # TODO: Check more here when vsb output is more structured.
         assert proc.returncode == 0
+
+        check_request_counts(
+            stdout,
+            {
+                # For multiple users the populate phase will chunk the records to be
+                # loaded into num_users chunks - i.e. 4 here. Given the size of each
+                # chunk will be less than the batch size (600 / 4 < 200), then the
+                # number of requests will be equal to the number of users - i.e. 4
+                "Populate": {"num_requests": 4, "num_failures": 0},
+                # TODO: We should only issue each search query once, but currently
+                # we perform the query once per process (2)
+                "Search": {"num_requests": 20 * 2, "num_failures": 0},
+            },
+        )

@@ -16,6 +16,7 @@ pyarrow = "^16.0.0"
 pinecone-client = {version = "^4.0", extras = ["grpc"]}
 tabulate = "^0.9.0"
 pydantic = "^2.7.1"
+locust-plugins = "^4.4.2"
 
 
 [tool.poetry.group.dev.dependencies]

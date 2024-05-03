@@ -1054,6 +1054,34 @@ requests = ">=2.26.0"
 Werkzeug = ">=2.0.0"
 
 [[package]]
+name = "locust-plugins"
+version = "4.4.2"
+description = "Useful plugins/extensions for Locust"
+optional = false
+python-versions = ">=3.8, <4"
+files = [
+    {file = "locust-plugins-4.4.2.tar.gz", hash = "sha256:87dd041f54207e34f281ae5daf541a4b26a0e4ef0cb24df5458b51e85d437e46"},
+    {file = "locust_plugins-4.4.2-py3-none-any.whl", hash = "sha256:c89125ec99a485e67bc4382e37f3669a1a8c71ca37166c8b1c452ecc72183020"},
+]
+
+[package.dependencies]
+locust = ">=2.20.0"
+typing-extensions = "*"
+
+[package.extras]
+all = ["boto3", "confluent-kafka", "lxml", "opencensus-ext-azure", "paho-mqtt (>=1.5.0)", "playwright (>=1.40.0)", "psycogreen", "psycopg2-binary", "pymongo", "websocket-client"]
+appinsights = ["opencensus-ext-azure"]
+boto3 = ["boto3"]
+dashboards = ["psycogreen", "psycopg2-binary"]
+kafka = ["confluent-kafka"]
+mongo = ["pymongo"]
+mqtt = ["paho-mqtt (>=1.5.0)"]
+playwright = ["playwright (>=1.40.0)"]
+resource = ["lxml"]
+webdriver = ["selenium (>=4.0.0)"]
+websocket = ["websocket-client"]
+
+[[package]]
 name = "lz4"
 version = "4.3.3"
 description = "LZ4 Bindings for Python"
@@ -2259,4 +2287,4 @@ testing = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "b4078c8a22f5b4508f22317f6a72104e518b5935f87493d235d86348bab4b497"
+content-hash = "13aef3329885d302ff10c81b52acd1bcd2f0112ec811fa2d365ed6ec23a88f24"
