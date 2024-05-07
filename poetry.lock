@@ -1030,13 +1030,13 @@ i18n = ["Babel (>=2.7)"]
 
 [[package]]
 name = "locust"
-version = "2.26.0"
+version = "2.27.0"
 description = "Developer friendly load testing framework"
 optional = false
 python-versions = ">=3.9"
 files = [
-    {file = "locust-2.26.0-py3-none-any.whl", hash = "sha256:7957d8346e5830ba35e3a7a9c1eebe0fb73b0be117e54213c61ef3bc658a1ae6"},
-    {file = "locust-2.26.0.tar.gz", hash = "sha256:a5cb4c96b8fa1ae5c20876ab8ca9d1e980d56148ed3c187df610cc2546705bff"},
+    {file = "locust-2.27.0-py3-none-any.whl", hash = "sha256:c4db5747eb9a3851216deae8147143d335db41978a9291ac32e113fa9ec8ad39"},
+    {file = "locust-2.27.0.tar.gz", hash = "sha256:0c6d3d2523976dafe734012c41b2f7d9ad7120cbcea76d47d80cec5d6d139905"},
 ]
 
 [package.dependencies]
@@ -1051,7 +1051,6 @@ psutil = ">=5.9.1"
 pywin32 = {version = "*", markers = "platform_system == \"Windows\""}
 pyzmq = ">=25.0.0"
 requests = ">=2.26.0"
-roundrobin = ">=0.0.2"
 Werkzeug = ">=2.0.0"
 
 [[package]]
@@ -2036,16 +2035,6 @@ socks = ["PySocks (>=1.5.6,!=1.5.7)"]
 use-chardet-on-py3 = ["chardet (>=3.0.2,<6)"]
 
 [[package]]
-name = "roundrobin"
-version = "0.0.4"
-description = "Collection of roundrobin utilities"
-optional = false
-python-versions = "*"
-files = [
-    {file = "roundrobin-0.0.4.tar.gz", hash = "sha256:7e9d19a5bd6123d99993fb935fa86d25c88bb2096e493885f61737ed0f5e9abd"},
-]
-
-[[package]]
 name = "rsa"
 version = "4.9"
 description = "Pure-Python RSA implementation"
@@ -2270,4 +2259,4 @@ testing = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "7762506c14555d4da7b7fb84a3fb28ed156c56f44413f29f3503fb53f48ccb44"
+content-hash = "b4078c8a22f5b4508f22317f6a72104e518b5935f87493d235d86348bab4b497"
