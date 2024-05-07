@@ -32,6 +32,15 @@ def add_vsb_cmdline_args(
     )
     if include_locust_args:
         parser.add_argument(
+            "--json",
+            default=False,
+            action="store_true",
+            help="Prints the final stats in JSON format to stdout. Useful for parsing "
+            "the results in other programs/scripts. Use together with --headless "
+            "and --skip-log for an output only with the json data.",
+        )
+
+        parser.add_argument(
             "--loglevel",
             "-L",
             default="INFO",
