@@ -1,3 +1,5 @@
+import json
+
 import pytest
 import subprocess
 import os
@@ -38,6 +40,7 @@ def spawn_vsb(workload, api_key, index_name, timeout=60, extra_args=[]):
             workload,
             "--pinecone_index_name",
             index_name,
+            "--json",
         ]
         + extra_args,
         stdout=PIPE,
@@ -63,14 +66,52 @@ def spawn_vsb(workload, api_key, index_name, timeout=60, extra_args=[]):
     return proc, stdout, stderr
 
 
+def parse_stats_to_json(stdout: str) -> list(dict()):
+    """
+    Parse stdout from VSB into a list of JSON dictionaries, one for each
+    worker which reported stats.
+    """
+    # For each task type (Populate, Search, ...) we see a JSON object,
+    # so must handle multiple JSON objects in stdout.
+    stats = []
+    while stdout:
+        try:
+            stats += json.loads(stdout)
+            break
+        except json.JSONDecodeError as e:
+            stdout = stdout[e.pos :]
+    return stats
+
+
+def check_request_counts(stdout, expected: dict()):
+    stats = parse_stats_to_json(stdout)
+    assert len(stats) == 2, "Expected two stats blocks for Populate and Run phases"
+
+    by_method = {s["method"]: s for s in stats}
+    for phase, stats in expected.items():
+        assert phase in by_method, f"Missing stats for expected phase '{phase}'"
+        for stat in stats:
+            assert by_method[phase][stat] == stats[stat], (
+                f"For phase {phase} and " f"stat {stat}"
+            )
+
+
 class TestPinecone:
-    def test_mnist(self, api_key, index_name):
+    def test_mnist_single(self, api_key, index_name):
         # Test "-test" variant of mnist loads and runs successfully.
         (proc, stdout, stderr) = spawn_vsb(
             workload="mnist-test", api_key=api_key, index_name=index_name
         )
-        # TODO: Check more here when vsb output is more structured.
         assert proc.returncode == 0
+
+        check_request_counts(
+            stdout,
+            {
+                # Populate num_requests counts batches, not individual records.
+                "Populate": {"num_requests": 600 / 200, "num_failures": 0},
+                "Search": {"num_requests": 20, "num_failures": 0},
+            },
+        )
 
     def test_mnist_concurrent(self, api_key, index_name):
         # Test "-test" variant of mnist loads and runs successfully with
@@ -81,8 +122,19 @@ class TestPinecone:
             index_name=index_name,
             extra_args=["--users=4"],
         )
-        # TODO: Check more here when vsb output is more structured.
         assert proc.returncode == 0
+
+        check_request_counts(
+            stdout,
+            {
+                # For multiple users the populate phase will chunk the records to be
+                # loaded into num_users chunks - i.e. 4 here. Given the size of each
+                # chunk will be less than the batch size (600 / 4 < 200), then the
+                # number of requests will be equal to the number of users - i.e. 4
+                "Populate": {"num_requests": 4, "num_failures": 0},
+                "Search": {"num_requests": 20, "num_failures": 0},
+            },
+        )
 
     def test_mnist_multiprocess(self, api_key, index_name):
         # Test "-test" variant of mnist loads and runs successfully with
