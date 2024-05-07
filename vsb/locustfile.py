@@ -13,6 +13,7 @@ from vsb.workloads import Workload
 from locust import events
 from locust.runners import WorkerRunner, MasterRunner
 from locust_plugins.distributor import Distributor
+import gevent
 import locust.stats
 
 # Note: These are _not_ unused, they are required to register our User
@@ -54,6 +55,11 @@ def on_locust_init(environment, **_kwargs):
     )
 
 
+def setup_runner(env):
+    options = env.parsed_options
+    env.workload = Workload(options.workload).get_class()(options.cache_dir)
+
+
 @events.test_start.add_listener
 def setup_worker_dataset(environment, **_kwargs):
     # happens only once in headless runs, but can happen multiple times in web ui-runs
@@ -62,24 +68,17 @@ def setup_worker_dataset(environment, **_kwargs):
         # Make the Workload available for non-MasterRunners (MasterRunners
         # only orchestrate the run when --processes is used, they don't
         # perform any actual operations and hence don't need to load a copy
-        # of the workload data.
-        #
-        # We need to perform this work in a background thread (not in
-        # the current gevent greenlet) as otherwise we block the
-        # current greenlet (pandas data loading is not
-        # gevent-friendly) and locust's master / worker heartbeating
+        # of the workload data).
+        # We need to perform this work in a background thread (not in the current
+        # gevent greenlet) as otherwise we block the current greenlet (pandas data
+        # loading is not gevent-friendly) and locust's master / worker heartbeat
         # thinks the worker has gone missing and can terminate it.
-        #        pool = gevent.get_hub().threadpool
-        #        environment.setup_dataset_greenlet = pool.apply_async(setup_dataset,
-        #                                                              kwds={
-        #                                                              'environment':environment,
-        #
-        #                                                                    'skip_download_and_populate':True})
-        env = environment
-        options = env.parsed_options
-        env.workload = Workload(options.workload).get_class()(options.cache_dir)
-        env.database = Database(options.database).get_class()(
-            dimensions=env.workload.dimensions,
-            metric=env.workload.metric,
+        pool = gevent.get_hub().threadpool
+        pool.apply(setup_runner, kwds={"env": environment})
+
+        options = environment.parsed_options
+        environment.database = Database(options.database).get_class()(
+            dimensions=environment.workload.dimensions,
+            metric=environment.workload.metric,
             config=vars(options),
         )
