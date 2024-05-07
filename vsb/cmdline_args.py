@@ -32,6 +32,14 @@ def add_vsb_cmdline_args(
     )
     if include_locust_args:
         parser.add_argument(
+            "--loglevel",
+            "-L",
+            default="INFO",
+            help="Choose between DEBUG/INFO/WARNING/ERROR/CRITICAL. Default is INFO.",
+            metavar="<level>",
+        )
+
+        parser.add_argument(
             "--users",
             type=int,
             default=1,
