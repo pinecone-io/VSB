@@ -1,8 +1,15 @@
 from pinecone import PineconeException
 from pinecone.grpc import PineconeGRPC, GRPCIndex
+import grpc.experimental.gevent as grpc_gevent
 
 from ..base import DB, Namespace
 from ...vsb_types import Vector, Record, SearchRequest, DistanceMetric
+
+# patch grpc so that it uses gevent instead of asyncio. This is required to
+# allow the multiple coroutines used by locust to run concurrently. Without it
+# (using default asyncio) will block the whole Locust/Python process,
+# in practice limiting to running a single User per worker process.
+grpc_gevent.init_gevent()
 
 
 class PineconeNamespace(Namespace):

@@ -10,7 +10,6 @@ from vsb.cmdline_args import add_vsb_cmdline_args
 from vsb.databases import Database
 from vsb.workloads import Workload
 
-import grpc.experimental.gevent as grpc_gevent
 from locust import events
 from locust.runners import WorkerRunner, MasterRunner
 from locust_plugins.distributor import Distributor
@@ -20,12 +19,6 @@ import locust.stats
 # and custom LoadShape classes with locust.
 import users
 from users import PopulateUser, RunUser, LoadShape
-
-# patch grpc so that it uses gevent instead of asyncio. This is required to
-# allow the multiple coroutines used by locust to run concurrently. Without it
-# (using default asyncio) will block the whole Locust/Python process,
-# in practice limiting to running a single User per worker process.
-grpc_gevent.init_gevent()
 
 # Display stats of benchmark so far to console very 5 seconds.
 locust.stats.CONSOLE_STATS_INTERVAL_SEC = 5
