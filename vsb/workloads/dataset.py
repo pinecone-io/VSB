@@ -7,7 +7,14 @@ import pandas
 import pathlib
 from pinecone.grpc import PineconeGRPC
 from pyarrow.parquet import ParquetDataset
-from tqdm import tqdm, trange
+from rich.progress import (
+    Progress,
+    TextColumn,
+    BarColumn,
+    DownloadColumn,
+    TransferSpeedColumn,
+    TimeRemainingColumn,
+)
 
 
 class Dataset:
@@ -187,20 +194,26 @@ class Dataset:
         to_download = [b for b in filter(lambda b: should_download(b), blobs)]
         if not to_download:
             return
-        pbar = tqdm(
-            desc="Downloading datset",
-            total=sum([b.size for b in to_download]),
-            unit="Bytes",
-            unit_scale=True,
-        )
-        for blob in to_download:
-            logging.debug(
-                f"Dataset file '{blob.name}' not found in cache - will be downloaded"
+
+        with Progress(
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            DownloadColumn(),
+            TransferSpeedColumn(),
+            TimeRemainingColumn(),
+        ) as progress:
+            task = progress.add_task(
+                f"Downloading dataset '{self.name}'",
+                total=sum([b.size for b in to_download]),
             )
-            dest_path = self.cache / blob.name
-            dest_path.parent.mkdir(parents=True, exist_ok=True)
-            blob.download_to_filename(self.cache / blob.name)
-            pbar.update(blob.size)
+            for blob in to_download:
+                logging.debug(
+                    f"Dataset file '{blob.name}' not found in cache - will be downloaded"
+                )
+                dest_path = self.cache / blob.name
+                dest_path.parent.mkdir(parents=True, exist_ok=True)
+                blob.download_to_filename(self.cache / blob.name)
+                progress.update(task, advance=blob.size)
 
     def _load_parquet_dataset(self, kind, limit=0):
         parquet_files = [f for f in (self.cache / self.name).glob(kind + "/*.parquet")]
@@ -329,22 +342,22 @@ class Dataset:
         # chunks of a smaller size, and pass each chunk to upsert_from_dataframe.
         # We still end up with multiple vectors in progress at once, but we
         # limit it to a finite amount and not the entire dataset.
-        pbar = tqdm(desc="Populating index", unit=" vectors", total=len(self.documents))
         upserted_count = 0
-
-        for sub_frame in Dataset.split_dataframe(self.documents, 10000):
-            # The 'values' column in the DataFrame is a pyarrow type (list<item: double>[pyarrow])
-            # as it was read using the pandas.ArrowDtype types_mapper (see _load_parquet_dataset).
-            # This _can_ be automatically converted to a Python list object inside upsert_from_dataframe,
-            # but it is slow, as at that level the DataFrame is iterated row-by-row and the conversion
-            # happens one element at a time.
-            # However, converting the entire sub-frame's column back to a Python object before calling
-            # upsert_from_dataframe() is significantly faster, such that the overall upsert throughput
-            # (including the actual server-side work) is around 2x greater if we pre-convert.
-            converted = sub_frame.astype(dtype={"values": object})
-            resp = index.upsert_from_dataframe(
-                converted, batch_size=200, show_progress=False
-            )
-            upserted_count += resp.upserted_count
-            pbar.update(len(sub_frame))
-        return upserted_count
+        with Progress() as progress:
+            task = progress.add_task("Populating index", total=len(self.documents))
+            for sub_frame in Dataset.split_dataframe(self.documents, 10000):
+                # The 'values' column in the DataFrame is a pyarrow type (list<item: double>[pyarrow])
+                # as it was read using the pandas.ArrowDtype types_mapper (see _load_parquet_dataset).
+                # This _can_ be automatically converted to a Python list object inside upsert_from_dataframe,
+                # but it is slow, as at that level the DataFrame is iterated row-by-row and the conversion
+                # happens one element at a time.
+                # However, converting the entire sub-frame's column back to a Python object before calling
+                # upsert_from_dataframe() is significantly faster, such that the overall upsert throughput
+                # (including the actual server-side work) is around 2x greater if we pre-convert.
+                converted = sub_frame.astype(dtype={"values": object})
+                resp = index.upsert_from_dataframe(
+                    converted, batch_size=200, show_progress=False
+                )
+                upserted_count += resp.upserted_count
+                progress.update(task, advance=len(sub_frame))
+            return upserted_count
