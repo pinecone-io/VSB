@@ -15,21 +15,13 @@ class MnistBase(ParquetWorkload, ABC):
 
 
 class Mnist(MnistBase):
-    def __init__(self, cache_dir: str):
-        super().__init__("mnist", cache_dir=cache_dir)
-
-    @property
-    def name(self) -> str:
-        return "mnist"
+    def __init__(self, name: str, cache_dir: str):
+        super().__init__(name, "mnist", cache_dir=cache_dir)
 
 
 class MnistTest(MnistBase):
     """Reduced, "test" variant of mnist; with 1% of the full dataset (600
     passages and 20 queries)."""
 
-    def __init__(self, cache_dir: str):
-        super().__init__("mnist", cache_dir=cache_dir, limit=600, query_limit=20)
-
-    @property
-    def name(self) -> str:
-        return "mnist-test"
+    def __init__(self, name: str, cache_dir: str):
+        super().__init__(name, "mnist", cache_dir=cache_dir, limit=600, query_limit=20)

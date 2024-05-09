@@ -16,16 +16,12 @@ class RecordBatchIterator:
 
 class VectorWorkload(ABC):
     @abstractmethod
-    def __init__(self, cache_dir: str):
-        raise NotImplementedError
+    def __init__(self, name: str, **kwargs):
+        self._name = name
 
     @property
-    @abstractmethod
     def name(self) -> str:
-        """
-        The name of this workload.
-        """
-        raise NotImplementedError
+        return self._name
 
     @property
     @abstractmethod

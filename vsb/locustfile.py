@@ -57,7 +57,7 @@ def on_locust_init(environment, **_kwargs):
 
 def setup_runner(env):
     options = env.parsed_options
-    env.workload = Workload(options.workload).get_class()(options.cache_dir)
+    env.workload = Workload(options.workload).build(cache_dir=options.cache_dir)
 
 
 @events.test_start.add_listener
