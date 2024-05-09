@@ -10,6 +10,8 @@ class Workload(Enum):
 
     Mnist = "mnist"
     MnistTest = "mnist-test"
+    Nq768 = "nq768"
+    Nq768Test = "nq768-test"
 
     def build(self, **kwargs) -> VectorWorkload:
         """Construct an instance of VectorWorkload based on the value of the enum."""
@@ -27,3 +29,11 @@ class Workload(Enum):
                 from .mnist.mnist import MnistTest
 
                 return MnistTest
+            case Workload.Nq768:
+                from .nq_768_tasb.nq_768_tasb import Nq768Tasb
+
+                return Nq768Tasb
+            case Workload.Nq768Test:
+                from .nq_768_tasb.nq_768_tasb import Nq768TasbTest
+
+                return Nq768TasbTest
