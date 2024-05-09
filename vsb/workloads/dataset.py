@@ -7,7 +7,6 @@ import pandas
 import pathlib
 from pinecone.grpc import PineconeGRPC
 from pyarrow.parquet import ParquetDataset
-from tqdm import tqdm, trange
 
 
 class Dataset:
@@ -187,12 +186,7 @@ class Dataset:
         to_download = [b for b in filter(lambda b: should_download(b), blobs)]
         if not to_download:
             return
-        pbar = tqdm(
-            desc="Downloading datset",
-            total=sum([b.size for b in to_download]),
-            unit="Bytes",
-            unit_scale=True,
-        )
+
         for blob in to_download:
             logging.debug(
                 f"Dataset file '{blob.name}' not found in cache - will be downloaded"
@@ -200,7 +194,6 @@ class Dataset:
             dest_path = self.cache / blob.name
             dest_path.parent.mkdir(parents=True, exist_ok=True)
             blob.download_to_filename(self.cache / blob.name)
-            pbar.update(blob.size)
 
     def _load_parquet_dataset(self, kind, limit=0):
         parquet_files = [f for f in (self.cache / self.name).glob(kind + "/*.parquet")]
@@ -329,9 +322,7 @@ class Dataset:
         # chunks of a smaller size, and pass each chunk to upsert_from_dataframe.
         # We still end up with multiple vectors in progress at once, but we
         # limit it to a finite amount and not the entire dataset.
-        pbar = tqdm(desc="Populating index", unit=" vectors", total=len(self.documents))
         upserted_count = 0
-
         for sub_frame in Dataset.split_dataframe(self.documents, 10000):
             # The 'values' column in the DataFrame is a pyarrow type (list<item: double>[pyarrow])
             # as it was read using the pandas.ArrowDtype types_mapper (see _load_parquet_dataset).
@@ -346,5 +337,4 @@ class Dataset:
                 converted, batch_size=200, show_progress=False
             )
             upserted_count += resp.upserted_count
-            pbar.update(len(sub_frame))
         return upserted_count
