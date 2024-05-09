@@ -3,6 +3,7 @@ from collections.abc import Iterator
 
 import numpy
 import pandas
+import pyarrow
 
 from ..base import VectorWorkload, RecordBatchIterator
 from ..dataset import Dataset
@@ -21,10 +22,6 @@ class ParquetWorkload(VectorWorkload, ABC):
         self, dataset_name: str, cache_dir: str, limit: int = 0, query_limit: int = 0
     ):
         self.dataset = Dataset(dataset_name, cache_dir=cache_dir, limit=limit)
-        self.dataset.load_documents()
-        # TODO: At parquet level should probably just iterate across entire row
-        # groups, if the DB wants to split further they can chose to.
-        self.records = Dataset.split_dataframe(self.dataset.documents, 200)
 
         self.dataset.setup_queries(load_queries=True, query_limit=query_limit)
         self.queries = self.dataset.queries.itertuples(index=False)
@@ -32,29 +29,22 @@ class ParquetWorkload(VectorWorkload, ABC):
     def get_record_batch_iter(
         self, num_users: int, user_id: int
     ) -> RecordBatchIterator:
-        # Need split the documents into `num_users` subsets, then return an
-        # iterator over the `user_id`th subset.
-        total_docs = self.dataset.documents.shape[0]
-        quotient, remainder = divmod(total_docs, num_users)
-        chunks = [quotient + (1 if r < remainder else 0) for r in range(num_users)]
-        # Determine start position based on sum of size of all chunks prior
-        # to ours.
-        start = sum(chunks[:user_id])
-        # Note: For pandas DataFrames, slicing is *inclusive*.
-        end = start + chunks[user_id]
-        user_chunk = self.dataset.documents[start:end]
 
-        # TODO: Add multiple tenant support.
-        def batch_dataframe(
-            df: pandas.DataFrame, batch_size
-        ) -> Iterator[pandas.DataFrame]:
-            for i in range(0, len(df), batch_size):
-                batch = df.iloc[i : i + batch_size]
-                records = [r for r in batch.to_dict("records")]
-                yield "", records
+        # TODO: Make batch size configurable.
+        batch_iter = self.dataset.get_batch_iterator(num_users, user_id, 200)
 
-        # TODO: make batch size configurable.
-        return batch_dataframe(user_chunk, 200)
+        # Need to convert the pyarrow RecordBatch into a python dict for
+        # consumption by the database.
+        def recordbatch_to_pylist(iter: Iterator[pyarrow.RecordBatch]):
+            for batch in iter:
+                # Note: RecordBatch does have a do_pylist() method itself, however it's
+                # much slower to use that than convert to pandas and then convert to a
+                # dict (!).
+                # See: https://github.com/apache/arrow/issues/28694
+                # TODO: Add multiple tenant support.
+                yield "", batch.to_pandas().to_dict("records")
+
+        return recordbatch_to_pylist(batch_iter)
 
     def next_request(self) -> (str, SearchRequest | None):
         try:

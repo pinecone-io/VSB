@@ -1,11 +1,14 @@
 from collections.abc import Iterator
 
+import numpy
+import pyarrow.parquet
 from google.cloud.storage import Bucket, Client, transfer_manager
 import json
 import logging
 import pandas
 import pathlib
 from pinecone.grpc import PineconeGRPC
+import pyarrow.dataset as ds
 from pyarrow.parquet import ParquetDataset
 
 
@@ -83,12 +86,63 @@ class Dataset:
         # to use for documents into a pandas dataframe.
         self.documents = self._load_parquet_dataset("passages", limit=self.limit)
 
+    def get_batch_iterator(
+        self, num_chunks: int, chunk_id: int, batch_size: int
+    ) -> Iterator[pyarrow.RecordBatch]:
+        """Split the dataset's documents into num_chunks of approximately the
+        same size, returning an Iterator over the Nth chunk which yields
+        batches of Records of at most batch_size.
+
+        :param num_chunks: Number of chunks to split the dataset into.
+        :param chunk_id: Which chunk to return an interator for.
+        :param batch_size: Preferred size of each batch returned.
+        """
+        # If we are working with a complete dataset then we partition based
+        # on the set of files which make up the dataset, returning an iterator
+        # over the given chunk using pyarrow's Dataset.to_batches() API - this
+        # is memory-efficient as it only has to load each file / row group into
+        # memory at a time.
+        # If the dataset is not complete (has been limited to N rows), then we
+        # cannot use Dataset.to_batches() as it has no direct way to limit to N
+        # rows. Given specifying a limit is normally used for a significantly
+        # reduced subset of the dataset (e.g. 'test' variant) and hence memory
+        # usage _should_ be low, we implement in a different manner - read the
+        # first N rows into DataFrame, then split / iterate the dataframe.
+        assert chunk_id >= 0
+        assert chunk_id < num_chunks
+        pq_files = list((self.cache / self.name).glob("passages/*.parquet"))
+        if self.limit:
+            first_n = ds.dataset(pq_files).head(self.limit)
+            # Calculate start / end for this chunk, then split the table
+            # and create an iterator over it.
+            quotient, remainder = divmod(self.limit, num_chunks)
+            chunks = [quotient + (1 if r < remainder else 0) for r in range(num_chunks)]
+            # Determine start position based on sum of size of all chunks prior
+            # to ours.
+            start = sum(chunks[:chunk_id])
+            user_chunk = first_n.slice(offset=start, length=chunks[chunk_id])
+
+            def table_to_batches(table) -> Iterator[pyarrow.RecordBatch]:
+                for batch in table.to_batches(batch_size):
+                    yield batch
+
+            return table_to_batches(user_chunk)
+        else:
+            # Need split the parquet files into `num_users` subset of files,
+            # then return an iterator over the `user_id`th subset.
+            self._download_dataset_files()
+            chunks = numpy.array_split(pq_files, num_chunks)
+            my_chunks = list(chunks[chunk_id])
+            docs_pq_dataset = ds.dataset(my_chunks)
+            return docs_pq_dataset.to_batches(batch_size=batch_size)
+
     def setup_queries(
         self, load_queries: bool = True, doc_sample_fraction: float = 1.0, query_limit=0
     ):
         # If there is an explicit 'queries' dataset, then load that and use
         # for querying, otherwise use documents directly.
         if load_queries:
+            self._download_dataset_files()
             self.queries = self._load_parquet_dataset("queries", limit=query_limit)
         if not self.queries.empty:
             logging.info(
