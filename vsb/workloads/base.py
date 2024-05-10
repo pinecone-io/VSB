@@ -48,10 +48,13 @@ class VectorWorkload(ABC):
         self, num_users: int, user_id: int
     ) -> RecordBatchIterator:
         """
-        For initial dataset ingest, returns a RecordBatchIterator over the
-        records for the specified `user_id`.
-        Returns a tuple of (namespace, batch of records), or (None, None)
-        if there are no more records to load.
+        For initial record ingest, returns a RecordBatchIterator over the
+        records for the specified `user_id`, assuming there is a total of
+        `num_users` which will be ingesting data - i.e. for the entire workload
+        to be loaded there should be `num_users` calls to this method.
+        Returns an RecordBatchIterator which yields a tuple of
+        (namespace, batch of records), or (None, None) if there are no more
+        records to load.
         :param num_users: The number of clients the dataset ingest is
             distributed across.
         :param user_id: The ID of the user requesting the iterator.

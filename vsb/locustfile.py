@@ -10,22 +10,16 @@ from vsb.cmdline_args import add_vsb_cmdline_args
 from vsb.databases import Database
 from vsb.workloads import Workload
 
-import grpc.experimental.gevent as grpc_gevent
 from locust import events
-from locust.runners import WorkerRunner
+from locust.runners import WorkerRunner, MasterRunner
 from locust_plugins.distributor import Distributor
+import gevent
 import locust.stats
 
 # Note: These are _not_ unused, they are required to register our User
 # and custom LoadShape classes with locust.
 import users
 from users import PopulateUser, RunUser, LoadShape
-
-# patch grpc so that it uses gevent instead of asyncio. This is required to
-# allow the multiple coroutines used by locust to run concurrently. Without it
-# (using default asyncio) will block the whole Locust/Python process,
-# in practice limiting to running a single User per worker process.
-grpc_gevent.init_gevent()
 
 # Display stats of benchmark so far to console very 5 seconds.
 locust.stats.CONSOLE_STATS_INTERVAL_SEC = 5
@@ -59,41 +53,32 @@ def on_locust_init(environment, **_kwargs):
         iter(range(num_users)),
         "user_id.run",
     )
-    if not isinstance(environment.runner, WorkerRunner):
-        # For Worker runners workload setup is deferred until the test_start
-        # event, to avoid multiple processes trying to download at the same time.
-        env.workload = Workload(options.workload).get_class()(options.cache_dir)
-        env.database = Database(options.database).get_class()(
-            dimensions=env.workload.dimensions,
-            metric=env.workload.metric,
-            config=vars(options),
-        )
+
+
+def setup_runner(env):
+    options = env.parsed_options
+    env.workload = Workload(options.workload).get_class()(options.cache_dir)
 
 
 @events.test_start.add_listener
 def setup_worker_dataset(environment, **_kwargs):
     # happens only once in headless runs, but can happen multiple times in web ui-runs
     # in a distributed run, the master does not typically need any test data
-    if isinstance(environment.runner, WorkerRunner):
-        # Make the Workload available for WorkerRunners (non-Worker will have
-        # already setup the dataset via on_locust_init).
-        #
-        # We need to perform this work in a background thread (not in
-        # the current gevent greenlet) as otherwise we block the
-        # current greenlet (pandas data loading is not
-        # gevent-friendly) and locust's master / worker heartbeating
+    if not isinstance(environment.runner, MasterRunner):
+        # Make the Workload available for non-MasterRunners (MasterRunners
+        # only orchestrate the run when --processes is used, they don't
+        # perform any actual operations and hence don't need to load a copy
+        # of the workload data).
+        # We need to perform this work in a background thread (not in the current
+        # gevent greenlet) as otherwise we block the current greenlet (pandas data
+        # loading is not gevent-friendly) and locust's master / worker heartbeat
         # thinks the worker has gone missing and can terminate it.
-        #        pool = gevent.get_hub().threadpool
-        #        environment.setup_dataset_greenlet = pool.apply_async(setup_dataset,
-        #                                                              kwds={
-        #                                                              'environment':environment,
-        #
-        #                                                                    'skip_download_and_populate':True})
-        env = environment
-        options = env.parsed_options
-        env.workload = Workload(options.workload).get_class()(options.cache_dir)
-        env.database = Database(options.database).get_class()(
-            dimensions=env.workload.dimensions,
-            metric=env.workload.metric,
+        pool = gevent.get_hub().threadpool
+        pool.apply(setup_runner, kwds={"env": environment})
+
+        options = environment.parsed_options
+        environment.database = Database(options.database).get_class()(
+            dimensions=environment.workload.dimensions,
+            metric=environment.workload.metric,
             config=vars(options),
         )
