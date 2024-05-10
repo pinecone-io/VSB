@@ -10,6 +10,10 @@
 
 ### Requirements
 * Python >= 3.11
+> [!NOTE]
+> macOS ships with an older version of Python (3.9 or earlier). Ensure you have
+> a new enough version (e.g. via [Homebrew](https://brew.sh) - `brew install
+> python@3.11`) otherwise VSB installation will fail.
 
 ### Install
 1. Clone this repo:
