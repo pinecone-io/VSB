@@ -13,10 +13,10 @@ pandas = "^2.2.1"
 google-cloud-storage = "^2.14.0"
 grpcio = "^1.62.0"
 pyarrow = "^16.0.0"
-pinecone-client = {version = "^4.0", extras = ["grpc"]}
 tabulate = "^0.9.0"
 pydantic = "^2.7.1"
 locust-plugins = "^4.4.2"
+pinecone-client = {git = "git@github.com:pinecone-io/pinecone-python-client.git", extras = ["grpc"], develop = true}
 
 
 [tool.poetry.group.dev.dependencies]

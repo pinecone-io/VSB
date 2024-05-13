@@ -1,5 +1,5 @@
 from pinecone import PineconeException
-from pinecone.grpc import PineconeGRPC, GRPCIndex
+from pinecone.grpc import PineconeGRPC, GRPCIndex, GRPCClientConfig
 import grpc.experimental.gevent as grpc_gevent
 
 from ..base import DB, Namespace
@@ -31,7 +31,9 @@ class PineconeNamespace(Namespace):
 
 class PineconeDB(DB):
     def __init__(self, dimensions: int, metric: DistanceMetric, config: dict):
-        self.pc = PineconeGRPC(config["pinecone_api_key"])
+        self.pc = PineconeGRPC(config["pinecone_api_key"],
+                               proxy_url="http://localhost:8088",
+                               ssl_ca_certs="/home/daver/.mitmproxy/mitmproxy-ca-cert.pem")
         index_name = config["pinecone_index_name"]
         self.index = self.pc.Index(name=index_name)
         info = self.pc.describe_index(index_name)
