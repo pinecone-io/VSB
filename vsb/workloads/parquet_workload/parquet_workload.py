@@ -19,8 +19,14 @@ class ParquetWorkload(VectorWorkload, ABC):
     """
 
     def __init__(
-        self, dataset_name: str, cache_dir: str, limit: int = 0, query_limit: int = 0
+        self,
+        name: str,
+        dataset_name: str,
+        cache_dir: str,
+        limit: int = 0,
+        query_limit: int = 0,
     ):
+        super().__init__(name)
         self.dataset = Dataset(dataset_name, cache_dir=cache_dir, limit=limit)
 
         self.dataset.setup_queries(load_queries=True, query_limit=query_limit)
