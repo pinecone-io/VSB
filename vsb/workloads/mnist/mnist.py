@@ -18,6 +18,10 @@ class Mnist(MnistBase):
     def __init__(self, name: str, cache_dir: str):
         super().__init__(name, "mnist", cache_dir=cache_dir)
 
+    @property
+    def record_count(self) -> int:
+        return 60000
+
 
 class MnistTest(MnistBase):
     """Reduced, "test" variant of mnist; with 1% of the full dataset (600
@@ -25,3 +29,7 @@ class MnistTest(MnistBase):
 
     def __init__(self, name: str, cache_dir: str):
         super().__init__(name, "mnist", cache_dir=cache_dir, limit=600, query_limit=20)
+
+    @property
+    def record_count(self) -> int:
+        return 600
