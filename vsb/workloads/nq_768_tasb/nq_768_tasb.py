@@ -18,6 +18,10 @@ class Nq768Tasb(Nq768TasbBase):
     def __init__(self, name: str, cache_dir: str):
         super().__init__(name, "nq-768-tasb", cache_dir=cache_dir)
 
+    @property
+    def record_count(self) -> int:
+        return 2680893
+
 
 class Nq768TasbTest(Nq768TasbBase):
     """Reduced, "test" variant of nq768; with ~1% of the full dataset."""
@@ -26,3 +30,7 @@ class Nq768TasbTest(Nq768TasbBase):
         super().__init__(
             name, "nq-768-tasb", cache_dir=cache_dir, limit=26809, query_limit=35
         )
+
+    @property
+    def record_count(self) -> int:
+        return 26809

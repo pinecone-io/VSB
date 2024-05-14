@@ -6,6 +6,8 @@ from enum import Enum, auto
 from locust import User, task, LoadTestShape
 from locust.exception import StopUser
 
+from vsb.databases import DB
+
 # Dict of Distributors - objects which distribute test data across all
 # VSB Users, potentially across multiple processes.
 distributors = {}
@@ -19,6 +21,7 @@ class PopulateUser(User):
 
     class State(Enum):
         Active = auto()
+        Finalize = auto()
         Done = auto()
 
     def __init__(self, environment):
@@ -29,7 +32,7 @@ class PopulateUser(User):
         self.user_id = next(distributors["user_id.populate"])
         logging.debug(f"Initialising PopulateUser id:{self.user_id}")
         self.users_total = environment.parsed_options.num_users
-        self.database = environment.database
+        self.database: DB = environment.database
         self.workload = environment.workload
         self.state = PopulateUser.State.Active
         self.load_iter = None
@@ -39,6 +42,8 @@ class PopulateUser(User):
         match self.state:
             case PopulateUser.State.Active:
                 self.do_load()
+            case PopulateUser.State.Finalize:
+                self.do_finalize()
             case PopulateUser.State.Done:
                 # Nothing more to do, but sleep briefly here to prevent
                 # us busy-looping in this state.
@@ -67,14 +72,25 @@ class PopulateUser(User):
                 )
             except StopIteration:
                 logging.debug(f"User id:{self.user_id} completed Populate phase")
-                self.environment.runner.send_message(
-                    "update_progress", {"user": self.user_id, "phase": "populate"}
-                )
-                self.state = PopulateUser.State.Done
+                self.state = PopulateUser.State.Finalize
         except Exception as e:
             traceback.print_exception(e)
             self.environment.runner.quit()
             raise StopUser
+
+    def do_finalize(self):
+        """Perform any database-specific finalization of the populate phase
+        (e.g. wait for index building to be complete) before PopulateUser
+        declares complete.
+        """
+        if self.user_id == 0:
+            # First user only performs finalization (don't want
+            # to call repeatedly if >1 user).
+            self.database.finalize_population(self.workload.record_count)
+        self.environment.runner.send_message(
+            "update_progress", {"user": self.user_id, "phase": "populate"}
+        )
+        self.state = PopulateUser.State.Done
 
 
 class RunUser(User):

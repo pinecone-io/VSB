@@ -1,6 +1,9 @@
+import logging
+
 from pinecone import PineconeException
 from pinecone.grpc import PineconeGRPC, GRPCIndex
 import grpc.experimental.gevent as grpc_gevent
+import time
 
 from ..base import DB, Namespace
 from ...vsb_types import Vector, Record, SearchRequest, DistanceMetric
@@ -55,3 +58,16 @@ class PineconeDB(DB):
 
     def get_namespace(self, namespace: str) -> Namespace:
         return PineconeNamespace(self.index, namespace)
+
+    def finalize_population(self, record_count: int):
+        logging.debug(f"PineconeDB: Waiting for record count to reach {record_count}")
+        """Wait until all records are visible in the index"""
+        while True:
+            index_count = self.index.describe_index_stats()["total_vector_count"]
+            if index_count >= record_count:
+                logging.debug(
+                    f"PineconeDB: Index vector count reached {index_count}, "
+                    f"finalize is complete"
+                )
+                break
+            time.sleep(1)

@@ -39,6 +39,15 @@ class VectorWorkload(ABC):
         """
         raise NotImplementedError
 
+    @property
+    @abstractmethod
+    def record_count(self) -> int:
+        """
+        The number of records in the initial workload after population, but
+        before issuing any additional requests.
+        """
+        raise NotImplementedError
+
     @abstractmethod
     def get_record_batch_iter(
         self, num_users: int, user_id: int

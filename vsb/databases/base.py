@@ -41,4 +41,19 @@ class DB(ABC):
 
     @abstractmethod
     def get_namespace(self, namespace_name: str) -> Namespace:
+        """
+        Returns the Namespace to use for the specified namespace name.
+        """
+        raise NotImplementedError
+
+    def finalize_population(self, record_count: int):
+        """
+        Performs any finalization of the database at the end of the Populate
+        phase. Call should block until the database is ready to perform the
+        next phase.
+        For databases which index records asynchronously, this should wait for all
+        records to be indexed.
+        For databases which perform indexing as a separate step to data ingest,
+        this should create the index(es).
+        """
         raise NotImplementedError
