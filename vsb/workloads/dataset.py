@@ -135,6 +135,9 @@ class Dataset:
             self._download_dataset_files()
             chunks = numpy.array_split(pq_files, num_chunks)
             my_chunks = list(chunks[chunk_id])
+            if not my_chunks:
+                # No chunks for this user - nothing to do.
+                return []
             docs_pq_dataset = ds.dataset(my_chunks)
             return docs_pq_dataset.to_batches(columns=columns, batch_size=batch_size)
 
