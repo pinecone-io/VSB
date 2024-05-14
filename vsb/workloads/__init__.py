@@ -12,6 +12,8 @@ class Workload(Enum):
     MnistTest = "mnist-test"
     Nq768 = "nq768"
     Nq768Test = "nq768-test"
+    YFCC = "yfcc-10M"
+    YFCCTest = "yfcc-test"
 
     def build(self, **kwargs) -> VectorWorkload:
         """Construct an instance of VectorWorkload based on the value of the enum."""
@@ -37,3 +39,11 @@ class Workload(Enum):
                 from .nq_768_tasb.nq_768_tasb import Nq768TasbTest
 
                 return Nq768TasbTest
+            case Workload.YFCC:
+                from .yfcc.yfcc import YFCC
+
+                return YFCC
+            case Workload.YFCCTest:
+                from .yfcc.yfcc import YFCCTest
+
+                return YFCCTest

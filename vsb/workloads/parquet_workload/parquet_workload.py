@@ -1,13 +1,14 @@
+import json
 from abc import ABC
 from collections.abc import Iterator
+from typing import Generator
 
-import numpy
 import pandas
 import pyarrow
 
-from ..base import VectorWorkload, RecordBatchIterator
+from ..base import VectorWorkload
 from ..dataset import Dataset
-from ...vsb_types import Record, SearchRequest
+from ...vsb_types import SearchRequest, RecordList
 
 
 class ParquetWorkload(VectorWorkload, ABC):
@@ -34,23 +35,29 @@ class ParquetWorkload(VectorWorkload, ABC):
 
     def get_record_batch_iter(
         self, num_users: int, user_id: int
-    ) -> RecordBatchIterator:
+    ) -> Iterator[tuple[str, RecordList]]:
 
         # TODO: Make batch size configurable.
         batch_iter = self.dataset.get_batch_iterator(num_users, user_id, 200)
 
-        # Need to convert the pyarrow RecordBatch into a python dict for
-        # consumption by the database.
-        def recordbatch_to_pylist(iter: Iterator[pyarrow.RecordBatch]):
+        # Need to convert the pyarrow RecordBatch into a pandas DataFrame with
+        # correctly formatted fields for consumption by the database.
+        def recordbatch_to_dataframe(
+            iter: Iterator[pyarrow.RecordBatch],
+        ) -> Generator[tuple[str, list[dict]], None, None]:
             for batch in iter:
-                # Note: RecordBatch does have a do_pylist() method itself, however it's
+                # Note: RecordBatch does have a to_pylist() method itself, however it's
                 # much slower to use that than convert to pandas and then convert to a
                 # dict (!).
                 # See: https://github.com/apache/arrow/issues/28694
                 # TODO: Add multiple tenant support.
-                yield "", batch.to_pandas().to_dict("records")
+                records: pandas.DataFrame = batch.to_pandas()
+                # Metadata is encoded as a string, need to convert to JSON dict
+                if "metadata" in records:
+                    records["metadata"] = records["metadata"].map(json.loads)
+                yield "", RecordList(records.to_dict("records"))
 
-        return recordbatch_to_pylist(batch_iter)
+        return recordbatch_to_dataframe(batch_iter)
 
     def next_request(self) -> (str, SearchRequest | None):
         try:

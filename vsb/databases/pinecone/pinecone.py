@@ -6,7 +6,7 @@ import grpc.experimental.gevent as grpc_gevent
 import time
 
 from ..base import DB, Namespace
-from ...vsb_types import Vector, Record, SearchRequest, DistanceMetric
+from ...vsb_types import Record, SearchRequest, DistanceMetric, RecordList
 
 # patch grpc so that it uses gevent instead of asyncio. This is required to
 # allow the multiple coroutines used by locust to run concurrently. Without it
@@ -23,11 +23,15 @@ class PineconeNamespace(Namespace):
     def upsert(self, ident, vector, metadata):
         raise NotImplementedError
 
-    def upsert_batch(self, batch: list[Record]):
-        self.index.upsert(batch)
+    def upsert_batch(self, batch: RecordList):
+        # Pinecone expects a list of dicts (or tuples).
+        dicts = [dict(rec) for rec in batch]
+        self.index.upsert(dicts)
 
     def search(self, request: SearchRequest) -> list[str]:
-        result = self.index.query(vector=request.values, top_k=request.top_k)
+        result = self.index.query(
+            vector=request.values, top_k=request.top_k, filter=request.filter
+        )
         matches = [m["id"] for m in result["matches"]]
         return matches
 

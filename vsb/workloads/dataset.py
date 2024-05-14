@@ -111,8 +111,12 @@ class Dataset:
         assert chunk_id >= 0
         assert chunk_id < num_chunks
         pq_files = list((self.cache / self.name).glob("passages/*.parquet"))
+
         if self.limit:
-            first_n = ds.dataset(pq_files).head(self.limit)
+            dset = ds.dataset(pq_files)
+            columns = self._get_set_of_passages_columns_to_read(dset)
+            first_n = dset.head(self.limit, columns=columns)
+
             # Calculate start / end for this chunk, then split the table
             # and create an iterator over it.
             quotient, remainder = divmod(self.limit, num_chunks)
@@ -137,7 +141,8 @@ class Dataset:
                 # No chunks for this user - nothing to do.
                 return []
             docs_pq_dataset = ds.dataset(my_chunks)
-            return docs_pq_dataset.to_batches(batch_size=batch_size)
+            columns = self._get_set_of_passages_columns_to_read(docs_pq_dataset)
+            return docs_pq_dataset.to_batches(columns=columns, batch_size=batch_size)
 
     def setup_queries(
         self, load_queries: bool = True, doc_sample_fraction: float = 1.0, query_limit=0
@@ -263,20 +268,7 @@ class Dataset:
             columns = ["id", "values", "sparse_values", "metadata"]
             metadata_column = "metadata"
         elif kind == "passages":
-            # 'passages' format used by benchmarking datasets (e.g. mnist,
-            # nq-769-tasb, yfcc, ...). Always has 'id' and 'values' fields;
-            # may optionally have `sparse_values` and `metadata`.
-            # Validate required fields are present.
-            required = set(["id", "values"])
-            fields = set(dataset.schema.names)
-            missing = fields.difference(required)
-            if len(missing) > 0:
-                raise ValueError(
-                    f"Missing required fields ({missing}) for passages from dataset '{self.name}'"
-                )
-            # Also load in supported optional fields.
-            optional = set(["sparse_values", "metadata"])
-            columns = list(required.union((fields.intersection(optional))))
+            columns = self._get_set_of_passages_columns_to_read(dataset)
             metadata_column = "metadata"
         elif kind == "queries":
             # 'queries' format which consists of query input parameters
@@ -395,3 +387,19 @@ class Dataset:
             )
             upserted_count += resp.upserted_count
         return upserted_count
+
+    def _get_set_of_passages_columns_to_read(self, dset: ds.Dataset):
+        # 'passages' format used by benchmarking datasets (e.g. mnist,
+        # nq-769-tasb, yfcc, ...) always have 'id' and 'values' fields;
+        # may optionally have `sparse_values` and `metadata`.
+        # Validate required fields are present.
+        required = set(["id", "values"])
+        fields = set(dset.schema.names)
+        missing = required.difference(fields)
+        if len(missing) > 0:
+            raise ValueError(
+                f"Missing required fields ({missing}) for passages from dataset '{self.name}'"
+            )
+        # Also load in supported optional fields.
+        optional = set(["sparse_values", "metadata"])
+        return list(required.union((fields.intersection(optional))))

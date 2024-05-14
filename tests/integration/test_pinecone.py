@@ -237,3 +237,21 @@ class TestPinecone:
                 "Search": {"num_requests": 20, "num_failures": 0},
             },
         )
+
+    def test_filtered(self, api_key, pinecone_index_yfcc):
+        # Tests a workload with metadata and filtering (such as YFCC-test).
+        (proc, stdout, stderr) = spawn_vsb(
+            workload="yfcc-test",
+            api_key=api_key,
+            index_name=pinecone_index_yfcc,
+            extra_args=["--users=10"],
+        )
+        assert proc.returncode == 0
+        check_request_counts(
+            stdout,
+            {
+                # Populate num_requests counts batches, not individual records.
+                "Populate": {"num_requests": 10_000 / 200, "num_failures": 0},
+                "Search": {"num_requests": 500, "num_failures": 0},
+            },
+        )
