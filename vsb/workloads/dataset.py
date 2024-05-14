@@ -111,8 +111,10 @@ class Dataset:
         assert chunk_id >= 0
         assert chunk_id < num_chunks
         pq_files = list((self.cache / self.name).glob("passages/*.parquet"))
+        columns = ["id", "values", "metadata"]
         if self.limit:
-            first_n = ds.dataset(pq_files).head(self.limit)
+            first_n = ds.dataset(pq_files).head(self.limit, columns=columns)
+
             # Calculate start / end for this chunk, then split the table
             # and create an iterator over it.
             quotient, remainder = divmod(self.limit, num_chunks)
@@ -134,7 +136,7 @@ class Dataset:
             chunks = numpy.array_split(pq_files, num_chunks)
             my_chunks = list(chunks[chunk_id])
             docs_pq_dataset = ds.dataset(my_chunks)
-            return docs_pq_dataset.to_batches(batch_size=batch_size)
+            return docs_pq_dataset.to_batches(columns=columns, batch_size=batch_size)
 
     def setup_queries(
         self, load_queries: bool = True, doc_sample_fraction: float = 1.0, query_limit=0

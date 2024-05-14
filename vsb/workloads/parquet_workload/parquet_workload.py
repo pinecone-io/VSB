@@ -1,3 +1,4 @@
+import json
 from abc import ABC
 from collections.abc import Iterator
 
@@ -48,7 +49,10 @@ class ParquetWorkload(VectorWorkload, ABC):
                 # dict (!).
                 # See: https://github.com/apache/arrow/issues/28694
                 # TODO: Add multiple tenant support.
-                yield "", batch.to_pandas().to_dict("records")
+                records = batch.to_pandas()
+                # Metadata is encoded as a string, need to convert to JSON dict
+                records["metadata"] = records["metadata"].map(json.loads)
+                yield "", records.to_dict("records")
 
         return recordbatch_to_pylist(batch_iter)
 
