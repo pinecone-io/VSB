@@ -6,11 +6,16 @@ Its purpose is to:
 use to drive all our benchmarks.
 """
 
+import logging
+import traceback
+
+from locust.exception import StopUser
+
 from vsb.cmdline_args import add_vsb_cmdline_args
 from vsb.databases import Database
 from vsb.workloads import Workload
 
-from locust import events
+from locust import events, log
 from locust.runners import WorkerRunner, MasterRunner
 from locust_plugins.distributor import Distributor
 import gevent
@@ -76,9 +81,17 @@ def setup_worker_dataset(environment, **_kwargs):
         pool = gevent.get_hub().threadpool
         pool.apply(setup_runner, kwds={"env": environment})
 
-        options = environment.parsed_options
-        environment.database = Database(options.database).get_class()(
-            dimensions=environment.workload.dimensions,
-            metric=environment.workload.metric,
-            config=vars(options),
-        )
+        try:
+            options = environment.parsed_options
+            environment.database = Database(options.database).get_class()(
+                dimensions=environment.workload.dimensions,
+                metric=environment.workload.metric,
+                config=vars(options),
+            )
+        except:
+            logging.error(
+                "Uncaught exception in during setup - quitting: \n%s",
+                traceback.format_exc(),
+            )
+            log.unhandled_greenlet_exception = True
+            environment.runner.quit()
