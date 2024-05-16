@@ -85,8 +85,6 @@ def parse_stats_to_json(stdout: str) -> list(dict()):
 
 def check_request_counts(stdout, expected: dict()):
     stats = parse_stats_to_json(stdout)
-    assert len(stats) == 2, "Expected two stats blocks for Populate and Run phases"
-
     by_method = {s["method"]: s for s in stats}
     for phase, stats in expected.items():
         assert phase in by_method, f"Missing stats for expected phase '{phase}'"
@@ -158,5 +156,38 @@ class TestPinecone:
                 # TODO: We should only issue each search query once, but currently
                 # we perform the query once per process (2)
                 "Search": {"num_requests": 20 * 2, "num_failures": 0},
+            },
+        )
+
+    def test_mnist_skip_populate(self, api_key, index_name):
+        # Test that skip_populate doesn't re-populate data.
+
+        # Run once to initially populate.
+        (proc, stdout, stderr) = spawn_vsb(
+            workload="mnist-test", api_key=api_key, index_name=index_name
+        )
+        assert proc.returncode == 0
+        check_request_counts(
+            stdout,
+            {
+                # Populate num_requests counts batches, not individual records.
+                "Populate": {"num_requests": 600 / 200, "num_failures": 0},
+                "Search": {"num_requests": 20, "num_failures": 0},
+            },
+        )
+
+        # Run again without population
+        (proc, stdout, stderr) = spawn_vsb(
+            workload="mnist-test",
+            api_key=api_key,
+            index_name=index_name,
+            extra_args=["--skip_populate"],
+        )
+        assert proc.returncode == 0
+        check_request_counts(
+            stdout,
+            {
+                # Populate num_requests counts batches, not individual records.
+                "Search": {"num_requests": 20, "num_failures": 0},
             },
         )

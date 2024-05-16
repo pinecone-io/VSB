@@ -48,13 +48,15 @@ class PineconeDB(DB):
             raise ValueError(
                 f"PineconeDB index '{index_name}' has incorrect metric - expected:{metric.value}, found:{index_metric}"
             )
-        try:
-            self.index.delete(delete_all=True)
-        except PineconeException as e:
-            # Serverless indexes can throw a "Namespace not found" exception for
-            # delete_all if there are no documents in the index. Simply ignore,
-            # as the post-condition is the same.
-            pass
+        # Start with an empty index if we are going to populate it.
+        if not config["skip_populate"]:
+            try:
+                self.index.delete(delete_all=True)
+            except PineconeException as e:
+                # Serverless indexes can throw a "Namespace not found" exception for
+                # delete_all if there are no documents in the index. Simply ignore,
+                # as the post-condition is the same.
+                pass
 
     def get_namespace(self, namespace: str) -> Namespace:
         return PineconeNamespace(self.index, namespace)

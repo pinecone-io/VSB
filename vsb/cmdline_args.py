@@ -30,6 +30,12 @@ def add_vsb_cmdline_args(
         default="/tmp/VSB/cache",
         help="Directory to store downloaded datasets",
     )
+    parser.add_argument(
+        "--skip_populate",
+        action="store_true",
+        help="Skip the populate phase (useful if workload has already been loaded and is static)",
+    )
+
     if include_locust_args:
         parser.add_argument(
             "--json",
