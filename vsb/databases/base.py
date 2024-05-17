@@ -40,6 +40,12 @@ class DB(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def get_batch_size(self, sample_record: Record) -> int:
+        """Return the preferred batch size for a workload consisting of
+        records similar to the sample record."""
+        raise NotImplementedError
+
+    @abstractmethod
     def get_namespace(self, namespace_name: str) -> Namespace:
         """
         Returns the Namespace to use for the specified namespace name.

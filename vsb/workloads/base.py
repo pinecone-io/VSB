@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
 
-from vsb.vsb_types import SearchRequest, DistanceMetric, RecordList
+from vsb.vsb_types import SearchRequest, DistanceMetric, RecordList, Record
 
 
 class VectorWorkload(ABC):
@@ -39,8 +39,16 @@ class VectorWorkload(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def get_sample_record(self) -> Record:
+        """
+        Return a sample record from the workload, to aid in databases sizing
+        the batch size to use, etc.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
     def get_record_batch_iter(
-        self, num_users: int, user_id: int
+        self, num_users: int, user_id: int, batch_size: int
     ) -> Iterator[tuple[str, RecordList]]:
         """
         For initial record ingest, returns a RecordBatchIterator over the
@@ -53,6 +61,7 @@ class VectorWorkload(ABC):
         :param num_users: The number of clients the dataset ingest is
             distributed across.
         :param user_id: The ID of the user requesting the iterator.
+        :param batch_size: The size of the batches to create.
         """
         raise NotImplementedError
 

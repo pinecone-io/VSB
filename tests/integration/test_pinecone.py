@@ -152,7 +152,7 @@ class TestPinecone:
             stdout,
             {
                 # Populate num_requests counts batches, not individual records.
-                "Populate": {"num_requests": 600 / 200, "num_failures": 0},
+                "Populate": {"num_requests": 2, "num_failures": 0},
                 "Search": {"num_requests": 20, "num_failures": 0},
             },
         )
@@ -217,7 +217,7 @@ class TestPinecone:
             stdout,
             {
                 # Populate num_requests counts batches, not individual records.
-                "Populate": {"num_requests": 600 / 200, "num_failures": 0},
+                "Populate": {"num_requests": 2, "num_failures": 0},
                 "Search": {"num_requests": 20, "num_failures": 0},
             },
         )
@@ -251,7 +251,7 @@ class TestPinecone:
             stdout,
             {
                 # Populate num_requests counts batches, not individual records.
-                "Populate": {"num_requests": 10_000 / 200, "num_failures": 0},
+                "Populate": {"num_requests": 210, "num_failures": 0},
                 "Search": {"num_requests": 500, "num_failures": 0},
             },
         )

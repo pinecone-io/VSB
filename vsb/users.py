@@ -54,8 +54,11 @@ class PopulateUser(User):
     def do_load(self):
         try:
             if not self.load_iter:
+                batch_size = self.database.get_batch_size(
+                    self.workload.get_sample_record()
+                )
                 self.load_iter = self.workload.get_record_batch_iter(
-                    num_users=self.users_total, user_id=self.user_id
+                    self.users_total, self.user_id, batch_size
                 )
             try:
                 vectors: RecordList
