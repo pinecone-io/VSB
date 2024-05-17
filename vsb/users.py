@@ -218,7 +218,7 @@ class LoadShape(LoadTestShape):
     def on_update_progress(self, msg, **kwargs):
         # Fired when VSBLoadShape (running on the master) receives an
         # "update_progress" message.
-        logging.info(
+        logging.debug(
             f"VSBLoadShape.update_progress() - user:{msg.data['user']}, phase:{msg.data['phase']}"
         )
         match self.phase:
@@ -234,7 +234,7 @@ class LoadShape(LoadTestShape):
                     )
                     self.phase = LoadShape.Phase.TransitionToRun
                 else:
-                    logging.info(
+                    logging.debug(
                         f"VSBLoadShape.update_progress() - users have now "
                         f"completed: {self.completed_users['populate']}"
                     )
