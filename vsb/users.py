@@ -191,8 +191,13 @@ class LoadShape(LoadTestShape):
                 self.runner.environment.runner.register_message(
                     "update_progress", self.on_update_progress
                 )
-                self.num_users = self.runner.environment.parsed_options.num_users
-                self.phase = LoadShape.Phase.Populate
+                parsed_opts = self.runner.environment.parsed_options
+                self.num_users = parsed_opts.num_users
+                self.phase = (
+                    LoadShape.Phase.Run
+                    if parsed_opts.skip_populate
+                    else LoadShape.Phase.Populate
+                )
                 return self.tick()
             case LoadShape.Phase.Populate:
                 return self.num_users, self.num_users, [PopulateUser]
