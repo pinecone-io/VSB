@@ -1,21 +1,25 @@
+import datetime
 import json
-
-import pytest
-import subprocess
 import os
+import random
+import string
 import sys
+import subprocess
 from subprocess import PIPE
 
+import pytest
+from pinecone import Pinecone
 
-@pytest.fixture
-def index_name():
-    host = os.environ.get("INDEX_NAME", None)
-    if host is None or host == "":
-        raise Exception(
-            "INDEX_NAME environment variable is not set. Set to the host of a Pinecone index suitable for testing "
-            "against."
-        )
-    return host
+
+def read_env_var(name):
+    value = os.environ.get(name)
+    if value is None:
+        raise Exception(f"Environment variable {name} is not set")
+    return value
+
+
+def random_string(length):
+    return "".join(random.choice(string.ascii_lowercase) for _ in range(length))
 
 
 @pytest.fixture
@@ -23,12 +27,54 @@ def api_key():
     host = os.environ.get("PINECONE_API_KEY", None)
     if host is None or host == "":
         raise Exception(
-            "PINECONE_API_KEY environment variable is not set. Set to a Pinecone API key suitable for testing against."
+            "PINECONE_API_KEY environment variable is not set. Set to a Pinecone API "
+            "key suitable for testing against."
         )
     return host
 
 
-def spawn_vsb(workload, api_key, index_name, timeout=60, extra_args=[]):
+def _create_pinecone_index(dims: int, metric: str) -> str:
+    pc = Pinecone(api_key=read_env_var("PINECONE_API_KEY"))
+    now = datetime.datetime.utcnow().replace(microsecond=0).isoformat()
+    now = now.replace(":", "-")
+    index_name = read_env_var("NAME_PREFIX") + "--" + now + "--" + random_string(10)
+    index_name = index_name.lower()
+    environment = os.environ.get("ENVIRONMENT")
+    if environment:
+        spec = {"pod": {"environment": environment, "pod_type": "p1.x1"}}
+    else:
+        spec = {
+            "serverless": {
+                "cloud": read_env_var("SERVERLESS_CLOUD"),
+                "region": read_env_var("SERVERLESS_REGION"),
+            }
+        }
+    pc.create_index(index_name, dims, spec, metric)
+    return index_name
+
+
+def _delete_pinecone_index(index_name: str):
+    pc = Pinecone(api_key=read_env_var("PINECONE_API_KEY"))
+    pc.delete_index(name=index_name)
+
+
+@pytest.fixture(scope="module")
+def pinecone_index_mnist():
+    index_name = _create_pinecone_index(dims=784, metric="euclidean")
+    yield index_name
+    _delete_pinecone_index(index_name)
+
+
+@pytest.fixture(scope="module")
+def pinecone_index_yfcc():
+    index_name = _create_pinecone_index(dims=192, metric="euclidean")
+    yield index_name
+    _delete_pinecone_index(index_name)
+
+
+def spawn_vsb(workload, api_key, index_name, timeout=60, extra_args=None):
+    if extra_args is None:
+        extra_args = []
     env = os.environ
     env.update({"VSB__PINECONE_API_KEY": api_key})
     proc = subprocess.Popen(
@@ -95,10 +141,10 @@ def check_request_counts(stdout, expected: dict()):
 
 
 class TestPinecone:
-    def test_mnist_single(self, api_key, index_name):
+    def test_mnist_single(self, api_key, pinecone_index_mnist):
         # Test "-test" variant of mnist loads and runs successfully.
         (proc, stdout, stderr) = spawn_vsb(
-            workload="mnist-test", api_key=api_key, index_name=index_name
+            workload="mnist-test", api_key=api_key, index_name=pinecone_index_mnist
         )
         assert proc.returncode == 0
 
@@ -111,13 +157,13 @@ class TestPinecone:
             },
         )
 
-    def test_mnist_concurrent(self, api_key, index_name):
+    def test_mnist_concurrent(self, api_key, pinecone_index_mnist):
         # Test "-test" variant of mnist loads and runs successfully with
         # concurrent users
         (proc, stdout, stderr) = spawn_vsb(
             workload="mnist-test",
             api_key=api_key,
-            index_name=index_name,
+            index_name=pinecone_index_mnist,
             extra_args=["--users=4"],
         )
         assert proc.returncode == 0
@@ -134,13 +180,13 @@ class TestPinecone:
             },
         )
 
-    def test_mnist_multiprocess(self, api_key, index_name):
+    def test_mnist_multiprocess(self, api_key, pinecone_index_mnist):
         # Test "-test" variant of mnist loads and runs successfully with
         # concurrent processes and users.
         (proc, stdout, stderr) = spawn_vsb(
             workload="mnist-test",
             api_key=api_key,
-            index_name=index_name,
+            index_name=pinecone_index_mnist,
             extra_args=["--processes=2", "--users=4"],
         )
         assert proc.returncode == 0
@@ -159,12 +205,12 @@ class TestPinecone:
             },
         )
 
-    def test_mnist_skip_populate(self, api_key, index_name):
+    def test_mnist_skip_populate(self, api_key, pinecone_index_mnist):
         # Test that skip_populate doesn't re-populate data.
 
         # Run once to initially populate.
         (proc, stdout, stderr) = spawn_vsb(
-            workload="mnist-test", api_key=api_key, index_name=index_name
+            workload="mnist-test", api_key=api_key, index_name=pinecone_index_mnist
         )
         assert proc.returncode == 0
         check_request_counts(
@@ -180,7 +226,7 @@ class TestPinecone:
         (proc, stdout, stderr) = spawn_vsb(
             workload="mnist-test",
             api_key=api_key,
-            index_name=index_name,
+            index_name=pinecone_index_mnist,
             extra_args=["--skip_populate"],
         )
         assert proc.returncode == 0

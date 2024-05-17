@@ -48,26 +48,13 @@ jobs:
         poetry run flake8 . --extend-exclude .venv --count --select=E9,F63,F7,F82 --show-source --statistics
         # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
         poetry run flake8 . --extend-exclude .venv --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-    - name: Create test Pinecone index
-      id: create-pinecone-index
-      uses: ./.github/actions/create-pinecone-index
-      timeout-minutes: 2
-      with:
-        environment: ${{ matrix.environment == 'pod' && 'us-east4-gcp' || '' }}
-        name_prefix: test-${{ github.run_number }}
-        metric: "euclidean"
-        PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
     - name: Test with pytest
       run: |
         poetry run pytest
       env:
+        ENVIRONMENT: ${{ matrix.environment == 'pod' && 'us-east4-gcp' || '' }}
+        SERVERLESS_REGION: us-west-2
+        SERVERLESS_CLOUD: aws
+        NAME_PREFIX: test-${{ github.run_number }}
         PINECONE_API_KEY: '${{ secrets.PINECONE_API_KEY }}'
-        INDEX_NAME: ${{ steps.create-pinecone-index.outputs.index_name }}
-    - name: Delete test Pinecone index
-      if: always()
-      uses: ./.github/actions/delete-pinecone-index
-      timeout-minutes: 2
-      with:
-        PINECONE_API_KEY: ${{ secrets.PINECONE_API_KEY }}
-        index_name: ${{ steps.create-pinecone-index.outputs.index_name }}
 
