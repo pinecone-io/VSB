@@ -1,17 +1,7 @@
 from abc import ABC, abstractmethod
+from collections.abc import Iterator
 
-from vsb.vsb_types import Record, SearchRequest, DistanceMetric
-
-
-class RecordBatchIterator:
-    """
-    An iterator over a sequence of Records from a Vector Workload. Yields
-    batches of records of a requested count.
-    Used for initial data ingest; a RecordBatchIterator supports iterating over
-    a subset of Records if multiple users are ingesting data concurrently -
-    e.g. for a complete Workload of 1,000 Records and 2 users, each instance of
-    RecordBatchIterator (suitably initialised) will yield 500 records each.
-    """
+from vsb.vsb_types import SearchRequest, DistanceMetric, RecordList
 
 
 class VectorWorkload(ABC):
@@ -51,13 +41,13 @@ class VectorWorkload(ABC):
     @abstractmethod
     def get_record_batch_iter(
         self, num_users: int, user_id: int
-    ) -> RecordBatchIterator:
+    ) -> Iterator[tuple[str, RecordList]]:
         """
         For initial record ingest, returns a RecordBatchIterator over the
         records for the specified `user_id`, assuming there is a total of
         `num_users` which will be ingesting data - i.e. for the entire workload
         to be loaded there should be `num_users` calls to this method.
-        Returns an RecordBatchIterator which yields a tuple of
+        Returns an Iterator which yields a tuple of
         (namespace, batch of records), or (None, None) if there are no more
         records to load.
         :param num_users: The number of clients the dataset ingest is

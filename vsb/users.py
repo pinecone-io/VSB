@@ -7,6 +7,8 @@ from locust import User, task, LoadTestShape
 from locust.exception import StopUser
 
 from vsb.databases import DB
+from vsb.vsb_types import RecordList, SearchRequest
+from vsb.workloads import VectorWorkload
 
 # Dict of Distributors - objects which distribute test data across all
 # VSB Users, potentially across multiple processes.
@@ -33,7 +35,7 @@ class PopulateUser(User):
         logging.debug(f"Initialising PopulateUser id:{self.user_id}")
         self.users_total = environment.parsed_options.num_users
         self.database: DB = environment.database
-        self.workload = environment.workload
+        self.workload: VectorWorkload = environment.workload
         self.state = PopulateUser.State.Active
         self.load_iter = None
 
@@ -56,6 +58,7 @@ class PopulateUser(User):
                     num_users=self.users_total, user_id=self.user_id
                 )
             try:
+                vectors: RecordList
                 (tenant, vectors) = next(self.load_iter)
                 index = self.database.get_namespace(tenant)
 
@@ -218,7 +221,7 @@ class LoadShape(LoadTestShape):
     def on_update_progress(self, msg, **kwargs):
         # Fired when VSBLoadShape (running on the master) receives an
         # "update_progress" message.
-        logging.info(
+        logging.debug(
             f"VSBLoadShape.update_progress() - user:{msg.data['user']}, phase:{msg.data['phase']}"
         )
         match self.phase:
@@ -234,7 +237,7 @@ class LoadShape(LoadTestShape):
                     )
                     self.phase = LoadShape.Phase.TransitionToRun
                 else:
-                    logging.info(
+                    logging.debug(
                         f"VSBLoadShape.update_progress() - users have now "
                         f"completed: {self.completed_users['populate']}"
                     )
