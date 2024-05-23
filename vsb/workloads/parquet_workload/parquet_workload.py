@@ -8,7 +8,7 @@ import pyarrow
 
 from ..base import VectorWorkload
 from ..dataset import Dataset
-from ...vsb_types import SearchRequest, RecordList
+from ...vsb_types import SearchRequest, RecordList, Record
 
 
 class ParquetWorkload(VectorWorkload, ABC):
@@ -33,12 +33,17 @@ class ParquetWorkload(VectorWorkload, ABC):
         self.dataset.setup_queries(load_queries=True, query_limit=query_limit)
         self.queries = self.dataset.queries.itertuples(index=False)
 
+    def get_sample_record(self) -> Record:
+        iter = self.get_record_batch_iter(1, 0, 1)
+        (_, batch) = next(iter)
+        sample = Record.model_validate(batch[0])
+        return sample
+
     def get_record_batch_iter(
-        self, num_users: int, user_id: int
+        self, num_users: int, user_id: int, batch_size: int
     ) -> Iterator[tuple[str, RecordList]]:
 
-        # TODO: Make batch size configurable.
-        batch_iter = self.dataset.get_batch_iterator(num_users, user_id, 200)
+        batch_iter = self.dataset.get_batch_iterator(num_users, user_id, batch_size)
 
         # Need to convert the pyarrow RecordBatch into a pandas DataFrame with
         # correctly formatted fields for consumption by the database.
