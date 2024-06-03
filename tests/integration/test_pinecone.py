@@ -87,6 +87,7 @@ def spawn_vsb(workload, api_key, index_name, timeout=60, extra_args=None):
             "--pinecone_index_name",
             index_name,
             "--json",
+            "--loglevel=DEBUG",
         ]
         + extra_args,
         stdout=PIPE,
