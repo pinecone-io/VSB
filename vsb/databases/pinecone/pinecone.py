@@ -39,6 +39,7 @@ class PineconeNamespace(Namespace):
 class PineconeDB(DB):
     def __init__(self, dimensions: int, metric: DistanceMetric, config: dict):
         self.pc = PineconeGRPC(config["pinecone_api_key"])
+        self.skip_populate = config["skip_populate"]
         index_name = config["pinecone_index_name"]
         self.index = self.pc.Index(name=index_name)
         info = self.pc.describe_index(index_name)
@@ -52,15 +53,6 @@ class PineconeDB(DB):
             raise ValueError(
                 f"PineconeDB index '{index_name}' has incorrect metric - expected:{metric.value}, found:{index_metric}"
             )
-        # Start with an empty index if we are going to populate it.
-        if not config["skip_populate"]:
-            try:
-                self.index.delete(delete_all=True)
-            except PineconeException as e:
-                # Serverless indexes can throw a "Namespace not found" exception for
-                # delete_all if there are no documents in the index. Simply ignore,
-                # as the post-condition is the same.
-                pass
 
     def get_batch_size(self, sample_record: Record) -> int:
         # Return the largest batch size possible, based on the following
@@ -88,6 +80,17 @@ class PineconeDB(DB):
 
     def get_namespace(self, namespace: str) -> Namespace:
         return PineconeNamespace(self.index, namespace)
+
+    def initialize_population(self):
+        # Start with an empty index if we are going to populate it.
+        if not self.skip_populate:
+            try:
+                self.index.delete(delete_all=True)
+            except PineconeException as e:
+                # Serverless indexes can throw a "Namespace not found" exception for
+                # delete_all if there are no documents in the index. Simply ignore,
+                # as the post-condition is the same.
+                pass
 
     def finalize_population(self, record_count: int):
         logging.debug(f"PineconeDB: Waiting for record count to reach {record_count}")

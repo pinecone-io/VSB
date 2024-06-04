@@ -52,6 +52,18 @@ class DB(ABC):
         """
         raise NotImplementedError
 
+    def initialize_population(self):
+        """
+        Performs any initialization of the database at the beginning of the
+        Populate phase - i.e. before Namespace.upsert_batch() is called.
+        Note this is only called once per test run, irrespective of how many
+        users have been configured (not per user).
+        This could include creating any initial datastructures on the database,
+        or one-time configuration. For implementations which don't need
+        any initialization before data is populated, this method left as empty.
+        """
+        pass
+
     def finalize_population(self, record_count: int):
         """
         Performs any finalization of the database at the end of the Populate

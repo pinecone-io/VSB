@@ -98,13 +98,11 @@ def spawn_vsb(workload, api_key, index_name, timeout=60, extra_args=None):
     try:
         stdout, stderr = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired as e:
-        # Echo whatever stdout / stderr we got so far, to aid in debugging
-        if e.stdout:
-            for line in e.stdout.decode(errors="replace").splitlines():
-                print(line)
-        if e.stderr:
-            for line in e.stderr.decode(errors="replace").splitlines():
-                print(line, file=sys.stderr)
+        # kill process and capture as much stdout / stderr as we can.
+        proc.kill()
+        stdout, stderr = proc.communicate()
+        print(stdout)
+        print(stderr, file=sys.stderr)
         raise
     # Echo subprocesses stdout & stderr to our own, so pytest can capture and
     # report them on error.
@@ -188,7 +186,7 @@ class TestPinecone:
             workload="mnist-test",
             api_key=api_key,
             index_name=pinecone_index_mnist,
-            extra_args=["--processes=2", "--users=4"],
+            extra_args=["--processes=4", "--users=4"],
         )
         assert proc.returncode == 0
 
@@ -201,8 +199,8 @@ class TestPinecone:
                 # number of requests will be equal to the number of users - i.e. 4
                 "Populate": {"num_requests": 4, "num_failures": 0},
                 # TODO: We should only issue each search query once, but currently
-                # we perform the query once per process (2)
-                "Search": {"num_requests": 20 * 2, "num_failures": 0},
+                # we perform the query once per process (4)
+                "Search": {"num_requests": 20 * 4, "num_failures": 0},
             },
         )
 
