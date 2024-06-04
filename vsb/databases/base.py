@@ -36,7 +36,9 @@ class DB(ABC):
     """
 
     @abstractmethod
-    def __init__(self, dimensions: int, metric: DistanceMetric, config: dict) -> None:
+    def __init__(
+        self, dimensions: int, metric: DistanceMetric, name: str, config: dict
+    ) -> None:
         raise NotImplementedError
 
     @abstractmethod
@@ -74,4 +76,4 @@ class DB(ABC):
         For databases which perform indexing as a separate step to data ingest,
         this should create the index(es).
         """
-        raise NotImplementedError
+        pass

@@ -37,7 +37,9 @@ class PineconeNamespace(Namespace):
 
 
 class PineconeDB(DB):
-    def __init__(self, dimensions: int, metric: DistanceMetric, config: dict):
+    def __init__(
+        self, dimensions: int, metric: DistanceMetric, name: str, config: dict
+    ):
         self.pc = PineconeGRPC(config["pinecone_api_key"])
         self.skip_populate = config["skip_populate"]
         index_name = config["pinecone_index_name"]

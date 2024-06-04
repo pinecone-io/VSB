@@ -82,6 +82,7 @@ def setup_worker_dataset(environment, **_kwargs):
             environment.database = Database(options.database).get_class()(
                 dimensions=environment.workload.dimensions,
                 metric=environment.workload.metric,
+                name=environment.workload.name,
                 config=vars(options),
             )
         except:
