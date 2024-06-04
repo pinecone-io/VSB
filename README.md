@@ -1,10 +1,11 @@
 # VSB: Vector Search Bench
 
 <p align="center" width="100%">
-   <img src=docs/images/splash.jpg width="320px"/>>
+   <img src=docs/images/splash.jpg width="50%"/>
 </p>
 
-**VSB** is a benchmarking suite for Vector Search.
+**VSB** is a benchmarking suite for Vector Search. It lets you quickly measure how 
+different workloads perform on a range of vector databases.
 
 ## Quickstart
 
