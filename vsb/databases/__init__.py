@@ -17,6 +17,6 @@ class Database(Enum):
 
                 return PineconeDB
             case Database.PGVector:
-                from .pgvector.pgvector import PGVectorDB
+                from .pgvector.pgvector import PgvectorDB
 
-                return PGVectorDB
+                return PgvectorDB

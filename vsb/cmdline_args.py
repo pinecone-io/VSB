@@ -79,3 +79,43 @@ def add_vsb_cmdline_args(
         help="Name of Pinecone index to connect to",
         env_var="VSB__PINECONE_INDEX_NAME",
     )
+
+    pgvector_group = parser.add_argument_group("Options specific to pgvector database")
+    pgvector_group.add_argument(
+        "--pgvector_host",
+        type=str,
+        default="localhost",
+        help="pgvector host to connect to",
+    )
+    pgvector_group.add_argument(
+        "--pgvector_database",
+        type=str,
+        help="pgvector database to use",
+    )
+    pgvector_group.add_argument(
+        "--pgvector_username",
+        type=str,
+        default="postgres",
+        help="Username to connect to pgvector index",
+        env_var="VSB__PGVECTOR_USERNAME",
+    )
+    pgvector_group.add_argument(
+        "--pgvector_password",
+        type=str,
+        default="postgres",
+        help="Password to connect to pgvector index",
+        env_var="VSB__PGVECTOR_PASSWORD",
+    )
+    pgvector_group.add_argument(
+        "--pgvector_index_type",
+        type=str,
+        choices=["ivfflat", "hnsw"],
+        default="hnsw",
+        help="Index type to use for pgvector",
+    )
+    pgvector_group.add_argument(
+        "--pgvector_ivfflat_lists",
+        type=int,
+        default="100",
+        help="For pgvector IVFFLAT indexes, number of lists to create",
+    )

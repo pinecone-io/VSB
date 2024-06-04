@@ -1,0 +1,20 @@
+version: '3.9'
+
+services:
+  pgvector:
+    image: pgvector/pgvector:0.6.0-pg16
+    container_name: vsb_pgvector
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+# To use a persistent volume uncomment this and the 'volumes:' top level
+# section below:
+#    volumes:
+#      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: always
+
+# volumes:
+#   pgdata:
