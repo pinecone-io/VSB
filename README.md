@@ -1,7 +1,7 @@
 # VSB: Vector Search Bench
 
 <p align="center" width="100%">
-   <img src=docs/images/splash.jpg width="50%"/>
+   <img src=docs/images/splash.jpg width="180px"/>
 </p>
 
 **VSB** is a benchmarking suite for Vector Search. It lets you quickly measure how 
@@ -11,6 +11,8 @@ different workloads perform on a range of vector databases.
 
 ### Requirements
 * Python >= 3.11
+* [Docker Compose](https://docs.docker.com/compose/) >= 2.27 (for non-cloud hosted databases)
+
 > [!NOTE]
 > macOS ships with an older version of Python (3.9 or earlier). Ensure you have
 > a new enough version (e.g. via [Homebrew](https://brew.sh) - `brew install
@@ -24,8 +26,7 @@ different workloads perform on a range of vector databases.
 2. Use Poetry to install dependencies
    ```shell
    cd VSB
-   pip3 install poetry
-   poetry install
+   pip3 install poetry && poetry install
    ``` 
 3. Activate environment containing dependencies
    ```shell
@@ -33,17 +34,35 @@ different workloads perform on a range of vector databases.
    ```
 
 ### Run
-   ```shell
-   ./vsb.py --help
-   ```
-This will print a message showing how to run, including the required arguments.
-For example to run the test variant of MNIST against pinecone
+
+#### Cloud-hosted
+
+To run VSB against a cloud-hosted vector database, simply
+provide suitable credentials to an existing database instance. For example
+to run against a Pinecone index:
 ```shell
 ./vsb.py --database=pinecone --workload=mnist-test \
-    --api_key=<API_KEY> \
-    --index_name=<INDEX_NAME>
+    --pinecone_api_key=<API_KEY> \
+    --pinecone_index_name=<INDEX_NAME>
 ```
-Where `--api_key` specifies the Pinecone API key to use and `--index_name` specifies the name of the index to connect to.
+Where `--api_key` specifies the [Pinecone](https://app.pinecone.io) API key to use
+and `--index_name` specifies the name of the index to connect to.
+
+#### Local database via Docker
+
+Alternatively, VSB can run against a locally-hosted vector database such as
+pgvector running in Docker.
+
+Launch the database via `docker compose` in one terminal:
+```shell
+cd docker/pgvector
+docker compose up
+```
+
+From a second terminal run VSB:
+```shell
+./vsb.py --database=pgvector --workload=mnist-test
+```
 
 Example output:
 ```shell
