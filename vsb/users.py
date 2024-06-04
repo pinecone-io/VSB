@@ -15,6 +15,38 @@ from vsb.workloads import VectorWorkload
 distributors = {}
 
 
+class SetupUser(User):
+    """
+    Represents a single user (aka client) setting up the connection / workload
+    for a particular Vector Search database.
+    """
+
+    class State(Enum):
+        Active = auto()
+        Done = auto()
+
+    def __init__(self, environment):
+        super().__init__(environment)
+        logging.debug(f"Initialising SetupUser")
+        self.database: DB = environment.database
+        self.state = self.State.Active
+
+    @task
+    def setup(self):
+        """Perform any database-specific initialization of the populate phase"""
+        match self.state:
+            case self.State.Active:
+                self.database.initialize_population()
+                self.environment.runner.send_message(
+                    "update_progress", {"user": 0, "phase": "setup"}
+                )
+                self.state = self.State.Done
+            case self.State.Done:
+                # Nothing more to do, but sleep briefly here to prevent
+                # us busy-looping in this state.
+                time.sleep(0.1)
+
+
 class PopulateUser(User):
     """
     Represents a single user (aka client) populating records from a workload
@@ -162,23 +194,38 @@ class RunUser(User):
 
 class LoadShape(LoadTestShape):
     """
-    Custom LoadTestShape which consists of two phases, where different
-    User classes are spawned for each of the Populate and Load phases.
+    Custom LoadTestShape which consists of three phases, where different
+    User classes are spawned for each of the Setup, Populate and Run phases.
+
+    In each phase there will be the same number of User tasks created (--users=N).
     """
 
     use_common_options = True
 
     class Phase(Enum):
-        Initialize = auto()
+        Init = auto()
+        """Perform LoadShape initialization """
+        Setup = auto()
+        """Setup database, performing any necessary tasks before records are loaded
+         (e.g. create tables / indexes, configure server)."""
+        TransitionFromSetup = auto()
+        """Wait for all Setup users to complete before advancing to either Populate
+        or Run phase (depending on if --skip_populate was specified)."""
         Populate = auto()
+        """Upsert records and build indexes (either during data load or when all
+         records have been upserted)."""
         TransitionToRun = auto()
+        """Wait for all Populate Users to complete before advancing to Run phase"""
         Run = auto()
+        """Issue requests (queries) to the database and recording the results."""
         Done = auto()
+        """Final phase when all Run Users have completed"""
 
     def __init__(self):
         super().__init__()
-        self.phase = LoadShape.Phase.Initialize
+        self.phase = LoadShape.Phase.Init
         self.num_users = 0
+        self.skip_populate = False
         self.completed_users = {"populate": set(), "run": set()}
 
     def tick(self):
@@ -190,21 +237,31 @@ class LoadShape(LoadTestShape):
         first reduce task count to 0, then ramp back to N tasks of ClassB.
         """
         match self.phase:
-            case LoadShape.Phase.Initialize:
+            case LoadShape.Phase.Init:
                 # self.runner is not initialised until after __init__(), so we must
-                # lazily register our message handler and user count on the first
-                # tick() call.
+                # lazily register our message handler and other information from
+                # self.runner on the first tick() call.
                 self.runner.environment.runner.register_message(
                     "update_progress", self.on_update_progress
                 )
                 parsed_opts = self.runner.environment.parsed_options
                 self.num_users = parsed_opts.num_users
-                self.phase = (
-                    LoadShape.Phase.Run
-                    if parsed_opts.skip_populate
-                    else LoadShape.Phase.Populate
-                )
+                self.skip_populate = parsed_opts.skip_populate
+                self.phase = self.Phase.Setup
                 return self.tick()
+            case LoadShape.Phase.Setup:
+                return 1, 1, [SetupUser]
+            case LoadShape.Phase.TransitionFromSetup:
+                if self.get_current_user_count() == 0:
+                    # Finished all previous SetupUser tasks, can switch to next
+                    # phase now
+                    self.phase = (
+                        LoadShape.Phase.Run
+                        if self.skip_populate
+                        else LoadShape.Phase.Populate
+                    )
+                    return self.tick()
+                return 0, self.num_users, []
             case LoadShape.Phase.Populate:
                 return self.num_users, self.num_users, [PopulateUser]
             case LoadShape.Phase.TransitionToRun:
@@ -228,6 +285,13 @@ class LoadShape(LoadTestShape):
             f"VSBLoadShape.update_progress() - user:{msg.data['user']}, phase:{msg.data['phase']}"
         )
         match self.phase:
+            case LoadShape.Phase.Setup:
+                assert msg.data["phase"] == "setup"
+                logging.info(
+                    f"VSBLoadShape.update_progress() - SetupUser completed - "
+                    f"moving to TransitionFromSetup phase"
+                )
+                self.phase = LoadShape.Phase.TransitionFromSetup
             case LoadShape.Phase.Populate:
                 assert msg.data["phase"] == "populate"
                 self.completed_users["populate"].add(msg.data["user"])

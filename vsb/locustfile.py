@@ -24,7 +24,7 @@ import locust.stats
 # Note: These are _not_ unused, they are required to register our User
 # and custom LoadShape classes with locust.
 import users
-from users import PopulateUser, RunUser, LoadShape
+from users import SetupUser, PopulateUser, RunUser, LoadShape
 
 # Display stats of benchmark so far to console very 5 seconds.
 locust.stats.CONSOLE_STATS_INTERVAL_SEC = 5
@@ -46,18 +46,14 @@ def on_locust_init(environment, **_kwargs):
     num_users = options.num_users or 1
     options.spawn_rate = num_users
 
-    # Create a Distributor which assigns monotonically user_ids to each
-    # VectorSearchUser, so we can split the workload between them.
-    users.distributors["user_id.populate"] = Distributor(
-        environment,
-        iter(range(num_users)),
-        "user_id.populate",
-    )
-    users.distributors["user_id.run"] = Distributor(
-        environment,
-        iter(range(num_users)),
-        "user_id.run",
-    )
+    # Create Distributors which assigns monotonically user_ids to each
+    # of the different USer phasesUser, so we can split the workload between
+    # them.
+    phases = ["setup", "populate", "run"]
+    for phase in ["user_id." + p for p in phases]:
+        users.distributors[phase] = Distributor(
+            environment, iter(range(num_users)), phase
+        )
 
 
 def setup_runner(env):
