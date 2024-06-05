@@ -65,7 +65,7 @@ class PopulateUser(User):
         # will operate on.
         self.user_id = next(distributors["user_id.populate"])
         logging.debug(f"Initialising PopulateUser id:{self.user_id}")
-        self.users_total = environment.parsed_options.num_users
+        self.users_total = environment.parsed_options.num_users or 1
         self.database: DB = environment.database
         self.workload: VectorWorkload = environment.workload
         self.state = PopulateUser.State.Active

@@ -45,7 +45,7 @@ def on_locust_init(environment, **_kwargs):
     num_users = options.num_users or 1
 
     # Create Distributors which assigns monotonically user_ids to each
-    # of the different USer phasesUser, so we can split the workload between
+    # of the different User phases, so we can split the workload between
     # them.
     phases = ["setup", "populate", "run"]
     for phase in ["user_id." + p for p in phases]:
