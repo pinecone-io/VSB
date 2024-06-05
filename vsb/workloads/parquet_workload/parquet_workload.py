@@ -67,7 +67,11 @@ class ParquetWorkload(VectorWorkload, ABC):
     def next_request(self) -> (str, SearchRequest | None):
         try:
             query = next(self.queries)
+            # neighbors are nested inside a `blob` field, need to unnest them
+            # to pass to SearchRequest.
+            args = query._asdict()
+            args.update(args.pop("blob"))
             # TODO: Add multiple tenant support.
-            return "", SearchRequest(**query._asdict())
+            return "", SearchRequest(**args)
         except StopIteration:
             return None, None

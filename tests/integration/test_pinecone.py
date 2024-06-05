@@ -145,12 +145,18 @@ def parse_stats_to_json(stdout: str) -> list(dict()):
 def check_request_counts(stdout, expected: dict()):
     stats = parse_stats_to_json(stdout)
     by_method = {s["method"]: s for s in stats}
-    for phase, stats in expected.items():
+    for phase, expected_stats in expected.items():
         assert phase in by_method, f"Missing stats for expected phase '{phase}'"
-        for stat in stats:
-            assert by_method[phase][stat] == stats[stat], (
-                f"For phase {phase} and " f"stat {stat}"
-            )
+        for ex_name, ex_value in expected_stats.items():
+            actual_value = by_method[phase][ex_name]
+            if callable(ex_value):
+                assert ex_value(actual_value), (
+                    f"For phase {phase} and " f"stat {ex_name}"
+                )
+            else:
+                assert actual_value == ex_value, (
+                    f"For phase {phase} and " f"stat {ex_name}"
+                )
 
 
 class TestPinecone:
@@ -166,7 +172,11 @@ class TestPinecone:
             {
                 # Populate num_requests counts batches, not individual records.
                 "Populate": {"num_requests": 2, "num_failures": 0},
-                "Search": {"num_requests": 20, "num_failures": 0},
+                "Search": {
+                    "num_requests": 20,
+                    "num_failures": 0,
+                    "recall": lambda x: len(x) == 20,
+                },
             },
         )
 
