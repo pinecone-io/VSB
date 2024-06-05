@@ -12,58 +12,63 @@ def add_vsb_cmdline_args(
     :param include_locust_args: If True then also include existing locust
      arguments which VSB also supports.
     """
-    parser.add_argument(
+    main_group = parser.add_argument_group("Main arguments")
+    main_group.add_argument(
         "--database",
         required=True,
         choices=tuple(e.value for e in Database),
         help="The vector search database to test",
     )
-    parser.add_argument(
+    main_group.add_argument(
         "--workload",
         required=True,
         choices=tuple(e.value for e in Workload),
         help="The workload to run",
     )
-    parser.add_argument(
+
+    general_group = parser.add_argument_group("General options")
+    general_group.add_argument(
         "--cache_dir",
         type=str,
         default="/tmp/VSB/cache",
-        help="Directory to store downloaded datasets",
+        help="Directory to store downloaded datasets. Default is %(default)s).",
     )
-    parser.add_argument(
+    general_group.add_argument(
         "--skip_populate",
         action="store_true",
         help="Skip the populate phase (useful if workload has already been loaded and is static)",
     )
 
     if include_locust_args:
-        parser.add_argument(
+        general_group.add_argument(
             "--json",
             default=False,
             action="store_true",
             help="Prints the final stats in JSON format to stdout. Useful for parsing "
             "the results in other programs/scripts. Use together with --headless "
-            "and --skip-log for an output only with the json data.",
+            "and --skip-log for an output only with the json data",
         )
 
-        parser.add_argument(
+        general_group.add_argument(
             "--loglevel",
             "-L",
             default="INFO",
-            help="Choose between DEBUG/INFO/WARNING/ERROR/CRITICAL. Default is INFO.",
+            help="Choose between DEBUG/INFO/WARNING/ERROR/CRITICAL. Default is INFO",
             metavar="<level>",
         )
 
-        parser.add_argument(
+        general_group.add_argument(
             "--users",
             type=int,
             default=1,
-            help="Number of database clients to execute the workload",
+            help="Number of database clients to execute the workload. Default is %("
+            "default)s",
         )
-        parser.add_argument(
+        general_group.add_argument(
             "--processes",
             type=int,
-            help="Number of VSB subprocesses to fork and generate load from",
+            help="Number of VSB subprocesses to fork and generate load from. Default "
+            "is to run in a single process",
         )
 
     pinecone_group = parser.add_argument_group("Options specific to pinecone database")
@@ -85,7 +90,7 @@ def add_vsb_cmdline_args(
         "--pgvector_host",
         type=str,
         default="localhost",
-        help="pgvector host to connect to",
+        help="pgvector host to connect to. Default is %(default)s",
     )
     pgvector_group.add_argument(
         "--pgvector_database",
@@ -96,14 +101,14 @@ def add_vsb_cmdline_args(
         "--pgvector_username",
         type=str,
         default="postgres",
-        help="Username to connect to pgvector index",
+        help="Username to connect to pgvector index. Default is %(default)s",
         env_var="VSB__PGVECTOR_USERNAME",
     )
     pgvector_group.add_argument(
         "--pgvector_password",
         type=str,
         default="postgres",
-        help="Password to connect to pgvector index",
+        help="Password to connect to pgvector index. Default is %(default)s",
         env_var="VSB__PGVECTOR_PASSWORD",
     )
     pgvector_group.add_argument(
@@ -111,11 +116,56 @@ def add_vsb_cmdline_args(
         type=str,
         choices=["ivfflat", "hnsw"],
         default="hnsw",
-        help="Index type to use for pgvector",
+        help="Index type to use for pgvector. Default is %(default)s",
     )
     pgvector_group.add_argument(
         "--pgvector_ivfflat_lists",
         type=int,
         default="100",
-        help="For pgvector IVFFLAT indexes, number of lists to create",
+        help="For pgvector IVFFLAT indexes, number of lists to create. Default is %(default)s",
     )
+
+
+def get_action(parser, argument_name):
+    """Helper to lookup the named Action from the parser."""
+    for action in parser._actions:
+        if action.dest == argument_name:
+            return action
+    return None
+
+
+def validate_parsed_args(
+    parser: configargparse.ArgumentParser, args: configargparse.Namespace
+):
+    """Perform additional validation on parsed arguments, checking that any
+    conditionally required arguments are present (e.g. --database=pinecone makes
+    --pinecone_api_key required).
+    If validation fails then parser.error() is called with an appropriate
+    message, which will terminate the process.
+    """
+    match args.database:
+        case "pinecone":
+            required = ("pinecone_api_key", "pinecone_index_name")
+            missing = list()
+            for name in required:
+                if not getattr(args, name):
+                    missing.append(name)
+            if missing:
+                formatter = configargparse.HelpFormatter(".")
+                formatter.start_section("")
+                formatter.add_text("")
+                for name in missing:
+                    formatter.add_argument(get_action(parser, name))
+                formatter.end_section()
+                formatter.add_text(
+                    "Please ensure all missing arguments are specified " "and re-run."
+                )
+                # Needed to ensure env var names are included in the actions'
+                # help messages.
+                parser.format_help()
+                parser.error(
+                    "The following arguments must be specified when --database is "
+                    "'pinecone'" + formatter.format_help(),
+                )
+        case "pgvector":
+            pass

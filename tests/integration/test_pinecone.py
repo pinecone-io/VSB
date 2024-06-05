@@ -73,23 +73,37 @@ def pinecone_index_yfcc():
 
 
 def spawn_vsb(workload, api_key, index_name, timeout=60, extra_args=None):
+    """Spawn an instance of vsb with the given arguments, returning the proc object,
+    its stdout and stderr.
+    """
+    return spawn_vsb_inner(workload, api_key, index_name, timeout, extra_args)
+
+
+def spawn_vsb_inner(
+    workload, api_key=None, index_name=None, timeout=60, extra_args=None
+):
+    """Inner function to spawn an instance of vsb with the given arguments,
+    returning the proc object, its stdout and stderr.
+    Allows api_key and index_name to be omitted, to test how vsb handles that.
+    """
     if extra_args is None:
         extra_args = []
-    env = os.environ
-    env.update({"VSB__PINECONE_API_KEY": api_key})
+    env = os.environ.copy()
+    if api_key is not None:
+        env.update({"VSB__PINECONE_API_KEY": api_key})
+    args = [
+        "./vsb.py",
+        "--database",
+        "pinecone",
+        "--workload",
+        workload,
+        "--json",
+        "--loglevel=DEBUG",
+    ]
+    if index_name:
+        args += ["--pinecone_index_name", index_name]
     proc = subprocess.Popen(
-        [
-            "./vsb.py",
-            "--database",
-            "pinecone",
-            "--workload",
-            workload,
-            "--pinecone_index_name",
-            index_name,
-            "--json",
-            "--loglevel=DEBUG",
-        ]
-        + extra_args,
+        args + extra_args,
         stdout=PIPE,
         stderr=PIPE,
         env=env,
@@ -254,3 +268,23 @@ class TestPinecone:
                 "Search": {"num_requests": 500, "num_failures": 0},
             },
         )
+
+    def test_required_args(self, api_key, pinecone_index_mnist):
+        # Tests that all required args are correctly checked for at vsb startup.
+        (proc, stdout, stderr) = spawn_vsb_inner(api_key=api_key, workload="mnist-test")
+        assert proc.returncode == 2
+        assert (
+            "The following arguments must be specified when --database is "
+            "'pinecone':"
+        ) in stderr
+        assert "--pinecone_index_name" in stderr
+
+        (proc, stdout, stderr) = spawn_vsb_inner(
+            index_name=pinecone_index_mnist, workload="mnist-test"
+        )
+        assert proc.returncode == 2
+        assert (
+            "The following arguments must be specified when --database is "
+            "'pinecone':"
+        ) in stderr
+        assert "--pinecone_api_key" in stderr

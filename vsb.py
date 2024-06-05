@@ -4,7 +4,7 @@ import sys
 import configargparse
 import locust.main
 
-from vsb.cmdline_args import add_vsb_cmdline_args
+from vsb.cmdline_args import add_vsb_cmdline_args, validate_parsed_args
 
 
 def main():
@@ -20,13 +20,17 @@ def main():
     # inside vsb/locustfile.py which calls the same add_cmdline_ags() method
     # as below.
     parser = configargparse.ArgumentParser(
-        prog="VCB", description="Vector Search Bench"
+        prog="vsb.py",
+        description="Vector Search Bench",
+        usage="vsb.py --database=<DATABASE> --workload=<WORKLOAD> [additional "
+        "options...]\nPass --help for full list of options.\n",
     )
     add_vsb_cmdline_args(parser, include_locust_args=True)
 
-    # Parse options here validate arguments passed, and to print the vsb usage
+    # Parse options and validate arguments passed, and to print the vsb usage
     # message (and exit) if args fail validation or --help passed.
-    parser.parse_args()
+    args = parser.parse_args()
+    validate_parsed_args(parser, args)
 
     # If we got here then args are valid - pass them on to locusts' main(),
     # appending the location of our locustfile and --headless to start
