@@ -40,11 +40,9 @@ def on_locust_init_cmd_line_parser(parser):
 
 @events.init.add_listener
 def on_locust_init(environment, **_kwargs):
-    # Override spwan rate - we want all clients to start at ~the same time.
     env = environment
     options = env.parsed_options
     num_users = options.num_users or 1
-    options.spawn_rate = num_users
 
     # Create Distributors which assigns monotonically user_ids to each
     # of the different USer phasesUser, so we can split the workload between
