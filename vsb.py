@@ -2,10 +2,10 @@
 import sys
 
 import locust.stats
-import vsb.metrics
+import vsb.metrics_tracker
 
 # Monkey-patch locust's print_stats_json function to include our additional metrics.
-locust.stats.print_stats_json = vsb.metrics.print_stats_json
+locust.stats.print_stats_json = vsb.metrics_tracker.print_stats_json
 
 import configargparse
 import locust.main
