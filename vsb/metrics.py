@@ -26,11 +26,13 @@ class Recall(Metric):
 
     @staticmethod
     def measure(request: SearchRequest, results: list[str]) -> float:
-        if not request.neighbors:
-            return None
-        expected: set[str] = set(request.neighbors)
-        actual: set[str] = set(results)
-        matches = len(expected & actual)
+        return Recall._calculate(results, request.neighbors)
+
+    @staticmethod
+    def _calculate(actual: list[str], expected: list[str]) -> float:
+        if not expected:
+            return 0.0
+        matches = len(set(expected) & set(actual))
         return matches / len(expected)
 
 
