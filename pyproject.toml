@@ -20,6 +20,7 @@ locust-plugins = "^4.4.3"
 pgvector = "^0.2.5"
 psycopg = "^3.1.19"
 hdrhistogram = "^0.10.3"
+tenacity = "^8.3.0"
 
 
 [tool.poetry.group.dev.dependencies]

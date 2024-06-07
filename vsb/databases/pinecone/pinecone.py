@@ -2,6 +2,7 @@ import logging
 
 from pinecone import PineconeException
 from pinecone.grpc import PineconeGRPC, GRPCIndex
+from tenacity import retry, stop_after_attempt, wait_exponential_jitter, after_log
 import grpc.experimental.gevent as grpc_gevent
 import time
 
@@ -29,9 +30,17 @@ class PineconeNamespace(Namespace):
         self.index.upsert(dicts)
 
     def search(self, request: SearchRequest) -> list[str]:
-        result = self.index.query(
-            vector=request.values, top_k=request.top_k, filter=request.filter
+        @retry(
+            wait=wait_exponential_jitter(initial=0.1, jitter=0.1),
+            stop=stop_after_attempt(5),
+            after=after_log(logging, logging.DEBUG),
         )
+        def do_query_with_retry():
+            return self.index.query(
+                vector=request.values, top_k=request.top_k, filter=request.filter
+            )
+
+        result = do_query_with_retry()
         matches = [m["id"] for m in result["matches"]]
         return matches
 
