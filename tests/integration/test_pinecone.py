@@ -4,7 +4,13 @@ import os
 import pytest
 from pinecone import Pinecone
 
-from conftest import check_request_counts, read_env_var, random_string, spawn_vsb_inner
+from conftest import (
+    check_request_counts,
+    read_env_var,
+    random_string,
+    spawn_vsb_inner,
+    check_recall_stats,
+)
 
 
 @pytest.fixture
@@ -88,7 +94,7 @@ class TestPinecone:
                 "Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": lambda x: len(x) == 20,
+                    "recall": check_recall_stats,
                 },
             },
         )
@@ -115,7 +121,7 @@ class TestPinecone:
                 "Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": lambda x: len(x) == 20,
+                    "recall": check_recall_stats,
                 },
             },
         )
@@ -144,7 +150,7 @@ class TestPinecone:
                 "Search": {
                     "num_requests": 20 * 4,
                     "num_failures": 0,
-                    "recall": lambda x: len(x) == 20 * 4,
+                    "recall": check_recall_stats,
                 },
             },
         )
@@ -165,7 +171,7 @@ class TestPinecone:
                 "Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": lambda x: len(x) == 20,
+                    "recall": check_recall_stats,
                 },
             },
         )
@@ -185,7 +191,7 @@ class TestPinecone:
                 "Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": lambda x: len(x) == 20,
+                    "recall": check_recall_stats,
                 },
             },
         )
@@ -204,7 +210,11 @@ class TestPinecone:
             {
                 # Populate num_requests counts batches, not individual records.
                 "Populate": {"num_requests": 210, "num_failures": 0},
-                "Search": {"num_requests": 500, "num_failures": 0},
+                "Search": {
+                    "num_requests": 500,
+                    "num_failures": 0,
+                    "recall": check_recall_stats,
+                },
             },
         )
 

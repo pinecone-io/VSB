@@ -35,6 +35,14 @@ def parse_stats_to_json(stdout: str) -> list(dict()):
     return stats
 
 
+def check_recall_stats(actual: dict) -> bool:
+    """Check that the recall stats are present and have the expected structure."""
+    return all(key in actual for key in ["min", "max", "mean", "percentiles"]) and all(
+        str(pct) in actual["percentiles"].keys()
+        for pct in [1, 5, 25, 50, 90, 99, 99.9, 99.99]
+    )
+
+
 def check_request_counts(stdout, expected: dict()) -> None:
     """Given stdout in JSON format from vsb and a dict of expected elements
     to find in stdout, check all expected fields are present, asserting on
