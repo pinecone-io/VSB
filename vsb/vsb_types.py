@@ -27,6 +27,7 @@ class SearchRequest(BaseModel):
     values: Vector
     top_k: int
     filter: dict = None
+    neighbors: list[str] = None
 
 
 class DistanceMetric(Enum):

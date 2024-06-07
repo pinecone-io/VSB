@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 import sys
 
+import locust.stats
+import vsb.metrics_tracker
+
+# Monkey-patch locust's print_stats_json function to include our additional metrics.
+locust.stats.print_stats_json = vsb.metrics_tracker.print_stats_json
+
 import configargparse
 import locust.main
 
@@ -17,7 +23,7 @@ def main():
     # benchmarking arguments. To ensure we can later consume those arguments
     # inside VSB, we _also_ need to add the arguments to locust's own
     # parser, which is done by adding a listener to init_command_line_parser
-    # inside vsb/locustfile.py which calls the same add_cmdline_ags() method
+    # inside vsb/locustfile.py which calls the same add_cmdline_args() method
     # as below.
     parser = configargparse.ArgumentParser(
         prog="vsb.py",

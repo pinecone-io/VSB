@@ -6,6 +6,7 @@ from enum import Enum, auto
 from locust import User, task, LoadTestShape
 from locust.exception import StopUser
 
+from vsb import metrics
 from vsb.databases import DB
 from vsb.vsb_types import RecordList, SearchRequest
 from vsb.workloads import VectorWorkload
@@ -65,7 +66,7 @@ class PopulateUser(User):
         # will operate on.
         self.user_id = next(distributors["user_id.populate"])
         logging.debug(f"Initialising PopulateUser id:{self.user_id}")
-        self.users_total = environment.parsed_options.num_users
+        self.users_total = environment.parsed_options.num_users or 1
         self.database: DB = environment.database
         self.workload: VectorWorkload = environment.workload
         self.state = PopulateUser.State.Active
@@ -163,14 +164,17 @@ class RunUser(User):
                 time.sleep(0.1)
 
     def do_run(self):
+        request: SearchRequest
         (tenant, request) = self.workload.next_request()
         if request:
             try:
                 index = self.database.get_namespace(tenant)
 
                 start = time.perf_counter()
-                index.search(request)
+                results = index.search(request)
                 stop = time.perf_counter()
+
+                calc_metrics = metrics.calculate_metrics(request, results)
 
                 elapsed_ms = (stop - start) * 1000.0
                 self.environment.events.request.fire(
@@ -178,6 +182,7 @@ class RunUser(User):
                     name=self.workload.name,
                     response_time=elapsed_ms,
                     response_length=0,
+                    metrics=calc_metrics,
                 )
             except Exception as e:
                 traceback.print_exception(e)
