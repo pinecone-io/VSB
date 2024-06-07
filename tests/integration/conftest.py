@@ -101,7 +101,7 @@ def spawn_vsb_inner(
     if extra_env:
         env.update(extra_env)
     args = [
-        "./vsb.py",
+        "vsb",
         f"--database={database}",
         f"--workload={workload}",
         "--json",

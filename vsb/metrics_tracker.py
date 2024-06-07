@@ -44,7 +44,7 @@ def print_stats_json(stats: RequestStats) -> None:
     """
     Serialise locust's standard stats, then merge in our custom metrics.
     # Note we replace locust.stats.print_stats_json with this function via
-    # monkey-patching - see vsb.py.
+    # monkey-patching - see vsb/main.py.
     """
     serialized = stats.serialize_stats()
     for s in serialized:

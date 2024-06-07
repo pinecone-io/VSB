@@ -19,16 +19,16 @@ def main():
     # large number of highly configurable arguments locust provides.
     #
     # As such, we define our own argument parser and parse the user's options
-    # before locust - this ensures that 'vsb.py --help' only shows the relevant
+    # before locust - this ensures that 'vsb --help' only shows the relevant
     # benchmarking arguments. To ensure we can later consume those arguments
     # inside VSB, we _also_ need to add the arguments to locust's own
     # parser, which is done by adding a listener to init_command_line_parser
     # inside vsb/locustfile.py which calls the same add_cmdline_args() method
     # as below.
     parser = configargparse.ArgumentParser(
-        prog="vsb.py",
+        prog="vsb",
         description="Vector Search Bench",
-        usage="vsb.py --database=<DATABASE> --workload=<WORKLOAD> [additional "
+        usage="vsb --database=<DATABASE> --workload=<WORKLOAD> [additional "
         "options...]\nPass --help for full list of options.\n",
     )
     add_vsb_cmdline_args(parser, include_locust_args=True)

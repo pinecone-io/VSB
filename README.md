@@ -41,7 +41,7 @@ To run VSB against a cloud-hosted vector database, simply
 provide suitable credentials to an existing database instance. For example
 to run against a Pinecone index:
 ```shell
-./vsb.py --database=pinecone --workload=mnist-test \
+vsb --database=pinecone --workload=mnist-test \
     --pinecone_api_key=<API_KEY> \
     --pinecone_index_name=<INDEX_NAME>
 ```
@@ -61,7 +61,7 @@ docker compose up
 
 From a second terminal run VSB:
 ```shell
-./vsb.py --database=pgvector --workload=mnist-test
+vsb --database=pgvector --workload=mnist-test
 ```
 
 Example output:
