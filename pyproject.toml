@@ -4,7 +4,6 @@ version = "0.1.0"
 description = "A vector search benchmarking suite, built on the Locust framework"
 authors = ["Pinecone Systems, Inc. <support@pinecone.io>"]
 readme = "README.md"
-package-mode = false
 
 [tool.poetry.dependencies]
 python = "^3.11"
@@ -22,6 +21,8 @@ psycopg = "^3.1.19"
 hdrhistogram = "^0.10.3"
 tenacity = "^8.3.0"
 
+[tool.poetry.scripts]
+vsb = "vsb.main:main"
 
 [tool.poetry.group.dev.dependencies]
 black = "^24.4.2"
