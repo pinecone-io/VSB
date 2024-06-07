@@ -1,5 +1,11 @@
 import datetime
-from conftest import check_request_counts, read_env_var, random_string, spawn_vsb_inner
+from conftest import (
+    check_request_counts,
+    read_env_var,
+    random_string,
+    spawn_vsb_inner,
+    check_recall_stats,
+)
 
 
 def _get_index_name() -> str:
@@ -31,7 +37,7 @@ class TestPgvector:
                 "Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": lambda x: len(x) == 20,
+                    "recall": check_recall_stats,
                 },
             },
         )
@@ -56,7 +62,7 @@ class TestPgvector:
                 "Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": lambda x: len(x) == 20,
+                    "recall": check_recall_stats,
                 },
             },
         )
@@ -83,7 +89,7 @@ class TestPgvector:
                 "Search": {
                     "num_requests": 20 * 2,
                     "num_failures": 0,
-                    "recall": lambda x: len(x) == 20 * 2,
+                    "recall": check_recall_stats,
                 },
             },
         )
@@ -116,7 +122,7 @@ class TestPgvector:
                 "Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": lambda x: len(x) == 20,
+                    "recall": check_recall_stats,
                 },
             },
         )
@@ -136,7 +142,7 @@ class TestPgvector:
                 "Search": {
                     "num_requests": 500,
                     "num_failures": 0,
-                    "recall": lambda x: len(x) == 500,
+                    "recall": check_recall_stats,
                 },
             },
         )
@@ -157,7 +163,7 @@ class TestPgvector:
                 "Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": lambda x: len(x) == 20,
+                    "recall": check_recall_stats,
                 },
             },
         )
