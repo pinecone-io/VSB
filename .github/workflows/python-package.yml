@@ -57,7 +57,7 @@ jobs:
         DOCKER_BUILDKIT: 1
     - name: Test with pytest
       run: |
-        poetry run pytest
+        poetry run pytest --durations=10
       env:
         ENVIRONMENT: ${{ matrix.environment == 'pod' && 'us-east4-gcp' || '' }}
         SERVERLESS_REGION: us-west-2
