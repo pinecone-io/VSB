@@ -7,7 +7,7 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.11"
-locust = "^2.28.0"
+locust = "^2.29.0"
 pandas = "^2.2.1"
 google-cloud-storage = "^2.14.0"
 grpcio = "^1.64.1"
