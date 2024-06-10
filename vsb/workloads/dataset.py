@@ -4,12 +4,13 @@ import numpy
 import pyarrow.parquet
 from google.cloud.storage import Bucket, Client, transfer_manager
 import json
-import logging
 import pandas
 import pathlib
 from pinecone.grpc import PineconeGRPC
 import pyarrow.dataset as ds
 from pyarrow.parquet import ParquetDataset
+
+from vsb import logger
 
 
 class Dataset:
@@ -153,7 +154,7 @@ class Dataset:
             self._download_dataset_files()
             self.queries = self._load_parquet_dataset("queries", limit=query_limit)
         if not self.queries.empty:
-            logging.info(
+            logger.debug(
                 f"Using {len(self.queries)} query vectors loaded from dataset 'queries' table"
             )
         else:
@@ -177,7 +178,7 @@ class Dataset:
             # keeping a large complete dataset in memory for each
             # worker process).
             self.queries = self.queries.sample(frac=doc_sample_fraction, random_state=1)
-            logging.info(
+            logger.info(
                 f"Using {doc_sample_fraction * 100}% of documents' dataset "
                 f"for query data ({len(self.queries)} sampled)"
             )
@@ -197,14 +198,14 @@ class Dataset:
             if index.describe_index_stats()["total_vector_count"] == len(
                 self.documents
             ):
-                logging.info(
+                logger.info(
                     f"Skipping upsert as index already has same number of documents as dataset ({len(self.documents)}"
                 )
                 return
 
         upserted_count = self._upsert_from_dataframe(index)
         if upserted_count != len(self.documents):
-            logging.warning(
+            logger.warning(
                 f"Not all records upserted successfully. Dataset count:{len(self.documents)},"
                 f" upserted count:{upserted_count}"
             )
@@ -215,13 +216,13 @@ class Dataset:
         (it can consume a significant amount of memory).
         """
         del self.documents
-        logging.debug(
+        logger.debug(
             f"After pruning, 'queries' memory usage:{self.queries.memory_usage()}"
         )
 
     def _download_dataset_files(self):
         self.cache.mkdir(parents=True, exist_ok=True)
-        logging.debug(
+        logger.debug(
             f"Checking for existence of dataset '{self.name}' in dataset cache '{self.cache}'"
         )
         client = Client.create_anonymous_client()
@@ -231,7 +232,7 @@ class Dataset:
         # (non-empty directories will have their files downloaded
         # anyway).
         blobs = [b for b in blobs if not b.name.endswith("/")]
-        logging.debug(f"Dataset consists of files:{[b.name for b in blobs]}")
+        logger.debug(f"Dataset consists of files:{[b.name for b in blobs]}")
 
         def should_download(blob):
             path = self.cache / blob.name
@@ -249,8 +250,12 @@ class Dataset:
         if not to_download:
             return
 
+        logger.debug(
+            f"Parquet dataset: downloading {len(to_download)} files belonging to "
+            f"dataset '{self.name}'"
+        )
         for blob in to_download:
-            logging.debug(
+            logger.debug(
                 f"Dataset file '{blob.name}' not found in cache - will be downloaded"
             )
             dest_path = self.cache / blob.name
@@ -350,7 +355,7 @@ class Dataset:
                 return cleanup_null_values(convert_metadata_to_dict(metadata))
 
             df[metadata_column] = df[metadata_column].apply(prepare_metadata)
-        logging.debug(f"Loaded {len(df)} vectors of kind '{kind}'")
+        logger.debug(f"Loaded {len(df)} vectors of kind '{kind}'")
         return df
 
     def _upsert_from_dataframe(self, index):

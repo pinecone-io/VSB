@@ -20,6 +20,7 @@ pgvector = "^0.2.5"
 psycopg = "^3.1.19"
 hdrhistogram = "^0.10.3"
 tenacity = "^8.3.0"
+rich = "^13.7.1"
 
 [tool.poetry.scripts]
 vsb = "vsb.main:main"

@@ -11,17 +11,24 @@ process.
 """
 
 import json
-import logging
+import time
 
 from hdrh.histogram import HdrHistogram
 from locust import events
-from locust.stats import RequestStats
+from locust.runners import WorkerRunner
+from locust.stats import RequestStats, get_percentile_stats_summary, get_stats_summary
+
+import vsb
+from vsb import logger
 
 # Calculated custom metrics for each performed operation.
 # Nested dict, where top-level is the request_type (Populate, Search, ...), under
 # that there is an instance of HdrHistogram for each metric name (
 # recall, ...)
 calculated_metrics: dict[str, dict[str, HdrHistogram]] = {}
+
+# Start and end times for each phase of the workload.
+phases: dict[str, str] = {}
 
 # Scale factor for the histograms - we multiply all values by this factor before
 # storing them in the histogram. This is because metrics are typically floats
@@ -40,11 +47,9 @@ def get_histogram(request_type: str, metric: str) -> HdrHistogram:
     return req_type_metrics.setdefault(metric, HdrHistogram(1, 100_000, 3))
 
 
-def print_stats_json(stats: RequestStats) -> None:
+def get_stats_json(stats: RequestStats) -> str:
     """
     Serialise locust's standard stats, then merge in our custom metrics.
-    # Note we replace locust.stats.print_stats_json with this function via
-    # monkey-patching - see vsb/main.py.
     """
     serialized = stats.serialize_stats()
     for s in serialized:
@@ -61,7 +66,7 @@ def print_stats_json(stats: RequestStats) -> None:
                         hist.get_value_at_percentile(p) / HDR_SCALE_FACTOR
                     )
                 s[metric] = info
-    print(json.dumps(serialized, indent=4))
+    return json.dumps(serialized, indent=4)
 
 
 @events.request.add_listener
@@ -83,7 +88,7 @@ def on_report_to_master(client_id, data: dict()):
     from the local worker to the dict that is being sent, and then we clear
     the local metrics in the worker.
     """
-    logging.debug(
+    logger.debug(
         f"metrics.on_report_to_master(): calculated_metrics:{calculated_metrics}"
     )
     serialized = {}
@@ -105,9 +110,42 @@ def on_worker_report(client_id, data: dict()):
     from a worker. Here we add our metrics to the master's aggregated
     stats dict.
     """
-    logging.debug(f"metrics.on_worker_report(): data:{data}")
+    logger.debug(f"metrics.on_worker_report(): data:{data}")
     for req_type, metrics in data["metrics"].items():
         # Decode the base64 string back to an HdrHistogram, then add to the master's
         # stats.
         for metric_name, base64_histo in metrics.items():
             get_histogram(req_type, metric_name).decode_and_add(base64_histo)
+
+
+@events.quitting.add_listener
+def on_quitting(environment):
+    # Emit stats once on the master (if running in distributed mode) or
+    # once on the LocalRunner (if running in single-process mode).
+    if not isinstance(environment.runner, WorkerRunner):
+        for line in get_stats_summary(environment.stats, False):
+            logger.info("    " + line)
+        for line in get_percentile_stats_summary(environment.stats):
+            logger.info("    " + line)
+
+        stats_file = vsb.log_dir / "stats.json"
+        stats_file.write_text(get_stats_json(environment.stats))
+        logger.info(f"Saved stats to '{stats_file}'")
+
+
+def record_phase_start(phase: str):
+    """Record the start of a new phase in the workload."""
+    phases.setdefault(phase, {})["start"] = time.time()
+    logger.info(f"Starting {phase} phase")
+
+
+def record_phase_end(phase: str):
+    """Record the end of a new phase in the workload."""
+    phases.setdefault(phase, {})["end"] = time.time()
+    if "start" not in phases[phase]:
+        logger.warning(f"Ending phase {phase} without starting it")
+    else:
+        logger.info(
+            f"Completed {phase} phase, took "
+            f"{phases[phase]['end'] - phases[phase]['start']:.2f}s"
+        )

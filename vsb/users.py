@@ -6,10 +6,11 @@ from enum import Enum, auto
 from locust import User, task, LoadTestShape
 from locust.exception import StopUser
 
-from vsb import metrics
+from vsb import metrics, metrics_tracker
 from vsb.databases import DB
 from vsb.vsb_types import RecordList, SearchRequest
 from vsb.workloads import VectorWorkload
+from vsb import logger
 
 # Dict of Distributors - objects which distribute test data across all
 # VSB Users, potentially across multiple processes.
@@ -28,7 +29,7 @@ class SetupUser(User):
 
     def __init__(self, environment):
         super().__init__(environment)
-        logging.debug(f"Initialising SetupUser")
+        logger.debug(f"Initialising SetupUser")
         self.database: DB = environment.database
         self.state = self.State.Active
 
@@ -65,7 +66,7 @@ class PopulateUser(User):
         # user_id, to use for selecting which subset of the workload this User
         # will operate on.
         self.user_id = next(distributors["user_id.populate"])
-        logging.debug(f"Initialising PopulateUser id:{self.user_id}")
+        logger.debug(f"Initialising PopulateUser id:{self.user_id}")
         self.users_total = environment.parsed_options.num_users or 1
         self.database: DB = environment.database
         self.workload: VectorWorkload = environment.workload
@@ -110,7 +111,7 @@ class PopulateUser(User):
                     response_length=0,
                 )
             except StopIteration:
-                logging.debug(f"User id:{self.user_id} completed Populate phase")
+                logger.debug(f"User id:{self.user_id} completed Populate phase")
                 self.state = PopulateUser.State.Finalize
         except Exception as e:
             traceback.print_exception(e)
@@ -148,7 +149,7 @@ class RunUser(User):
         # user_id, to use for selecting which subset of the workload this User
         # will operate on.
         self.user_id = next(distributors["user_id.run"])
-        logging.debug(f"Initialising RunUser id:{self.user_id}")
+        logger.debug(f"Initialising RunUser id:{self.user_id}")
         self.database = environment.database
         self.workload = environment.workload
         self.state = RunUser.State.Active
@@ -190,7 +191,7 @@ class RunUser(User):
                 raise StopUser
         else:
             # No more requests - user is done.
-            logging.debug(f"User id:{self.user_id} completed Run phase")
+            logger.debug(f"User id:{self.user_id} completed Run phase")
             self.environment.runner.send_message(
                 "update_progress", {"user": self.user_id, "phase": "run"}
             )
@@ -252,7 +253,7 @@ class LoadShape(LoadTestShape):
                 parsed_opts = self.runner.environment.parsed_options
                 self.num_users = parsed_opts.num_users
                 self.skip_populate = parsed_opts.skip_populate
-                self.phase = self.Phase.Setup
+                self._transition_phase(LoadShape.Phase.Setup)
                 return self.tick()
             case LoadShape.Phase.Setup:
                 return 1, 1, [SetupUser]
@@ -260,7 +261,7 @@ class LoadShape(LoadTestShape):
                 if self.get_current_user_count() == 0:
                     # Finished all previous SetupUser tasks, can switch to next
                     # phase now
-                    self.phase = (
+                    self._transition_phase(
                         LoadShape.Phase.Run
                         if self.skip_populate
                         else LoadShape.Phase.Populate
@@ -273,7 +274,7 @@ class LoadShape(LoadTestShape):
                 if self.get_current_user_count() == 0:
                     # stopped all previous Populate Users, can switch to Run
                     # phase now
-                    self.phase = LoadShape.Phase.Run
+                    self._transition_phase(LoadShape.Phase.Run)
                     return self.tick()
                 return 0, self.num_users, []
             case LoadShape.Phase.Run:
@@ -283,38 +284,51 @@ class LoadShape(LoadTestShape):
             case _:
                 raise ValueError(f"Invalid phase:{self.phase}")
 
+    def _transition_phase(self, new: Phase):
+        # Record and log the start of the publicly visible phases.
+        tracked_phases = [
+            LoadShape.Phase.Setup,
+            LoadShape.Phase.Populate,
+            LoadShape.Phase.Run,
+        ]
+        if self.phase in tracked_phases:
+            metrics_tracker.record_phase_end(self.phase.name)
+        self.phase = new
+        if self.phase in tracked_phases:
+            metrics_tracker.record_phase_start(self.phase.name)
+
     def on_update_progress(self, msg, **kwargs):
         # Fired when VSBLoadShape (running on the master) receives an
         # "update_progress" message.
-        logging.debug(
+        logger.debug(
             f"VSBLoadShape.update_progress() - user:{msg.data['user']}, phase:{msg.data['phase']}"
         )
         match self.phase:
             case LoadShape.Phase.Setup:
                 assert msg.data["phase"] == "setup"
-                logging.info(
+                logger.debug(
                     f"VSBLoadShape.update_progress() - SetupUser completed - "
                     f"moving to TransitionFromSetup phase"
                 )
-                self.phase = LoadShape.Phase.TransitionFromSetup
+                self._transition_phase(LoadShape.Phase.TransitionFromSetup)
             case LoadShape.Phase.Populate:
                 assert msg.data["phase"] == "populate"
                 self.completed_users["populate"].add(msg.data["user"])
                 num_completed = len(self.completed_users["populate"])
                 if num_completed == self.runner.environment.parsed_options.num_users:
-                    logging.info(
+                    logger.debug(
                         f"VSBLoadShape.update_progress() - all "
                         f"{num_completed} Populate users completed - "
                         f"moving to Run phase"
                     )
-                    self.phase = LoadShape.Phase.TransitionToRun
+                    self._transition_phase(LoadShape.Phase.TransitionToRun)
                 else:
-                    logging.debug(
+                    logger.debug(
                         f"VSBLoadShape.update_progress() - users have now "
                         f"completed: {self.completed_users['populate']}"
                     )
             case LoadShape.Phase.TransitionToRun:
-                logging.error(
+                logger.error(
                     f"VSBLoadShape.update_progress() - Unexpected progress update in "
                     f"TransitionToRun phase!"
                 )
@@ -323,13 +337,13 @@ class LoadShape(LoadTestShape):
                 self.completed_users["run"].add(msg.data["user"])
                 num_completed = len(self.completed_users["run"])
                 if num_completed == self.runner.environment.parsed_options.num_users:
-                    logging.info(
+                    logger.debug(
                         f"VSBLoadShape.update_progress() - all "
                         f"{num_completed} Run users completed Run phase - "
                         f"finishing benchmark"
                     )
-                    self.phase = LoadShape.Phase.Done
+                    self._transition_phase(LoadShape.Phase.Done)
             case LoadShape.Phase.Done:
-                logging.error(
+                logger.error(
                     f"VSBLoadShape.update_progress() - Unexpected progress update in Done phase!"
                 )

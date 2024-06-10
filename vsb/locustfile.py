@@ -14,7 +14,7 @@ from locust.exception import StopUser
 from vsb.cmdline_args import add_vsb_cmdline_args
 from vsb.databases import Database
 from vsb.workloads import Workload
-
+from vsb import logger
 from locust import events, log
 from locust.runners import WorkerRunner, MasterRunner
 from locust_plugins.distributor import Distributor
@@ -57,6 +57,12 @@ def on_locust_init(environment, **_kwargs):
 def setup_runner(env):
     options = env.parsed_options
     env.workload = Workload(options.workload).build(cache_dir=options.cache_dir)
+    logger.info(
+        f"Workload '{env.workload.name}' initialized - records"
+        f"={env.workload.record_count}, "
+        f"dimensions="
+        f"{env.workload.dimensions}, metric={env.workload.metric.value}"
+    )
 
 
 @events.test_start.add_listener
@@ -84,7 +90,7 @@ def setup_worker_dataset(environment, **_kwargs):
                 config=vars(options),
             )
         except:
-            logging.error(
+            logger.error(
                 "Uncaught exception in during setup - quitting: \n%s",
                 traceback.format_exc(),
             )
