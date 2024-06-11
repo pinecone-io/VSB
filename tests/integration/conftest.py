@@ -1,6 +1,7 @@
 import json
 import os
 import random
+import re
 import string
 import subprocess
 import sys
@@ -20,19 +21,16 @@ def random_string(length):
 
 def parse_stats_to_json(stdout: str) -> list(dict()):
     """
-    Parse stdout from VSB into a list of JSON dictionaries, one for each
-    worker which reported stats.
+    Parse stdout from VSB to locate the ststs.json path, then parse that file
+    into a list of JSON dictionaries, one for each worker which reported stats.
     """
     # For each task type (Populate, Search, ...) we see a JSON object,
     # so must handle multiple JSON objects in stdout.
-    stats = []
-    while stdout:
-        try:
-            stats += json.loads(stdout)
-            break
-        except json.JSONDecodeError as e:
-            stdout = stdout[e.pos :]
-    return stats
+    pattern = r"Saved stats to '([^']+)'"
+    if m := re.search(pattern, stdout):
+        with open(m.group(1)) as f:
+            return json.load(f)
+    raise Exception("Failed to find stats.json path in stdout")
 
 
 def check_recall_stats(actual: dict) -> bool:
@@ -104,7 +102,6 @@ def spawn_vsb_inner(
         "vsb",
         f"--database={database}",
         f"--workload={workload}",
-        "--json",
         "--loglevel=DEBUG",
     ]
     proc = subprocess.Popen(
