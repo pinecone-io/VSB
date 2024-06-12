@@ -102,7 +102,7 @@ def spawn_vsb_inner(
         "vsb",
         f"--database={database}",
         f"--workload={workload}",
-        "--loglevel=DEBUG",
+        "--loglevel=debug",
     ]
     proc = subprocess.Popen(
         args + extra_args,

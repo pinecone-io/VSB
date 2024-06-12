@@ -14,7 +14,8 @@ import vsb.metrics_tracker
 from vsb.cmdline_args import add_vsb_cmdline_args, validate_parsed_args
 
 
-def setup_logging(log_base: Path, level) -> Path:
+def setup_logging(log_base: Path, level: str) -> Path:
+    level = level.upper()
     # Setup the default logger to log to a file under
     # <log_base>/<timestamp>/vsb.log,
     # returning the directory created.
