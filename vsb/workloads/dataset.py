@@ -8,7 +8,7 @@ import pandas
 import pathlib
 from pinecone.grpc import PineconeGRPC
 import pyarrow.dataset as ds
-from pyarrow.parquet import ParquetDataset
+from pyarrow.parquet import ParquetDataset, ParquetFile
 
 from vsb import logger
 
@@ -134,7 +134,7 @@ class Dataset:
             return table_to_batches(user_chunk)
         else:
             # Need split the parquet files into `num_users` subset of files,
-            # then return an iterator over the `user_id`th subset.
+            # then return a batch iterator over the `user_id`th subset.
             self._download_dataset_files()
             chunks = numpy.array_split(pq_files, num_chunks)
             my_chunks = list(chunks[chunk_id])
@@ -143,7 +143,19 @@ class Dataset:
                 return []
             docs_pq_dataset = ds.dataset(my_chunks)
             columns = self._get_set_of_passages_columns_to_read(docs_pq_dataset)
-            return docs_pq_dataset.to_batches(columns=columns, batch_size=batch_size)
+
+            def files_to_batches(files: list):
+                """Given a list of parquet files, return an iterator over
+                batches of the given size across all files.
+                """
+                for f in files:
+                    parquet = ParquetFile(f)
+                    for batch in parquet.iter_batches(
+                        columns=columns, batch_size=batch_size
+                    ):
+                        yield batch
+
+            return files_to_batches(my_chunks)
 
     def setup_queries(
         self, load_queries: bool = True, doc_sample_fraction: float = 1.0, query_limit=0
