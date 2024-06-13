@@ -1,4 +1,3 @@
-import logging
 import time
 import traceback
 from enum import Enum, auto
