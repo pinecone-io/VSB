@@ -1,5 +1,6 @@
 import logging
 
+from vsb import logger
 from pinecone import PineconeException
 from pinecone.grpc import PineconeGRPC, GRPCIndex
 from tenacity import retry, stop_after_attempt, wait_exponential_jitter, after_log
@@ -33,7 +34,7 @@ class PineconeNamespace(Namespace):
         @retry(
             wait=wait_exponential_jitter(initial=0.1, jitter=0.1),
             stop=stop_after_attempt(5),
-            after=after_log(logging, logging.DEBUG),
+            after=after_log(logger, logging.DEBUG),
         )
         def do_query_with_retry():
             return self.index.query(
@@ -86,7 +87,7 @@ class PineconeDB(DB):
         size_based_batch_size = ((2 * 1024 * 1024) - max_namespace) // max_record_size
         max_batch_size = 1000
         batch_size = min(size_based_batch_size, max_batch_size)
-        logging.debug(f"PineconeDB.get_batch_size() - Using batch size of {batch_size}")
+        logger.debug(f"PineconeDB.get_batch_size() - Using batch size of {batch_size}")
         return batch_size
 
     def get_namespace(self, namespace: str) -> Namespace:
@@ -104,12 +105,12 @@ class PineconeDB(DB):
                 pass
 
     def finalize_population(self, record_count: int):
-        logging.debug(f"PineconeDB: Waiting for record count to reach {record_count}")
         """Wait until all records are visible in the index"""
+        logger.debug(f"PineconeDB: Waiting for record count to reach {record_count}")
         while True:
             index_count = self.index.describe_index_stats()["total_vector_count"]
             if index_count >= record_count:
-                logging.debug(
+                logger.debug(
                     f"PineconeDB: Index vector count reached {index_count}, "
                     f"finalize is complete"
                 )
