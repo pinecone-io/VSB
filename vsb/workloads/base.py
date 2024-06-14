@@ -38,6 +38,14 @@ class VectorWorkload(ABC):
         """
         raise NotImplementedError
 
+    @property
+    @abstractmethod
+    def request_count(self) -> int:
+        """
+        The number of requests in the Run phase of the test.
+        """
+        raise NotImplementedError
+
     @abstractmethod
     def get_sample_record(self) -> Record:
         """
