@@ -5,7 +5,7 @@ from .base import VectorWorkload
 @unique
 class Workload(Enum):
     """Set of supported workloads, the value is the string used to
-    specify via --benchmark=
+    specify via --workload=
     """
 
     Mnist = "mnist"

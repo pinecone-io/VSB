@@ -244,7 +244,9 @@ class Dataset:
         # (non-empty directories will have their files downloaded
         # anyway).
         blobs = [b for b in blobs if not b.name.endswith("/")]
-        logger.debug(f"Dataset consists of files:{[b.name for b in blobs]}")
+        logger.debug(
+            f"Dataset consists of {len(blobs)} files" f":{[b.name for b in blobs]}"
+        )
 
         def should_download(blob):
             path = self.cache / blob.name
