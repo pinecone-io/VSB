@@ -1,5 +1,6 @@
 import logging
 
+import vsb
 from vsb import logger
 from pinecone import PineconeException
 from pinecone.grpc import PineconeGRPC, GRPCIndex
@@ -107,8 +108,14 @@ class PineconeDB(DB):
     def finalize_population(self, record_count: int):
         """Wait until all records are visible in the index"""
         logger.debug(f"PineconeDB: Waiting for record count to reach {record_count}")
+        if vsb.progress:
+            finalize_id = vsb.progress.add_task(
+                "- Finalize population", total=record_count
+            )
         while True:
             index_count = self.index.describe_index_stats()["total_vector_count"]
+            if vsb.progress:
+                vsb.progress.update(finalize_id, completed=index_count)
             if index_count >= record_count:
                 logger.debug(
                     f"PineconeDB: Index vector count reached {index_count}, "
@@ -116,3 +123,6 @@ class PineconeDB(DB):
                 )
                 break
             time.sleep(1)
+
+        if vsb.progress:
+            vsb.progress.update(finalize_id, description="  ✔ Finalize population")

@@ -16,6 +16,9 @@ class Record(BaseModel):
 class RecordList(RootModel):
     root: list[Record]
 
+    def __len__(self):
+        return len(self.root)
+
     def __iter__(self):
         return iter(self.root)
 

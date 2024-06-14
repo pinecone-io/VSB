@@ -1,10 +1,9 @@
-import logging
-
 import numpy as np
 import pgvector.psycopg
 import psycopg
 from psycopg.types.json import Jsonb
 
+import vsb
 from .filter_util import FilterUtil
 from ..base import DB, Namespace
 from ...vsb_types import Record, DistanceMetric, RecordList, SearchRequest
@@ -110,6 +109,11 @@ class PgvectorDB(DB):
 
     def finalize_population(self, record_count: int):
         # Create index.
+
+        if vsb.progress:
+            create_index_id = vsb.progress.add_task(
+                f"  Create pgvector index ({self.index_type})", total=None
+            )
         sql = (
             f"CREATE INDEX IF NOT EXISTS {self.table}_embedding_idx ON "
             f"{self.table} USING {self.index_type} (embedding "
@@ -119,6 +123,13 @@ class PgvectorDB(DB):
             case "ivfflat":
                 sql += f" WITH (lists = {self.ivfflat_lists})"
         self.conn.execute(sql)
+        if vsb.progress:
+            vsb.progress.update(
+                create_index_id,
+                description=f"  ✔ pgvector index ({self.index_type}) created",
+                total=1,
+                completed=1,
+            )
 
     @staticmethod
     def _get_distance_func(metric: DistanceMetric) -> str:
