@@ -418,11 +418,14 @@ class LoadShape(LoadTestShape):
                 )
 
                 def get_recall_pct(p):
-                    return vsb.metrics_tracker.get_metric_percentile(
+                    recall = vsb.metrics_tracker.get_metric_percentile(
                         "Search", "recall", p
                     )
+                    return f"{recall:.2f}" if recall else "..."
 
-                recall_str = ", ".join([f"p{p}={get_recall_pct(p)}" for p in [50, 5]])
+                recall_str = ", ".join(
+                    [f"p{p}={get_recall_pct(p)}" for p in [50, 5, 1]]
+                )
 
                 last_n = locust.stats.CURRENT_RESPONSE_TIME_PERCENTILE_WINDOW
                 metrics_str = (
