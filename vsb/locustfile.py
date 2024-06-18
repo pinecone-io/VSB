@@ -97,6 +97,11 @@ def setup_worker_dataset(environment, **_kwargs):
                 name=environment.workload.name,
                 config=vars(options),
             )
+        except StopUser:
+            # This is a special exception that is raised when we want to
+            # stop the User from running, e.g. because the database
+            # connection failed.
+            environment.runner.quit()
         except:
             logger.error(
                 "Uncaught exception in during setup - quitting: \n%s",
