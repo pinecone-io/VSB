@@ -37,7 +37,7 @@ def check_recall_stats(actual: dict) -> bool:
     """Check that the recall stats are present and have the expected structure."""
     return all(key in actual for key in ["min", "max", "mean", "percentiles"]) and all(
         str(pct) in actual["percentiles"].keys()
-        for pct in [1, 5, 25, 50, 90, 99, 99.9, 99.99]
+        for pct in [1, 5, 25, 50, 75, 90, 99, 99.9, 99.99]
     )
 
 
