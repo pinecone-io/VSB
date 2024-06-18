@@ -30,7 +30,7 @@ class ParquetWorkload(VectorWorkload, ABC):
         super().__init__(name)
         self.dataset = Dataset(dataset_name, cache_dir=cache_dir, limit=limit)
 
-        self.dataset.setup_queries(load_queries=True, query_limit=query_limit)
+        self.dataset.setup_queries(query_limit=query_limit)
         self.queries = self.dataset.queries.itertuples(index=False)
 
     def get_sample_record(self) -> Record:
