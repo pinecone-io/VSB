@@ -413,7 +413,7 @@ class LoadShape(LoadTestShape):
                 latency_str = ", ".join(
                     [
                         f"p{p}={stats.get_current_response_time_percentile(p/100.0) or '...'}ms"
-                        for p in [5, 95]
+                        for p in [50, 95]
                     ]
                 )
 
@@ -423,9 +423,7 @@ class LoadShape(LoadTestShape):
                     )
                     return f"{recall:.2f}" if recall else "..."
 
-                recall_str = ", ".join(
-                    [f"p{p}={get_recall_pct(p)}" for p in [50, 5, 1]]
-                )
+                recall_str = ", ".join([f"p{p}={get_recall_pct(p)}" for p in [50, 5]])
 
                 last_n = locust.stats.CURRENT_RESPONSE_TIME_PERCENTILE_WINDOW
                 metrics_str = (
