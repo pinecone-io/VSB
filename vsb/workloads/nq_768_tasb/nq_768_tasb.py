@@ -20,7 +20,11 @@ class Nq768Tasb(Nq768TasbBase):
 
     @property
     def record_count(self) -> int:
-        return 2680893
+        return 2_680_893
+
+    @property
+    def request_count(self) -> int:
+        3_452
 
 
 class Nq768TasbTest(Nq768TasbBase):
@@ -34,3 +38,7 @@ class Nq768TasbTest(Nq768TasbBase):
     @property
     def record_count(self) -> int:
         return 26809
+
+    @property
+    def request_count(self) -> int:
+        35

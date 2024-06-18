@@ -11,6 +11,7 @@ import traceback
 
 from locust.exception import StopUser
 
+import vsb
 from vsb.cmdline_args import add_vsb_cmdline_args
 from vsb.databases import Database
 from vsb.workloads import Workload
@@ -52,6 +53,13 @@ def on_locust_init(environment, **_kwargs):
         users.distributors[phase] = Distributor(
             environment, iter(range(num_users)), phase
         )
+
+    if isinstance(environment.runner, WorkerRunner):
+        # In distributed mode, we only want to log problems to the console,
+        # (a) because things get noisy if we log the same info from multiple
+        # workers, and (b) because logs from non-master will corrupt the
+        # progress bar display.
+        vsb.logger.setLevel(logging.ERROR)
 
 
 def setup_runner(env):

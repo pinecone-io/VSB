@@ -22,6 +22,10 @@ class Mnist(MnistBase):
     def record_count(self) -> int:
         return 60000
 
+    @property
+    def request_count(self) -> int:
+        return 10_000
+
 
 class MnistTest(MnistBase):
     """Reduced, "test" variant of mnist; with 1% of the full dataset (600
@@ -33,3 +37,7 @@ class MnistTest(MnistBase):
     @property
     def record_count(self) -> int:
         return 600
+
+    @property
+    def request_count(self) -> int:
+        return 20

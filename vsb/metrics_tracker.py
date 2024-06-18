@@ -12,6 +12,7 @@ process.
 
 import json
 import time
+from collections import defaultdict
 
 from hdrh.histogram import HdrHistogram
 from locust import events
@@ -23,9 +24,9 @@ from vsb import logger
 
 # Calculated custom metrics for each performed operation.
 # Nested dict, where top-level is the request_type (Populate, Search, ...), under
-# that there is an instance of HdrHistogram for each metric name (
+# that there is an instance of HdrHistogram or a plain int for each metric name (
 # recall, ...)
-calculated_metrics: dict[str, dict[str, HdrHistogram]] = {}
+calculated_metrics: dict[str, dict[str, HdrHistogram | int]] = {}
 
 # Start and end times for each phase of the workload.
 phases: dict[str, str] = {}
@@ -47,6 +48,27 @@ def get_histogram(request_type: str, metric: str) -> HdrHistogram:
     return req_type_metrics.setdefault(metric, HdrHistogram(1, 100_000, 3))
 
 
+def update_counter(request_type: str, metric: str, value: int) -> None:
+    """
+    Update the counter for the given metric for the given request type,
+    creating a counter from zero histogram is the request type and/or metric is
+    not already recorded.
+    """
+    req_type_metrics = calculated_metrics.setdefault(request_type, defaultdict(int))
+    req_type_metrics[metric] += value
+
+
+def get_metric_percentile(request_type: str, metric: str, percentile: float) -> float:
+    """
+    Get the value of the given percentile for the given metric for the given
+    request type, or None if the metric is not recorded.
+    """
+    if req_type_metrics := calculated_metrics.get(request_type, None):
+        if isinstance(value := req_type_metrics.get(metric, None), HdrHistogram):
+            return value.get_value_at_percentile(percentile) / HDR_SCALE_FACTOR
+    return None
+
+
 def get_stats_json(stats: RequestStats) -> str:
     """
     Serialise locust's standard stats, then merge in our custom metrics.
@@ -54,17 +76,20 @@ def get_stats_json(stats: RequestStats) -> str:
     serialized = stats.serialize_stats()
     for s in serialized:
         if custom := calculated_metrics.get(s["method"], None):
-            for metric, hist in custom.items():
-                info = {
-                    "min": hist.get_min_value() / HDR_SCALE_FACTOR,
-                    "max": hist.get_max_value() / HDR_SCALE_FACTOR,
-                    "mean": hist.get_mean_value() / HDR_SCALE_FACTOR,
-                    "percentiles": {},
-                }
-                for p in [1, 5, 25, 50, 90, 99, 99.9, 99.99]:
-                    info["percentiles"][p] = (
-                        hist.get_value_at_percentile(p) / HDR_SCALE_FACTOR
-                    )
+            for metric, value in custom.items():
+                if isinstance(value, HdrHistogram):
+                    info = {
+                        "min": value.get_min_value() / HDR_SCALE_FACTOR,
+                        "max": value.get_max_value() / HDR_SCALE_FACTOR,
+                        "mean": value.get_mean_value() / HDR_SCALE_FACTOR,
+                        "percentiles": {},
+                    }
+                    for p in [1, 5, 25, 50, 75, 90, 99, 99.9, 99.99]:
+                        info["percentiles"][p] = (
+                            value.get_value_at_percentile(p) / HDR_SCALE_FACTOR
+                        )
+                else:
+                    info = value
                 s[metric] = info
     return json.dumps(serialized, indent=4)
 
@@ -78,6 +103,9 @@ def on_request(request_type, name, response_time, response_length, **kwargs):
     if req_metrics := kwargs.get("metrics", None):
         for k, v in req_metrics.items():
             get_histogram(request_type, k).record_value(v * HDR_SCALE_FACTOR)
+    if req_counters := kwargs.get("counters", None):
+        for k, v in req_counters.items():
+            update_counter(request_type, k, v)
 
 
 @events.report_to_master.add_listener
@@ -97,8 +125,11 @@ def on_report_to_master(client_id, data: dict()):
         # the master instance.
         serialized[req_type] = {}
         hist: HdrHistogram
-        for metric, hist in metrics.items():
-            serialized[req_type][metric] = hist.encode()
+        for name, value in metrics.items():
+            if isinstance(value, HdrHistogram):
+                serialized[req_type][name] = value.encode()
+            else:
+                serialized[req_type][name] = value
     data["metrics"] = serialized
     calculated_metrics.clear()
 
@@ -110,16 +141,18 @@ def on_worker_report(client_id, data: dict()):
     from a worker. Here we add our metrics to the master's aggregated
     stats dict.
     """
-    logger.debug(f"metrics.on_worker_report(): data:{data}")
     for req_type, metrics in data["metrics"].items():
-        # Decode the base64 string back to an HdrHistogram, then add to the master's
-        # stats.
-        for metric_name, base64_histo in metrics.items():
-            get_histogram(req_type, metric_name).decode_and_add(base64_histo)
+        for metric_name, value in metrics.items():
+            if isinstance(value, bytes):
+                # Decode the base64 string back to an HdrHistogram, then add to
+                # the master's stats.
+                get_histogram(req_type, metric_name).decode_and_add(value)
+            else:
+                update_counter(req_type, metric_name, value)
 
 
 @events.quitting.add_listener
-def on_quitting(environment):
+def print_metrics_on_quitting(environment):
     # Emit stats once on the master (if running in distributed mode) or
     # once on the LocalRunner (if running in single-process mode).
     if not isinstance(environment.runner, WorkerRunner):

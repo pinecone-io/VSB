@@ -1,11 +1,14 @@
-import logging
 import time
 import traceback
 from enum import Enum, auto
 
+import rich.progress
 from locust import User, task, LoadTestShape
 from locust.exception import StopUser
+import locust.stats
 
+import vsb
+import vsb.logging
 from vsb import metrics, metrics_tracker
 from vsb.databases import DB
 from vsb.vsb_types import RecordList, SearchRequest
@@ -40,7 +43,13 @@ class SetupUser(User):
             case self.State.Active:
                 self.database.initialize_population()
                 self.environment.runner.send_message(
-                    "update_progress", {"user": 0, "phase": "setup"}
+                    "update_progress",
+                    {
+                        "user": 0,
+                        "phase": "setup",
+                        "record_count": self.environment.workload.record_count,
+                        "request_count": self.environment.workload.request_count,
+                    },
                 )
                 self.state = self.State.Done
             case self.State.Done:
@@ -109,6 +118,7 @@ class PopulateUser(User):
                     name=self.workload.name,
                     response_time=elapsed_ms,
                     response_length=0,
+                    counters={"records": len(vectors)},
                 )
             except StopIteration:
                 logger.debug(f"User id:{self.user_id} completed Populate phase")
@@ -231,6 +241,8 @@ class LoadShape(LoadTestShape):
     def __init__(self):
         super().__init__()
         self.phase = LoadShape.Phase.Init
+        self.record_count: int = None
+        self.progress_task_id: rich.progress.TaskID = None
         self.num_users = 0
         self.skip_populate = False
         self.completed_users = {"populate": set(), "run": set()}
@@ -248,15 +260,14 @@ class LoadShape(LoadTestShape):
                 # self.runner is not initialised until after __init__(), so we must
                 # lazily register our message handler and other information from
                 # self.runner on the first tick() call.
-                self.runner.environment.runner.register_message(
-                    "update_progress", self.on_update_progress
-                )
+                self.runner.register_message("update_progress", self.on_update_progress)
                 parsed_opts = self.runner.environment.parsed_options
                 self.num_users = parsed_opts.num_users
                 self.skip_populate = parsed_opts.skip_populate
                 self._transition_phase(LoadShape.Phase.Setup)
                 return self.tick()
             case LoadShape.Phase.Setup:
+                vsb.progress.update(self.progress_task_id, total=1)
                 return 1, 1, [SetupUser]
             case LoadShape.Phase.TransitionFromSetup:
                 if self.get_current_user_count() == 0:
@@ -270,6 +281,7 @@ class LoadShape(LoadTestShape):
                     return self.tick()
                 return 0, self.num_users, []
             case LoadShape.Phase.Populate:
+                self._update_progress_bar()
                 return self.num_users, self.num_users, [PopulateUser]
             case LoadShape.Phase.TransitionToRun:
                 if self.get_current_user_count() == 0:
@@ -279,6 +291,7 @@ class LoadShape(LoadTestShape):
                     return self.tick()
                 return 0, self.num_users, []
             case LoadShape.Phase.Run:
+                self._update_progress_bar()
                 return self.num_users, self.num_users, [RunUser]
             case LoadShape.Phase.Done:
                 return None
@@ -292,11 +305,24 @@ class LoadShape(LoadTestShape):
             LoadShape.Phase.Populate,
             LoadShape.Phase.Run,
         ]
+        if vsb.progress is not None:
+            self._update_progress_bar(mark_completed=True)
+            vsb.progress.update(
+                self.progress_task_id, description=f"✔ {self.phase.name} complete"
+            )
+            vsb.progress.stop()
+            vsb.progress = None
         if self.phase in tracked_phases:
             metrics_tracker.record_phase_end(self.phase.name)
         self.phase = new
         if self.phase in tracked_phases:
             metrics_tracker.record_phase_start(self.phase.name)
+            # Started a new phase - create a progress object for it (which will
+            # display progress bars for each task on screen)
+            vsb.progress = vsb.logging.make_progressbar()
+            self.progress_task_id = vsb.progress.add_task(
+                f"Performing {self.phase.name} phase", total=None
+            )
 
     def on_update_progress(self, msg, **kwargs):
         # Fired when VSBLoadShape (running on the master) receives an
@@ -307,8 +333,12 @@ class LoadShape(LoadTestShape):
         match self.phase:
             case LoadShape.Phase.Setup:
                 assert msg.data["phase"] == "setup"
+                self.record_count = msg.data["record_count"]
+                self.request_count = msg.data["request_count"]
                 logger.debug(
-                    f"VSBLoadShape.update_progress() - SetupUser completed - "
+                    f"VSBLoadShape.update_progress() - SetupUser completed with "
+                    f"record_count={self.record_count}, request_count="
+                    f"{self.request_count} - "
                     f"moving to TransitionFromSetup phase"
                 )
                 self._transition_phase(LoadShape.Phase.TransitionFromSetup)
@@ -347,4 +377,63 @@ class LoadShape(LoadTestShape):
             case LoadShape.Phase.Done:
                 logger.error(
                     f"VSBLoadShape.update_progress() - Unexpected progress update in Done phase!"
+                )
+
+    def _update_progress_bar(self, mark_completed: bool = False):
+        """Update the phase progress bar for the current phase."""
+        match self.phase:
+            case LoadShape.Phase.Setup:
+                pass
+                vsb.progress.update(
+                    self.progress_task_id, total=1, completed=1 if mark_completed else 0
+                )
+            case LoadShape.Phase.Populate:
+                completed = vsb.metrics_tracker.calculated_metrics.get(
+                    "Populate", {}
+                ).get("records", 0)
+
+                env = self.runner.environment
+                stats: locust.stats.StatsEntry = env.stats.get(
+                    env.parsed_options.workload, "Populate"
+                )
+                duration = time.time() - stats.start_time
+                rps_str = "records/sec: {:.1f}".format(completed / duration)
+                vsb.progress.update(
+                    self.progress_task_id,
+                    completed=completed,
+                    total=self.record_count,
+                    extra_info=rps_str,
+                )
+            case LoadShape.Phase.Run:
+                # TODO: When we add additional request types other than Search,
+                # we need to expand this to include them.
+                env = self.runner.environment
+                stats = env.stats.get(env.parsed_options.workload, "Search")
+
+                latency_str = ", ".join(
+                    [
+                        f"p{p}={stats.get_current_response_time_percentile(p/100.0) or '...'}ms"
+                        for p in [5, 95]
+                    ]
+                )
+
+                def get_recall_pct(p):
+                    return vsb.metrics_tracker.get_metric_percentile(
+                        "Search", "recall", p
+                    )
+
+                recall_str = ", ".join([f"p{p}={get_recall_pct(p)}" for p in [50, 5]])
+
+                last_n = locust.stats.CURRENT_RESPONSE_TIME_PERCENTILE_WINDOW
+                metrics_str = (
+                    f"last {last_n}s metrics: [magenta]latency: {latency_str}[/magenta]"
+                    + " | "
+                    + f"[magenta]recall: {recall_str}"
+                )
+
+                vsb.progress.update(
+                    self.progress_task_id,
+                    completed=stats.num_requests,
+                    total=self.request_count,
+                    extra_info=metrics_str,
                 )

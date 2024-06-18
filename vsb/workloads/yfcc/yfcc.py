@@ -24,6 +24,10 @@ class YFCC(YFCCBase):
     def record_count(self) -> int:
         return 10_000_000
 
+    @property
+    def request_count(self) -> int:
+        return 100_000
+
 
 class YFCCTest(YFCCBase):
     """Reduced, "test" variant of YFCC; with ~0.1% of the full dataset / 0.5%
@@ -41,3 +45,7 @@ class YFCCTest(YFCCBase):
     @property
     def record_count(self) -> int:
         return 10_000
+
+    @property
+    def request_count(self) -> int:
+        return 500
