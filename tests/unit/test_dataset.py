@@ -29,7 +29,7 @@ class TestDataset:
         iter = dataset.get_batch_iterator(1, 0, 10)
         assert sum([len(batch) for batch in iter]) == 60000
 
-    def test_get_batch_iter_all(self):
+    def test_get_batch_iter_chunks(self):
         # Test a batch iter for multiple chunks yields the entire dataset.
         dataset = Dataset("mnist")
         # Choosing num_chunks which is not a factor of dataset size, so
