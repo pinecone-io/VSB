@@ -113,6 +113,7 @@ class Dataset:
         # first N rows into DataFrame, then split / iterate the dataframe.
         assert chunk_id >= 0
         assert chunk_id < num_chunks
+        self._download_dataset_files()
         pq_files = list((self.cache / self.name).glob("passages/*.parquet"))
 
         if self.limit:
@@ -137,7 +138,6 @@ class Dataset:
         else:
             # Need split the parquet files into `num_users` subset of files,
             # then return a batch iterator over the `user_id`th subset.
-            self._download_dataset_files()
             chunks = numpy.array_split(pq_files, num_chunks)
             my_chunks = list(chunks[chunk_id])
             if not my_chunks:
