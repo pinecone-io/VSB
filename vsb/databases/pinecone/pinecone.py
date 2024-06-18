@@ -1,8 +1,10 @@
 import logging
 
+from locust.exception import StopUser
+
 import vsb
 from vsb import logger
-from pinecone import PineconeException
+from pinecone import PineconeException, NotFoundException
 from pinecone.grpc import PineconeGRPC, GRPCIndex
 from tenacity import retry, stop_after_attempt, wait_exponential_jitter, after_log
 import grpc.experimental.gevent as grpc_gevent
@@ -54,7 +56,14 @@ class PineconeDB(DB):
         self.pc = PineconeGRPC(config["pinecone_api_key"])
         self.skip_populate = config["skip_populate"]
         index_name = config["pinecone_index_name"]
-        self.index = self.pc.Index(name=index_name)
+        try:
+            self.index = self.pc.Index(name=index_name)
+        except NotFoundException as e:
+            logger.error(
+                f"PineconeDB: Specified index '{index_name}' was not found. Check the "
+                f"index exists and the specified API key can access it."
+            )
+            raise StopUser() from e
         info = self.pc.describe_index(index_name)
         index_dims = info["dimension"]
         if dimensions != index_dims:
