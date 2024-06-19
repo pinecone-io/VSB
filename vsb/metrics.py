@@ -26,7 +26,7 @@ class Recall(Metric):
 
     @staticmethod
     def measure(request: SearchRequest, results: list[str]) -> float:
-        return Recall._calculate(results, request.neighbors)
+        return Recall._calculate(results, request.neighbors[: request.top_k])
 
     @staticmethod
     def _calculate(actual: list[str], expected: list[str]) -> float:
