@@ -162,7 +162,10 @@ def make_progressbar() -> rich.progress.Progress:
         progress.update(task_id, advance=1)
     """
     progress = ExtraInfoProgressBar(
-        rich.progress.TextColumn("[progress.description]{task.description}"),
+        rich.progress.TextColumn(
+            "[progress.description]{task.description}",
+            table_column=rich.table.Column(width=25),
+        ),
         rich.progress.MofNCompleteColumn(),
         rich.progress.BarColumn(),
         rich.progress.TaskProgressColumn(),
