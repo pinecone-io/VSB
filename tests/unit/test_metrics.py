@@ -1,4 +1,5 @@
 from vsb.metrics import Recall
+from vsb.vsb_types import SearchRequest
 
 
 def test_recall_equal():
@@ -19,3 +20,12 @@ def test_recall_actual_fewer_expected():
     assert Recall._calculate(["3"], ["1", "2"]) == 0
     assert Recall._calculate(["1"], ["1", "2", "3", "4"]) == 0.25
     assert Recall._calculate(["1", "2"], ["1", "2", "3", "4"]) == 0.5
+
+
+def test_recall_more_neighbors_than_topk():
+    # Test Recall when the Request has more neighbors present than the specified top_k
+    # - in which case we should only consider the first K elements when calculating
+    # recall.
+    request = SearchRequest(values=[], top_k=1, neighbors=["1", "2"])
+    assert Recall.measure(request, ["1"]) == 1.0
+    assert Recall.measure(request, ["2"]) == 0.0
