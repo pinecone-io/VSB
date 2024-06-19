@@ -397,7 +397,7 @@ class LoadShape(LoadTestShape):
                     env.parsed_options.workload, "Populate"
                 )
                 duration = time.time() - stats.start_time
-                rps_str = "records/sec: {:.1f}".format(completed / duration)
+                rps_str = "  Records/sec: [magenta]{:.1f}".format(completed / duration)
                 vsb.progress.update(
                     self.progress_task_id,
                     completed=completed,
@@ -408,8 +408,13 @@ class LoadShape(LoadTestShape):
                 # TODO: When we add additional request types other than Search,
                 # we need to expand this to include them.
                 env = self.runner.environment
-                stats = env.stats.get(env.parsed_options.workload, "Search")
+                stats: locust.StatsEntry = env.stats.get(
+                    env.parsed_options.workload, "Search"
+                )
 
+                # Display current (last 10s) values for some significant metrics
+                # in the progress_details row.
+                ops_str = f"{stats.current_rps:.1f} op/s"
                 latency_str = ", ".join(
                     [
                         f"p{p}={stats.get_current_response_time_percentile(p/100.0) or '...'}ms"
@@ -427,7 +432,9 @@ class LoadShape(LoadTestShape):
 
                 last_n = locust.stats.CURRENT_RESPONSE_TIME_PERCENTILE_WINDOW
                 metrics_str = (
-                    f"last {last_n}s metrics: [magenta]latency: {latency_str}[/magenta]"
+                    f"  Current metrics (last {last_n}s): [magenta]{ops_str}[/magenta]"
+                    + " | "
+                    + f"[magenta]latency: {latency_str}[/magenta]"
                     + " | "
                     + f"[magenta]recall: {recall_str}"
                 )
