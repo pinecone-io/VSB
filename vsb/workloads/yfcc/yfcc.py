@@ -17,7 +17,7 @@ class YFCCBase(ParquetWorkload, ABC):
 class YFCC(YFCCBase):
     def __init__(self, name: str, cache_dir: str):
         super().__init__(
-            name, "yfcc-10M-filter-euclidean-formatted", cache_dir=cache_dir
+            name, "yfcc-10M-filter-euclidean-formatted-multipart", cache_dir=cache_dir
         )
 
     @property

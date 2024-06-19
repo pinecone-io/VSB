@@ -64,6 +64,10 @@ class ProgressIOWrapper(io.IOBase):
             )
         super().__init__(*args, **kwargs)
 
+    def __del__(self):
+        if self.progress:
+            self.progress.remove_task(self.task_id)
+
     def write(self, b):
         # Write data to the base object
         bytes_written = self.file.write(b)
@@ -164,7 +168,7 @@ def make_progressbar() -> rich.progress.Progress:
     progress = ExtraInfoProgressBar(
         rich.progress.TextColumn(
             "[progress.description]{task.description}",
-            table_column=rich.table.Column(width=25),
+            table_column=rich.table.Column(width=30),
         ),
         rich.progress.MofNCompleteColumn(),
         rich.progress.BarColumn(),
