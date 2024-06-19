@@ -18,10 +18,17 @@ import locust.env
 from hdrh.histogram import HdrHistogram
 from locust import events
 from locust.runners import WorkerRunner
-from locust.stats import RequestStats, get_percentile_stats_summary, get_stats_summary
+from locust.stats import (
+    RequestStats,
+    get_readable_percentiles,
+    PERCENTILES_TO_REPORT,
+)
 
 import vsb
 from vsb import logger
+import rich.table
+import rich.console
+import rich.box
 
 # Calculated custom metrics for each performed operation.
 # Nested dict, where top-level is the request_type (Populate, Search, ...), under
@@ -152,6 +159,84 @@ def on_worker_report(client_id, data: dict()):
                 update_counter(req_type, metric_name, value)
 
 
+def format_error_count(value: int) -> str:
+    style_if_above = ("red",)
+    default_style = "blue"
+    style = style_if_above if value > 0 else default_style
+    return f"[{style}]{value}[/]"
+
+
+def get_stats_summary(stats: RequestStats, current=True) -> str:
+    """
+    stats summary will be returned as a string containing a formatted table
+    """
+    table = rich.table.Table(title="Statistics Summary", box=rich.box.HORIZONTALS)
+
+    table.add_column("Operation", justify="left", style="cyan", no_wrap=True)
+    table.add_column("# reqs", justify="right", style="blue")
+    table.add_column("# fails", justify="right", style="blue")
+    table.add_column("Avg", justify="right", style="yellow")
+    table.add_column("Min", justify="right", style="yellow")
+    table.add_column("Max", justify="right", style="yellow")
+    table.add_column("Med", justify="right", style="yellow")
+    table.add_column("req/s", justify="right", style="blue")
+    table.add_column("failures/s", justify="right", style="blue")
+
+    for key in sorted(stats.entries.keys()):
+        r = stats.entries[key]
+        table.add_row(
+            r.method,
+            str(r.num_requests),
+            format_error_count(r.num_failures) + f"({r.fail_ratio * 100:.0f}%)",
+            f"{r.avg_response_time:.0f}",
+            f"{(r.min_response_time or 0):.0f}",
+            f"{r.max_response_time:.0f}",
+            f"{(r.median_response_time or 0):.0f}",
+            f"{r.current_rps:.0f}" if current else f"{r.total_rps:.0f}",
+            (
+                format_error_count(r.current_fail_per_sec)
+                if current
+                else format_error_count(r.total_fail_per_sec)
+            ),
+        )
+
+    return table
+
+
+def get_percentile_stats_summary(stats: RequestStats) -> rich.table.Table:
+    """
+    Print the percentile stats summary using rich.table.
+    """
+    table = rich.table.Table(title="Request Metrics", box=rich.box.HORIZONTALS)
+
+    # Define columns
+    table.add_column("Operation", justify="left", style="cyan", no_wrap=True)
+    table.add_column("Metric", justify="left", style="magenta")
+    for percentile in get_readable_percentiles(PERCENTILES_TO_REPORT):
+        table.add_column(
+            percentile,
+            justify="right",
+            style="yellow",
+        )
+    table.add_column("# reqs", justify="right", style="green")
+
+    # Populate the table with stats entries, sorted by Operation.
+    for key in sorted(stats.entries.keys()):
+        r = stats.entries[key]
+        if r.response_times:
+            row = [
+                r.method,
+                "latency (ms)",
+                *[
+                    f"{r.get_response_time_percentile(p):.0f}"
+                    for p in PERCENTILES_TO_REPORT
+                ],
+                str(r.num_requests),
+            ]
+            table.add_row(*row)
+    return table
+
+
 @events.quitting.add_listener
 def print_metrics_on_quitting(environment: locust.env.Environment):
     # Emit stats once on the master (if running in distributed mode) or
@@ -160,10 +245,10 @@ def print_metrics_on_quitting(environment: locust.env.Environment):
         not isinstance(environment.runner, WorkerRunner)
         and environment.shape_class.finished
     ):
-        for line in get_stats_summary(environment.stats, False):
-            logger.info("    " + line)
-        for line in get_percentile_stats_summary(environment.stats):
-            logger.info("    " + line)
+        vsb.console.print("")
+        vsb.console.print(get_stats_summary(environment.stats, False))
+        vsb.console.print("")
+        vsb.console.print(get_percentile_stats_summary(environment.stats))
 
         stats_file = vsb.log_dir / "stats.json"
         stats_file.write_text(get_stats_json(environment.stats))
