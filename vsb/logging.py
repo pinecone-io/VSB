@@ -98,6 +98,18 @@ class ProgressIOWrapper(io.IOBase):
         return self.file.seekable()
 
 
+class ExtraInfoProgressBar(rich.progress.Progress):
+    """A specialization of Progress which will display an additional row after a
+    Task if that task has an "extra_info" field.
+    """
+
+    def get_renderables(self):
+        for task in self.tasks:
+            yield self.make_tasks_table([task])
+            if "extra_info" in task.fields:
+                yield rich.console.Text.from_markup(task.fields["extra_info"])
+
+
 def setup_logging(log_base: Path, level: str) -> Path:
     level = level.upper()
     # Setup the default logger to log to a file under
@@ -149,7 +161,7 @@ def make_progressbar() -> rich.progress.Progress:
         task_id = progress.add_task("Task description", total=100)
         progress.update(task_id, advance=1)
     """
-    progress = rich.progress.Progress(
+    progress = ExtraInfoProgressBar(
         rich.progress.TextColumn("[progress.description]{task.description}"),
         rich.progress.MofNCompleteColumn(),
         rich.progress.BarColumn(),
@@ -158,7 +170,6 @@ def make_progressbar() -> rich.progress.Progress:
         rich.progress.TimeElapsedColumn(),
         "[progress.remaining]remaining:",
         rich.progress.TimeRemainingColumn(compact=True),
-        ExtraInfoColumn(),
         console=vsb.console,
     )
     progress.start()
