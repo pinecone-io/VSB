@@ -15,7 +15,7 @@ import vsb
 from vsb.cmdline_args import add_vsb_cmdline_args
 from vsb.databases import Database
 from vsb.workloads import Workload
-from vsb import logger
+from vsb import console, logger
 from locust import events, log
 from locust.runners import WorkerRunner, MasterRunner
 from locust_plugins.distributor import Distributor
@@ -109,3 +109,13 @@ def setup_worker_dataset(environment, **_kwargs):
             )
             log.unhandled_greenlet_exception = True
             environment.runner.quit()
+
+
+@events.quit.add_listener
+def reset_console_on_quit(exit_code):
+    """
+    If VSB terminates uncleanly, then the console cursor may still be hidden
+    as the progress bars hide it when rendered. Ensure the cursor is made
+    visible again.
+    """
+    vsb.console.show_cursor()
