@@ -101,12 +101,12 @@ class TestPinecone:
 
     def test_mnist_concurrent(self, api_key, pinecone_index_mnist):
         # Test "-test" variant of mnist loads and runs successfully with
-        # concurrent users
+        # concurrent users, and with a request limit set.
         (proc, stdout, stderr) = spawn_vsb(
             workload="mnist-test",
             api_key=api_key,
             index_name=pinecone_index_mnist,
-            extra_args=["--users=4"],
+            extra_args=["--users=4", "--requests_per_sec=40"],
         )
         assert proc.returncode == 0
 

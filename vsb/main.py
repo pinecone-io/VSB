@@ -38,9 +38,12 @@ def main():
 
     log_base = Path("reports") / args.database
     vsb.log_dir = setup_logging(log_base=log_base, level=args.loglevel)
+    requests_per_sec = (
+        "{:g}".format(args.requests_per_sec) if args.requests_per_sec else "unlimited"
+    )
     logger.info(
-        f"Vector Search Bench: Starting experiment with backend='{args.database}' and "
-        f"workload='{args.workload}'."
+        f"Vector Search Bench: Starting experiment with backend='{args.database}', "
+        f"workload='{args.workload}', users={args.num_users}, requests_per_sec={requests_per_sec}"
     )
     logger.info(f"Writing benchmark results to '{vsb.log_dir}'")
 

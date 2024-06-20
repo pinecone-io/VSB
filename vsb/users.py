@@ -3,7 +3,7 @@ import traceback
 from enum import Enum, auto
 
 import rich.progress
-from locust import User, task, LoadTestShape
+from locust import User, task, LoadTestShape, constant_throughput
 from locust.exception import StopUser
 import locust.stats
 
@@ -160,10 +160,14 @@ class RunUser(User):
         # user_id, to use for selecting which subset of the workload this User
         # will operate on.
         self.user_id = next(distributors["user_id.run"])
-        logger.debug(f"Initialising RunUser id:{self.user_id}")
         self.database = environment.database
         self.workload = environment.workload
         self.state = RunUser.State.Active
+        opts = environment.parsed_options
+        self.target_throughput = opts.requests_per_sec / float(opts.num_users)
+        logger.debug(
+            f"Initialising RunUser id:{self.user_id}, target request/sec:{self.target_throughput}"
+        )
 
     @task
     def request(self):
@@ -174,6 +178,14 @@ class RunUser(User):
                 # Nothing more to do, but sleep briefly here to prevent
                 # us busy-looping in this state.
                 time.sleep(0.1)
+
+    def wait_time(self):
+        """Method called by locust to control how long this task should wait between
+        executions.
+        """
+        if self.target_throughput > 0:
+            return constant_throughput(self.target_throughput)(self)
+        return 0
 
     def do_run(self):
         request: SearchRequest
