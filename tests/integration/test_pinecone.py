@@ -46,7 +46,7 @@ def _create_pinecone_index(dims: int, metric: str) -> str:
 
 def _delete_pinecone_index(index_name: str):
     pc = Pinecone(api_key=read_env_var("PINECONE_API_KEY"))
-    pc.delete_index(name=index_name)
+    pc.delete_index(name=index_name, timeout=-1)
 
 
 @pytest.fixture(scope="module")
