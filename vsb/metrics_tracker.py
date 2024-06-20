@@ -14,6 +14,7 @@ import json
 import time
 from collections import defaultdict
 
+import locust.env
 from hdrh.histogram import HdrHistogram
 from locust import events
 from locust.runners import WorkerRunner
@@ -152,10 +153,13 @@ def on_worker_report(client_id, data: dict()):
 
 
 @events.quitting.add_listener
-def print_metrics_on_quitting(environment):
+def print_metrics_on_quitting(environment: locust.env.Environment):
     # Emit stats once on the master (if running in distributed mode) or
     # once on the LocalRunner (if running in single-process mode).
-    if not isinstance(environment.runner, WorkerRunner):
+    if (
+        not isinstance(environment.runner, WorkerRunner)
+        and environment.shape_class.finished
+    ):
         for line in get_stats_summary(environment.stats, False):
             logger.info("    " + line)
         for line in get_percentile_stats_summary(environment.stats):

@@ -101,6 +101,7 @@ def setup_worker_dataset(environment, **_kwargs):
             # This is a special exception that is raised when we want to
             # stop the User from running, e.g. because the database
             # connection failed.
+            log.unhandled_greenlet_exception = True
             environment.runner.quit()
         except:
             logger.error(
