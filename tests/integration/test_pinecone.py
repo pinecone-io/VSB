@@ -237,3 +237,15 @@ class TestPinecone:
             "'pinecone':"
         ) in stderr
         assert "--pinecone_api_key" in stderr
+
+    def test_invalid_index(self, api_key):
+        # Tests that specifying an index which doesn't exist is reported gracefully,
+        # without printing additional metrics / stats (which could suggest the expirment ran correctly.
+        (proc, stdout, stderr) = spawn_vsb(
+            workload="mnist-test",
+            api_key=api_key,
+            index_name="index-name-which-does-not-exist",
+        )
+        assert proc.returncode == 2
+        assert "Response time percentiles" not in stdout
+        assert "Saved stats to 'reports/" not in stdout

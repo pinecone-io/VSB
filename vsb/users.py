@@ -298,6 +298,10 @@ class LoadShape(LoadTestShape):
             case _:
                 raise ValueError(f"Invalid phase:{self.phase}")
 
+    @property
+    def finished(self):
+        return self.phase == LoadShape.Phase.Done
+
     def _transition_phase(self, new: Phase):
         # Record and log the start of the publicly visible phases.
         tracked_phases = [
@@ -375,6 +379,7 @@ class LoadShape(LoadTestShape):
                     )
                     self._transition_phase(LoadShape.Phase.Done)
             case LoadShape.Phase.Done:
+
                 logger.error(
                     f"VSBLoadShape.update_progress() - Unexpected progress update in Done phase!"
                 )
@@ -383,7 +388,6 @@ class LoadShape(LoadTestShape):
         """Update the phase progress bar for the current phase."""
         match self.phase:
             case LoadShape.Phase.Setup:
-                pass
                 vsb.progress.update(
                     self.progress_task_id, total=1, completed=1 if mark_completed else 0
                 )
