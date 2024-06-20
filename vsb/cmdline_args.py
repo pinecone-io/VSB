@@ -38,6 +38,14 @@ def add_vsb_cmdline_args(
         action="store_true",
         help="Skip the populate phase (useful if workload has already been loaded and is static)",
     )
+    general_group.add_argument(
+        "--requests_per_sec",
+        type=float,
+        default=0,
+        help="Target requests per second for the Run phase. If using multiple users, "
+        "then the target will be distributed across all users. "
+        "Specify 0 for unlimited. Default is %(default)s.",
+    )
 
     if include_locust_args:
         general_group.add_argument(
@@ -51,6 +59,8 @@ def add_vsb_cmdline_args(
         general_group.add_argument(
             "--users",
             type=int,
+            metavar="<int>",
+            dest="num_users",
             default=1,
             help="Number of database clients to execute the workload. Default is %("
             "default)s",
