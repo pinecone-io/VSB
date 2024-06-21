@@ -1,4 +1,5 @@
 import numpy as np
+import math
 import pgvector.psycopg
 import psycopg
 from psycopg.types.json import Jsonb
@@ -14,11 +15,23 @@ class PgvectorNamespace(Namespace):
     plus associated pgvector index.
     """
 
-    def __init__(self, connection, table: str, metric: DistanceMetric, namespace: str):
+    def __init__(
+        self,
+        connection,
+        table: str,
+        metric: DistanceMetric,
+        index_type: str,
+        search_candidates: int,
+        ivfflat_lists: int,
+        namespace: str,
+    ):
         # TODO: Support multiple namespaces
         self.conn = connection
         self.table = table
         self.metric = metric
+        self.index_type = index_type
+        self.search_candidates = search_candidates
+        self.ivfflat_lists = ivfflat_lists
 
     def upsert(self, ident, vector, metadata):
         raise NotImplementedError
@@ -34,6 +47,14 @@ class PgvectorNamespace(Namespace):
             cur.executemany(upsert_query, data)
 
     def search(self, request: SearchRequest) -> list[str]:
+        match self.index_type:
+            case "hnsw":
+                # For HNSW, we use a default of 2 * top_k for ef_search. See https://github.com/pgvector/pgvector.
+                setup_search_statement = f"SET hnsw.ef_search = {(2 * request.top_k) if self.search_candidates == 0 else self.search_candidates}"
+            case "ivfflat":
+                # For IVFFLAT, we use a default of sqrt(lists) for probes. See https://github.com/pgvector/pgvector.
+                setup_search_statement = f"SET ivfflat.probes = {math.isqrt(self.ivfflat_lists) if self.search_candidates == 0 else self.search_candidates}"
+        self.conn.execute(setup_search_statement)
         match self.metric:
             case DistanceMetric.Cosine:
                 operator = "<=>"
@@ -61,7 +82,7 @@ class PgvectorDB(DB):
         self.index_type = config["pgvector_index_type"]
         match self.index_type:
             case "hnsw":
-                pass
+                self.ivfflat_lists = None
             case "ivfflat":
                 self.ivfflat_lists = config["pgvector_ivfflat_lists"]
             case _:
@@ -69,6 +90,7 @@ class PgvectorDB(DB):
                     "Unsupported pgvector index type {}".format(self.index_type)
                 )
         self.metric = metric
+        self.search_candidates = config["pgvector_search_candidates"]
         # Postgres doesn't like "-" in identifier names so sanitize when
         # forming table name from workload name.
         self.table = name.replace("-", "_")
@@ -78,6 +100,7 @@ class PgvectorDB(DB):
         # Connect to postgres and setup pgvector support.
         self.conn = psycopg.connect(
             host=config["pgvector_host"],
+            port=config["pgvector_port"],
             user=config["pgvector_username"],
             password=config["pgvector_password"],
             dbname=config["pgvector_database"],
@@ -93,7 +116,15 @@ class PgvectorDB(DB):
         return 1000
 
     def get_namespace(self, namespace_name: str) -> Namespace:
-        return PgvectorNamespace(self.conn, self.table, self.metric, namespace_name)
+        return PgvectorNamespace(
+            self.conn,
+            self.table,
+            self.metric,
+            self.index_type,
+            self.search_candidates,
+            self.ivfflat_lists,
+            namespace_name,
+        )
 
     def initialize_population(self):
         # Start with an empty table if we are going to populate it.
