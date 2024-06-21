@@ -31,7 +31,7 @@ class ParquetWorkload(VectorWorkload, ABC):
         self.dataset = Dataset(dataset_name, cache_dir=cache_dir, limit=limit)
 
         self.dataset.setup_queries(query_limit=query_limit)
-        self.queries = self.dataset.queries.itertuples(index=False)
+        self.queries = self.dataset.queries
 
     def get_sample_record(self) -> Record:
         iter = self.get_record_batch_iter(1, 0, 1)
@@ -64,14 +64,30 @@ class ParquetWorkload(VectorWorkload, ABC):
 
         return recordbatch_to_dataframe(batch_iter)
 
-    def next_request(self) -> (str, SearchRequest | None):
-        try:
-            query = next(self.queries)
-            # neighbors are nested inside a `blob` field, need to unnest them
-            # to pass to SearchRequest.
-            args = query._asdict()
-            args.update(args.pop("blob"))
-            # TODO: Add multiple tenant support.
-            return "", SearchRequest(**args)
-        except StopIteration:
-            return None, None
+    def get_query_iter(
+        self, num_users: int, user_id: int
+    ) -> Iterator[tuple[str, SearchRequest]]:
+        # Calculate start / end for this query chunk, then split the table
+        # and create an iterator over it.
+        quotient, remainder = divmod(len(self.queries), num_users)
+        chunks = [quotient + (1 if r < remainder else 0) for r in range(num_users)]
+        # Determine start position based on sum of size of all chunks prior
+        # to ours.
+        start = sum(chunks[:user_id])
+        end = start + chunks[user_id]
+        user_chunk = self.queries.iloc[start:end]
+
+        # Return an iterator for the Nth chunk.
+        def make_query_iter(queries):
+            for query in queries.itertuples(index=False):
+                assert query
+                # neighbors are nested inside a `blob` field, need to unnest them
+                # to pass to SearchRequest.
+                args = query._asdict()
+                assert "values" in args
+                assert args["values"] is not None
+                args.update(args.pop("blob"))
+                # TODO: Add multiple tenant support.
+                yield "", SearchRequest(**args)
+
+        return make_query_iter(user_chunk)

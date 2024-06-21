@@ -74,9 +74,16 @@ class VectorWorkload(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def next_request(self) -> (str, SearchRequest | None):
-        """Obtain the next request for this workload. Returns a tuple of
-        (tenant, Request), where Request is None if there are no more Requests
-        to issue.
+    def get_query_iter(
+        self, num_users: int, user_id: int
+    ) -> Iterator[tuple[str, SearchRequest]]:
+        """
+        Returns an iterator over the sequence of queries for the given user_id,
+        assuming a total of `num_users` which will be issuing queries - i.e.
+        for the entire query set to be requested there should be `num_users` calls
+        to this method.
+        Returns an Iterator which yields a tuple of (tenant, Request).
+        :param num_users: The number of clients the queries are distributed across.
+        :param user_id: The ID of the user requesting the iterator.
         """
         raise NotImplementedError

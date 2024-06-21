@@ -1,4 +1,5 @@
 from abc import ABC
+from collections.abc import Iterator
 
 from ..parquet_workload.parquet_workload import ParquetWorkload
 from ...vsb_types import DistanceMetric, SearchRequest, Record
@@ -58,13 +59,20 @@ class MnistTest(MnistBase):
             map((lambda r: r.id), sorted(self.records.root, key=dist)[: req.top_k])
         )
 
-    def next_request(self) -> (str, SearchRequest | None):
-        try:
-            tenant, request = super().next_request()
-            if request is not None:
-                # Replace the original neighbors field with the correct top-k nearest neighbors from the truncated dataset.
-                request.neighbors = self._get_topk(request)
-            return tenant, request
+    def get_query_iter(
+        self, num_users: int, user_id: int
+    ) -> Iterator[tuple[str, SearchRequest]]:
+        """
+        MnistTest only uses the first P passages from the original mnist dataset,
+        as such the neighbors field is not necessarily the correct top-k nearest
+        neighbors from the truncated passages set.
+        As such, replace by re-calculating from the actual records in the dataset.
+        """
+        base_iter = super().get_query_iter(num_users, user_id)
 
-        except StopIteration:
-            return None, None
+        def update_neighbors():
+            for tenant, request in base_iter:
+                request.neighbors = self._get_topk(request)
+                yield tenant, request
+
+        return update_neighbors()
