@@ -5,6 +5,7 @@ from conftest import (
     random_string,
     spawn_vsb_inner,
     check_recall_stats,
+    check_recall_correctness,
 )
 
 
@@ -176,9 +177,10 @@ class TestPgvector:
             extra_args=["--pgvector_search_candidates=100"],
         )
         assert proc.returncode == 0
-        # Test default value of 0 (unset).
+        # Test default value of 0 (unset) -> 2*top_k for hnsw.
         (proc, stdout, stderr) = spawn_vsb(workload="mnist-test")
         assert proc.returncode == 0
+        # Defaults should produce "good" (>0.9 p95) recall.
         check_request_counts(
             stdout,
             {
@@ -187,7 +189,7 @@ class TestPgvector:
                 "Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": check_recall_stats,
+                    "recall": check_recall_correctness(0.9),
                 },
             },
         )
