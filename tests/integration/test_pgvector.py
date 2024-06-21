@@ -177,9 +177,7 @@ class TestPgvector:
         )
         assert proc.returncode == 0
         # Test default value of 0 (unset).
-        (proc, stdout, stderr) = spawn_vsb(
-            workload="mnist-test"
-        )
+        (proc, stdout, stderr) = spawn_vsb(workload="mnist-test")
         assert proc.returncode == 0
         check_request_counts(
             stdout,
