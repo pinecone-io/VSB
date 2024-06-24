@@ -181,3 +181,31 @@ def make_progressbar() -> rich.progress.Progress:
     )
     progress.start()
     return progress
+
+
+from contextlib import contextmanager
+from rich.progress import Progress
+
+
+@contextmanager
+def progress_task(initial_description: str, completed_description=None, total=None):
+    """Context manager which creates a task in vsb.progress bar, marking as
+    complete (and optionally updating the description) on exit.
+    """
+    if vsb.progress is None:
+        # Simplify handling of progress bar being None - just do nothing.
+        yield None
+        return
+
+    # Add a task to the progress bar on entering the context
+    total = total if total else 1
+    task_id = vsb.progress.add_task(initial_description, total=total)
+    try:
+        # Yield control back to the caller with the task_id so caller can
+        # update amount completed etc.
+        yield task_id
+    finally:
+        # Mark the task as completed on exiting the context
+        vsb.progress.update(task_id, completed=total)
+        if completed_description:
+            vsb.progress.update(task_id, description=completed_description)

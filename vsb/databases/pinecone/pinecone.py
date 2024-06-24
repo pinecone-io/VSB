@@ -117,21 +117,17 @@ class PineconeDB(DB):
     def finalize_population(self, record_count: int):
         """Wait until all records are visible in the index"""
         logger.debug(f"PineconeDB: Waiting for record count to reach {record_count}")
-        if vsb.progress:
-            finalize_id = vsb.progress.add_task(
-                "- Finalize population", total=record_count
-            )
-        while True:
-            index_count = self.index.describe_index_stats()["total_vector_count"]
-            if vsb.progress:
-                vsb.progress.update(finalize_id, completed=index_count)
-            if index_count >= record_count:
-                logger.debug(
-                    f"PineconeDB: Index vector count reached {index_count}, "
-                    f"finalize is complete"
-                )
-                break
-            time.sleep(1)
-
-        if vsb.progress:
-            vsb.progress.update(finalize_id, description="  ✔ Finalize population")
+        with vsb.logging.progress_task(
+            "  Finalize population", "  ✔ Finalize population", total=record_count
+        ) as finalize_id:
+            while True:
+                index_count = self.index.describe_index_stats()["total_vector_count"]
+                if vsb.progress:
+                    vsb.progress.update(finalize_id, completed=index_count)
+                if index_count >= record_count:
+                    logger.debug(
+                        f"PineconeDB: Index vector count reached {index_count}, "
+                        f"finalize is complete"
+                    )
+                    break
+                time.sleep(1)

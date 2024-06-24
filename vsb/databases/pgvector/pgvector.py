@@ -127,40 +127,35 @@ class PgvectorDB(DB):
         )
 
     def initialize_population(self):
-        # Start with an empty table if we are going to populate it.
-        if not self.skip_populate:
-            self.conn.execute("DROP TABLE IF EXISTS " + self.table)
-        self.conn.execute(
-            "CREATE TABLE IF NOT EXISTS "
-            + self.table
-            + " (id VARCHAR PRIMARY KEY, embedding vector("
-            + str(self.dimensions)
-            + "), metadata JSONB)",
-        )
+        with vsb.logging.progress_task(
+            "  Create pgvector table", "  ✔ pgvector table created"
+        ):
+            # Start with an empty table if we are going to populate it.
+            if not self.skip_populate:
+                self.conn.execute("DROP TABLE IF EXISTS " + self.table)
+            self.conn.execute(
+                "CREATE TABLE IF NOT EXISTS "
+                + self.table
+                + " (id VARCHAR PRIMARY KEY, embedding vector("
+                + str(self.dimensions)
+                + "), metadata JSONB)",
+            )
 
     def finalize_population(self, record_count: int):
         # Create index.
-
-        if vsb.progress:
-            create_index_id = vsb.progress.add_task(
-                f"  Create pgvector index ({self.index_type})", total=None
+        with vsb.logging.progress_task(
+            f"  Create pgvector index ({self.index_type})",
+            f"  ✔ pgvector index ({self.index_type}) created",
+        ):
+            sql = (
+                f"CREATE INDEX IF NOT EXISTS {self.table}_embedding_idx ON "
+                f"{self.table} USING {self.index_type} (embedding "
+                f"{PgvectorDB._get_distance_func(self.metric)})"
             )
-        sql = (
-            f"CREATE INDEX IF NOT EXISTS {self.table}_embedding_idx ON "
-            f"{self.table} USING {self.index_type} (embedding "
-            f"{PgvectorDB._get_distance_func(self.metric)})"
-        )
-        match self.index_type:
-            case "ivfflat":
-                sql += f" WITH (lists = {self.ivfflat_lists})"
-        self.conn.execute(sql)
-        if vsb.progress:
-            vsb.progress.update(
-                create_index_id,
-                description=f"  ✔ pgvector index ({self.index_type}) created",
-                total=1,
-                completed=1,
-            )
+            match self.index_type:
+                case "ivfflat":
+                    sql += f" WITH (lists = {self.ivfflat_lists})"
+            self.conn.execute(sql)
 
     @staticmethod
     def _get_distance_func(metric: DistanceMetric) -> str:

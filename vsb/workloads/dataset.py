@@ -190,23 +190,24 @@ class Dataset:
             f"Parquet dataset: downloading {len(to_download)} files belonging to "
             f"dataset '{self.name}'"
         )
-        if vsb.progress:
-            download_task = vsb.progress.add_task(
-                " Downloading dataset files", total=len(to_download)
-            )
-        for blob in to_download:
-            logger.debug(
-                f"Dataset file '{blob.name}' not found in cache - will be downloaded"
-            )
-            dest_path = self.cache / blob.name
-            dest_path.parent.mkdir(parents=True, exist_ok=True)
-            blob.download_to_file(
-                ProgressIOWrapper(
-                    dest=dest_path, progress=vsb.progress, total=blob.size, indent=2
+        with vsb.logging.progress_task(
+            "  Downloading dataset files",
+            "  ✔ Dataset download complete",
+            total=len(to_download),
+        ) as download_task:
+            for blob in to_download:
+                logger.debug(
+                    f"Dataset file '{blob.name}' not found in cache - will be downloaded"
                 )
-            )
-            if vsb.progress:
-                vsb.progress.update(download_task, advance=1)
+                dest_path = self.cache / blob.name
+                dest_path.parent.mkdir(parents=True, exist_ok=True)
+                blob.download_to_file(
+                    ProgressIOWrapper(
+                        dest=dest_path, progress=vsb.progress, total=blob.size, indent=2
+                    )
+                )
+                if vsb.progress:
+                    vsb.progress.update(download_task, advance=1)
 
     def _load_parquet_dataset(self, kind, limit=0):
         parquet_files = [f for f in (self.cache / self.name).glob(kind + "/*.parquet")]
