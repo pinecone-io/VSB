@@ -148,8 +148,6 @@ class Dataset:
             return files_to_batches(my_chunks)
 
     def setup_queries(self, query_limit=0):
-        # If there is an explicit 'queries' dataset, then load that and use
-        # for querying, otherwise use documents directly.
         self._download_dataset_files()
         self.queries = self._load_parquet_dataset("queries", limit=query_limit)
         logger.debug(

@@ -145,10 +145,10 @@ class TestPinecone:
                 # chunk will be less than the batch size (600 / 4 < 200), then the
                 # number of requests will be equal to the number of users - i.e. 4
                 "Populate": {"num_requests": 4, "num_failures": 0},
-                # TODO: We should only issue each search query once, but currently
-                # we perform the query once per process (4)
+                # The number of Search requests should equal the number in the dataset
+                # (20 for mnist-test).
                 "Search": {
-                    "num_requests": 20 * 4,
+                    "num_requests": 20,
                     "num_failures": 0,
                     "recall": check_recall_stats,
                 },

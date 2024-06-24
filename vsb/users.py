@@ -4,7 +4,7 @@ from enum import Enum, auto
 
 import rich.progress
 from locust import User, task, LoadTestShape, constant_throughput
-from locust.exception import StopUser
+from locust.exception import ResponseError, StopUser
 import locust.stats
 
 import vsb
@@ -160,6 +160,7 @@ class RunUser(User):
         # user_id, to use for selecting which subset of the workload this User
         # will operate on.
         self.user_id = next(distributors["user_id.run"])
+        self.users_total = environment.parsed_options.num_users
         self.database = environment.database
         self.workload = environment.workload
         self.state = RunUser.State.Active
@@ -168,6 +169,7 @@ class RunUser(User):
         logger.debug(
             f"Initialising RunUser id:{self.user_id}, target request/sec:{self.target_throughput}"
         )
+        self.query_iter = None
 
     @task
     def request(self):
@@ -189,36 +191,43 @@ class RunUser(User):
 
     def do_run(self):
         request: SearchRequest
-        (tenant, request) = self.workload.next_request()
-        if request:
-            try:
-                index = self.database.get_namespace(tenant)
+        if not self.query_iter:
+            self.query_iter = self.workload.get_query_iter(
+                self.users_total, self.user_id
+            )
 
-                start = time.perf_counter()
-                results = index.search(request)
-                stop = time.perf_counter()
-
-                calc_metrics = metrics.calculate_metrics(request, results)
-
-                elapsed_ms = (stop - start) * 1000.0
-                self.environment.events.request.fire(
-                    request_type="Search",
-                    name=self.workload.name,
-                    response_time=elapsed_ms,
-                    response_length=0,
-                    metrics=calc_metrics,
-                )
-            except Exception as e:
-                traceback.print_exception(e)
-                self.environment.runner.quit()
-                raise StopUser
-        else:
+        tenant: str = None
+        request: SearchRequest = None
+        try:
+            (tenant, request) = next(self.query_iter)
+        except StopIteration:
             # No more requests - user is done.
             logger.debug(f"User id:{self.user_id} completed Run phase")
             self.environment.runner.send_message(
                 "update_progress", {"user": self.user_id, "phase": "run"}
             )
             self.state = RunUser.State.Done
+            return
+        try:
+            index = self.database.get_namespace(tenant)
+
+            start = time.perf_counter()
+            results = index.search(request)
+            stop = time.perf_counter()
+            elapsed_ms = (stop - start) * 1000.0
+            calc_metrics = metrics.calculate_metrics(request, results)
+
+            self.environment.events.request.fire(
+                request_type="Search",
+                name=self.workload.name,
+                response_time=elapsed_ms,
+                response_length=0,
+                metrics=calc_metrics,
+            )
+        except Exception as e:
+            traceback.print_exception(e)
+            self.environment.runner.quit()
+            raise StopUser
 
 
 class LoadShape(LoadTestShape):
