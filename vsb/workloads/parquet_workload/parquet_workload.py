@@ -4,11 +4,12 @@ from collections.abc import Iterator
 from typing import Generator
 
 import pandas
+import numpy as np
 import pyarrow
 
 from ..base import VectorWorkload
 from ..dataset import Dataset
-from ...vsb_types import SearchRequest, RecordList, Record
+from ...vsb_types import SearchRequest, RecordList, Record, DistanceMetric
 
 
 class ParquetWorkload(VectorWorkload, ABC):
@@ -91,3 +92,62 @@ class ParquetWorkload(VectorWorkload, ABC):
                 yield "", SearchRequest(**args)
 
         return make_query_iter(user_chunk)
+
+
+class ParquetSubsetWorkload(ParquetWorkload):
+    def __init__(
+        self,
+        name: str,
+        dataset_name: str,
+        cache_dir: str,
+        limit: int = 0,
+        query_limit: int = 0,
+    ):
+        super().__init__(
+            name,
+            dataset_name,
+            cache_dir=cache_dir,
+            limit=limit,
+            query_limit=query_limit,
+        )
+        # Store records in memory; we run a k-NN search to find correct top-k neighbors for each request.
+        batch_iter = self.get_record_batch_iter(1, 0, self.record_count)
+        (_, batch) = next(batch_iter)
+        self.records = batch
+
+    def _get_topk(self, req: SearchRequest) -> list[str]:
+        # Run a k-NN search to find the top-k nearest neighbors.
+        def dist(v: Record):
+            match self.metric:
+                case DistanceMetric.Cosine:
+                    return 1 - (
+                        np.dot(v.values, req.values)
+                        / (np.linalg.norm(v.values) * np.linalg.norm(req.values))
+                    )
+                case DistanceMetric.Euclidean:
+                    return np.linalg.norm(np.array(v.values) - np.array(req.values))
+                case DistanceMetric.DotProduct:
+                    return -1 * np.dot(v.values, req.values)
+            raise ValueError(f"Unsupported metric {self.metric}")
+
+        return list(
+            map((lambda r: r.id), sorted(self.records.root, key=dist)[: req.top_k])
+        )
+
+    def get_query_iter(
+        self, num_users: int, user_id: int
+    ) -> Iterator[tuple[str, SearchRequest]]:
+        """
+        Test workloads only use the first P passages from the original dataset,
+        as such the neighbors field is not necessarily the correct top-k nearest
+        neighbors from the truncated passages set.
+        As such, replace by re-calculating from the actual records in the dataset.
+        """
+        base_iter = super().get_query_iter(num_users, user_id)
+
+        def update_neighbors():
+            for tenant, request in base_iter:
+                request.neighbors = self._get_topk(request)
+                yield tenant, request
+
+        return update_neighbors()
