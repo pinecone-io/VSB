@@ -41,6 +41,22 @@ def check_recall_stats(actual: dict) -> bool:
     )
 
 
+def check_recall_correctness(p95_threshold: int):
+    """
+    Check that the recall stats are present, have the expected structure, and
+    that the values are within the expected range.
+
+    Use is intended for tests in which there is an expected approximate recall
+    score (e.g. for a known dataset + database configuration), and the test
+    should fail if the recall is below a certain threshold.
+    """
+    # Because of the metric structure, "5th percentile" is actually the 95th for recall (higher is better).
+    # Evil currying hack because we want a callable to pass to check_request_counts.
+    return lambda actual: (
+        check_recall_stats(actual) and actual["percentiles"]["5"] >= p95_threshold
+    )
+
+
 def check_request_counts(stdout, expected: dict()) -> None:
     """Given stdout in JSON format from vsb and a dict of expected elements
     to find in stdout, check all expected fields are present, asserting on

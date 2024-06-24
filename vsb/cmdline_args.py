@@ -94,6 +94,12 @@ def add_vsb_cmdline_args(
         help="pgvector host to connect to. Default is %(default)s",
     )
     pgvector_group.add_argument(
+        "--pgvector_port",
+        type=str,
+        default="5432",
+        help="pgvector port to connect to. Default is %(default)s",
+    )
+    pgvector_group.add_argument(
         "--pgvector_database",
         type=str,
         help="pgvector database to use",
@@ -124,6 +130,12 @@ def add_vsb_cmdline_args(
         type=int,
         default="100",
         help="For pgvector IVFFLAT indexes, number of lists to create. Default is %(default)s",
+    )
+    pgvector_group.add_argument(
+        "--pgvector_search_candidates",
+        type=int,
+        default="0",  # 0 represents pgvector-recommended defaults (2*top_k for HNSW, sqrt(pgvector_ivfflat_lists) for IVFFLAT)
+        help="Specify the size of the dynamic candidate list (ef_search for HNSW, probes for IVFFLAT). A higher value provides better recall at the cost of speed. Default is 2*top_k for HNSW and sqrt(pgvector_ivfflat_lists) for IVFFLAT",
     )
 
 
