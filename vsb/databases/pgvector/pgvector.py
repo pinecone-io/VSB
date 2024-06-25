@@ -123,6 +123,8 @@ class PgvectorDB(DB):
         self.conn.add_notice_handler(log_notice)
 
         pgvector.psycopg.register_vector(self.conn)
+        maintenance_work_mem = config.get("pgvector_maintenance_work_mem")
+        self.conn.execute(f"SET maintenance_work_mem = '{maintenance_work_mem}'")
 
     def get_batch_size(self, sample_record: Record) -> int:
         # Initially use a fixed batch size of 1000; this seems to be

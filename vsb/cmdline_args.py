@@ -137,6 +137,17 @@ def add_vsb_cmdline_args(
         default="0",  # 0 represents pgvector-recommended defaults (2*top_k for HNSW, sqrt(pgvector_ivfflat_lists) for IVFFLAT)
         help="Specify the size of the dynamic candidate list (ef_search for HNSW, probes for IVFFLAT). A higher value provides better recall at the cost of speed. Default is 2*top_k for HNSW and sqrt(pgvector_ivfflat_lists) for IVFFLAT",
     )
+    pgvector_group.add_argument(
+        "--pgvector_maintenance_work_mem",
+        type=str,
+        default="4GB",
+        help=(
+            "Set the postgres 'maintenance_work_mem' parameter - the amount of memory "
+            "to use for maintenance operations such as CREATE INDEX. This should be "
+            "at least as large as the index size. Specify as a string with size "
+            "suffix (e.g. '2GB'). Default is %(default)s"
+        ),
+    )
 
 
 def get_action(parser, argument_name):
