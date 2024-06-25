@@ -8,6 +8,7 @@ import vsb
 from .filter_util import FilterUtil
 from ..base import DB, Namespace
 from ...vsb_types import Record, DistanceMetric, RecordList, SearchRequest
+from vsb import logger
 
 
 class PgvectorNamespace(Namespace):
@@ -107,6 +108,20 @@ class PgvectorDB(DB):
             autocommit=True,
         )
         self.conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
+
+        # Register handler to log notices. Note we do this after loading
+        # the vector extension as that reports a notice if already loaded (even with
+        # IF NOT EXISTS) and we don't want to log that.
+        def log_notice(diag: psycopg.errors.Diagnostic):
+            msg = f"pgvector: {diag.severity} - {diag.message_primary}"
+            if diag.message_detail:
+                msg += f". Details: {diag.message_detail}"
+            if diag.message_hint:
+                msg += f" Hint: {diag.message_hint}"
+            logger.warning(msg)
+
+        self.conn.add_notice_handler(log_notice)
+
         pgvector.psycopg.register_vector(self.conn)
 
     def get_batch_size(self, sample_record: Record) -> int:
