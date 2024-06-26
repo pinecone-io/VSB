@@ -16,10 +16,6 @@ class Namespace(ABC):
     """
 
     @abstractmethod
-    def upsert(self, key, vector, metadata):
-        raise NotImplementedError
-
-    @abstractmethod
     def upsert_batch(self, batch: list[Record]):
         raise NotImplementedError
 

@@ -34,9 +34,6 @@ class PgvectorNamespace(Namespace):
         self.search_candidates = search_candidates
         self.ivfflat_lists = ivfflat_lists
 
-    def upsert(self, ident, vector, metadata):
-        raise NotImplementedError
-
     def upsert_batch(self, batch: RecordList):
         # pgvector / psycopg expects a list of tuples.
         data = [(rec.id, np.array(rec.values), Jsonb(rec.metadata)) for rec in batch]
