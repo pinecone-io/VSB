@@ -137,7 +137,7 @@ run for selected percentiles:
 <img src=docs/images/vsb_example_live_metrics.png/>
 </p>
 
-Example: Run `yfcc-10M` (10M vectors, 192 dimensions, metadata filtering) workload 
+Example: Run `yfcc-10M` (10M vectors, 192 dimensions, euclidean, metadata filtering) workload 
 against Pinecone at 10 QPS:
 ```shell
 vsb --database=pinecone --workload=yfcc-10M \
