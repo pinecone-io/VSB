@@ -69,26 +69,229 @@ vsb --database=pgvector --workload=mnist-test
 ```
 
 Example output:
+
+<p align="center" width="100%">
+   <img src=docs/images/vsb_example_output.png/>
+</p>
+
+## Overview
+
+VSB` is a cli tool used to run various workloads against a range of 
+vector databases, and measure how they perform.
+
+Each experiment consists of three phases: _Setup_, _Populate_, and _Run_:
+
+* **Setup**: Prepare the database and workload for the experiment (create tables, 
+  indexes, download / generate data).
+* **Populate**: Load the database with data, create indexes, etc.
+* **Run**: Execute the workload against the database, measuring throughput, latency, 
+  and other metrics.
+
+VSB automatically runs these phases in sequence, and reports the results at the 
+end; writing detailed results to `stats.json` file and displaying a summary.
+
+## Usage
+
+Two parameters are required:
+
+* `--database=<database>`: the database to run against.
+* `--workload=<workload>`: the workload to execute.
+
+Omitting the value for either database or workload will result in a list of 
+available choices being displayed. 
+
+Additional parameters may be specified to further configure the database 
+and/or workload. For some databases these are required - for example to specify 
+credentials or the index to connect to. Commonly used parameters are:
+
+* `--requests_per_sec=<float>`: Cap the rate at which requests are issued to the 
+  database.
+* `--users=<int>`: Number of concurrent users (connections) to simulate.
+* `--skip_populate`: Skip populating the database with data, just perform the Run 
+  phase.
+
+## What can I use VSB for?
+
+VSB is designed to help you quickly measure how different workloads perform on a 
+range of vector databases. It can be used to perform a range of tasks including:
+
+* Compare the performance (throughput, latency, accuracy) of different vector databases.
+* Benchmark the performance of a single database across different workloads.
+* Evaluate the performance of a database under different conditions (e.g. different 
+  data sizes, dimensions, metrics, access patterns).
+* Understand the performance characteristics and identify bottlenecks of a database.
+* Perform regression testing to ensure that changes to a database do not degrade performance.
+
+### Measuring latency
+
+VSB measures latency by sending a query to the database and measuring the duration 
+between issuing the request and receiving the database's response.
+This includes both the send/receive time and the time for the database to 
+process the request. As such, latency is affected by the RTT between VSB 
+client and the database, in addition to how long the database takes.
+
+VSB records latency values for each request, then reported as percentiles 
+when the workload completes. Live values (last 10s) are also displayed during the 
+run for selected percentiles:
+<p align="center" width="100%">
+<img src=docs/images/vsb_example_live_metrics.png/>
+</p>
+
+Example: Run `yfcc-10M` (10M vectors, 192 dimensions, metadata filtering) workload 
+against Pinecone at 10 QPS:
 ```shell
-[2024-04-29 12:49:42,946] localhost/INFO/root: Using 10000 query vectors loaded from dataset 'queries' table
-[2024-04-29 12:49:42,948] localhost/INFO/locust.runners: Ramping to 1 users at a rate of 10.00 per second
-[2024-04-29 12:49:42,948] localhost/INFO/locust.runners: All users spawned: {"VectorSearchUser": 1} (1 total users)
-[2024-04-29 12:49:44,314] localhost/INFO/root: Completed Load phase, switching to Run phase
-[2024-04-29 12:49:45,687] localhost/INFO/root: User count: 1
-[2024-04-29 12:49:45,687] localhost/INFO/root: Last user stopped, quitting runner
-Type     Name                                                                          # reqs      # fails |    Avg     Min     Max    Med |   req/s  failures/s
---------|----------------------------------------------------------------------------|-------|-------------|-------|-------|-------|-------|--------|-----------
-Populate  mnist-test                                                                         3     0(0.00%) |    391     327     491    360 |    1.10        0.00
-Search   mnist-test                                                                       100     0(0.00%) |     13      10      22     13 |   36.52        0.00
---------|----------------------------------------------------------------------------|-------|-------------|-------|-------|-------|-------|--------|-----------
-         Aggregated                                                                       103     0(0.00%) |     24      10     491     13 |   37.61        0.00
-
-Response time percentiles (approximated)
-Type     Name                                                                                  50%    66%    75%    80%    90%    95%    98%    99%  99.9% 99.99%   100% # reqs
---------|--------------------------------------------------------------------------------|--------|------|------|------|------|------|------|------|------|------|------|------
-Populate mnist-test                                                                            360    360    490    490    490    490    490    490    490    490    490      3
-Search   mnist-test                                                                             13     13     14     14     15     16     19     22     22     22     22    100
---------|--------------------------------------------------------------------------------|--------|------|------|------|------|------|------|------|------|------|------|------
-         Aggregated                                                                             13     13     14     14     16     18    330    360    490    490    490    103
-
+vsb --database=pinecone --workload=yfcc-10M \
+    --pinecone_index_name=<INDEX_NAME> --pinecone_api_key=<API_KEY> \
+    --users=10 --requests_per_sec=10
 ```
+
+#### Designing a good latency experiment
+
+When measuring latency one typically wants to consider:
+
+* **The rate** at which requests are issued (`--requests_per_sec`) so that
+  neither the client machine nor the server (database) are saturated, as that
+  would typically result in elevated latencies.
+
+  Choose a request rate that is representative of the expected production
+  workload.
+
+* **The number of concurrent requests** (`--users`) to simulate. Most production 
+  workloads will have multiple users (clients) issuing requests to the database
+  concurrently, so it's important this is represented in the experiment.
+
+* **What metrics to report**. Latency and throughput are "classic" measures of
+  many database systems, however vector databases must also consider the
+  quality of the responses to queries (e.g. what
+  [recall](https://www.pinecone.io/learn/offline-evaluation/) is achieved at a
+  given latency).
+ 
+  Much like latency, it is important to consider the distribution of recall -
+  a median (p50) recall of 80% may seem good, but if p10 recall is 0% then 10%
+  of your queries are returning no relevent results.
+
+### Measuring throughput
+
+VSB measures throughput by calculating the number of responses which are
+received over a given period of time. It maintains a running count of how many requests
+have been performed over the course of the Run phase, and reports the overall rate 
+when the experiment finishes. It also displays a live value (last 10s) during the run.
+
+Example: Run nq-768 (2.68M vectors, 768 dimensions) workload  
+against pgvector with multiple users and processes (to attempt to saturate it)
+```shell
+vsb --database=pgvector --workload=nq768 --users=10 --processes=10
+```
+#### Designing a good throughput experiment
+
+Throughput experiments are typically trying to answer one of two questions:
+
+1. Can the system handle the expected production workload - and if so how much will 
+  it cost to run?
+2. How far can the system scale within acceptable latency bounds?
+
+In the first case throughput is an _input_ to the experiment - specify the expected 
+workload via `--requests_per_sec=N`. In the second case throughput is an _output_ - 
+we want to generate increasing amounts of load until the response time exceeds
+our acceptable bounds - that is the maximum real-world throughput.
+
+By default, VSB only simulates one user (`--users=1`), so the throughput is
+effectively the reciprocal of the latency. Bear this in mind when trying to
+measure throughput of a system - one would typically need to
+increase the number of `--users` (and potentially `--processes`) to ensure there's
+sufficient concurrent work given to the database system under test.
+
+## Extending VSB
+
+VSB has been designed to be extensible, to make it straightforward to add new  
+databases workloads.
+
+### Adding a new database
+
+To add a new database to VSB you need to create a new module for your database
+and implement 5 required methods, then register with VSB:
+
+1. **Create a new module** in [`vsb/databases/`](vsb/databases/) for your database - e.g.
+   for `mydb` create `vsb/databases/mydb/mydb.py`.
+2. **Implement a Database class in this module** - inheriting from
+   [`database.DB`](vsb/databases/base.py) and implementing the required methods:
+    * `__init__()` - Set up the connection to your database, and any other required 
+      initialisation.
+    * `get_namespace()` - Returns a `Namespace` (table, sub-index) object to use for 
+      the given namespace name. If the database doesn't support multiple namespaces 
+      - or for an initial implemenation this can return just a single `Namespace` 
+        object.
+    * `get_batch_size()` - Returns the preferred size of record batch for the 
+      populate phase. 
+     
+3. **Implement optional methods** if applicable to your database: 
+   * `initialize_populate()` - Prepare the database for the populate phase - perhaps 
+     create a table, or clear existing data.
+   * `finalize_populate()` - Finalize the populate phase - perhaps create an index, 
+     or wait for upserted data to be processed.
+4. **Implement a Namespace class** in this module - inheriting from
+   [`database.Namespace`](vsb/databases/base.py) and implementing the required
+   methods:
+    * `upsert_batch()` - Upsert the given batch of records into the namespace. 
+    * `search()` - Perform a search for the given query vector.
+5. **Register the database with VSB** by adding an entry to the `Database` enum in 
+   [`vsb/databases/__init__.py`](vsb/databases/__init__.py), and updating `get_class()`.
+6. (Optional) **Add database-specific command-line arguments** to `add_vsb_cmdline_args()` 
+   method in [`vsb/cmdline_args.py`](vsb/cmdline_args.py) - for example for passing 
+   credentials, connection parameters, index tunables.
+7. (Optional) **Add Docker compose file** to [`docker`/](docker/) directory to 
+   launch a local instance of the database to run against (only applicable to 
+   locally running DBs).
+
+That's it! You should now be able to run VSB against your database by specifying 
+`--database=mydb` now.
+
+#### Tips and tricks
+* The existing database modules in VSB can be used as a reference for how to 
+  implement a new database module - for example
+  [`databases/pgvector`](vsb/databases/pgvector) for a locally-running DB, or
+  [`database/pinecone`](vsb/databases/pinecone) for a cloud-hosted DB.
+* Integration tests exist for each supported database, and can be run via `pytest` 
+  to check that the module is working correctly. It is recommended you create
+  a similar suite for your database.
+* The `*-test` workloads are designed to be quick to run, and are a good starting 
+  point for testing your database module. For example
+  [workloads/mnist-test](vsb/workloads/mnist/mnist.py) is only 600 records and 20 
+  queries, and should complete in a few seconds on most databases. 
+  Once you have the test workloads working you can move on to the larger workloads.
+* VSB uses standard Python logging, so you can use `logging` to output debug 
+  information from your database module. The default emitted log level is `INFO`, 
+  but this can be changed via `--loglevel=DEBUG`.
+
+### Adding a new workload
+
+To add a new workload to VSB you need to create a new module for your workload,
+then register with VSB.
+
+#### Parquet-based workloads
+
+VSB has support for loading  static datasets from Parquet files, assuming the 
+files match the
+[pinecone-datasets](https://github.com/pinecone-io/pinecone-datasets) schema.
+
+1. **Create a new module** in [`vsb/workloads/`](vsb/workloads/) for your 
+   workload - 
+   e.g. for `my-workload` create `vsb/workloads/my-workload/my_workload.py`.
+2. **Implement a Workload class** in this module - inheriting from
+   [`parquet_workload.ParquetWorkload`](vsb/workloads/parquet_workload.py) and 
+   implementing the required methods / properties:
+    * `__init__()` - Call to the superclass constructor passing the dataset path - e.g:
+      ```python
+      class MyWorkload(ParquetWorkload):
+          def __init__(self, name: str, cache_dir: str):
+              super().__init__(name, "gs://bucket/my_workload", cache_dir=cache_dir)
+       ```
+    * `dimensions` - The dimensionality of the vectors in the dataset.
+    * `metric` - The distance metric to use for the workload.
+    * `record_count` - The number of records in the dataset.
+    * `request_count` - The number of queries to perform.
+3. **Register the workload with VSB** by adding an entry to the `Workload` enum in 
+   [`vsb/workloads/__init__.py`](vsb/workloads/__init__.py), and updating `get_class()`.
+
+All done. You should now be able to run this workload by specifying 
+`--workload=my-workload`.
