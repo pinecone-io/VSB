@@ -25,9 +25,6 @@ class PineconeNamespace(Namespace):
         # TODO: Support multiple namespaces
         self.index = index
 
-    def upsert(self, ident, vector, metadata):
-        raise NotImplementedError
-
     def upsert_batch(self, batch: RecordList):
         # Pinecone expects a list of dicts (or tuples).
         dicts = [dict(rec) for rec in batch]
