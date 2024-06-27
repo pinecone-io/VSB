@@ -1,6 +1,14 @@
 from enum import Enum
 
-from pydantic import BaseModel, RootModel
+from typing import Any
+from pydantic import (
+    BaseModel,
+    RootModel,
+    field_validator,
+    ValidationInfo,
+    ValidatorFunctionWrapHandler,
+)
+import numpy as np
 
 VectorInt = list[int]
 VectorFloat = list[float]
@@ -11,6 +19,26 @@ class Record(BaseModel):
     id: str
     values: Vector
     metadata: dict = None
+
+    # We need to override Pydantic's validator, which wastes time validating
+    # each value in values, for each Record, since it assumes the list can be heterogeneous.
+    # Records are usually constructed by Pandas DataFrame, which is homogeneous.
+    # We can check the type once per Record in this case.
+    @field_validator("values", mode="wrap")
+    @classmethod
+    def check_array_type(
+        cls, a: Any, handler: ValidatorFunctionWrapHandler, info: ValidationInfo
+    ) -> Vector:
+        if isinstance(a, np.ndarray):
+            if np.issubdtype(a.dtype, np.integer) or np.issubdtype(
+                a.dtype, np.floating
+            ):
+                return a
+            raise ValueError(
+                f"Record: values: NumPy array of type {np.dtype} was received, but int or float type was expected"
+            )
+        # use Pydantic's normal validator
+        return handler(a)
 
 
 class RecordList(RootModel):
