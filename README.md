@@ -101,6 +101,26 @@ The following databases are currently supported by VSB:
 > The list of supported databases can also be shown from VSB by passing `help`
 > to the `--database=` argument.
 
+### Supported workloads
+
+The following workloads are currently supported by VSB:
+
+| Name        | Cardinality | Dimensions |    Metric | Description                                                                                                                                 |
+|-------------|------------:|-----------:|----------:|---------------------------------------------------------------------------------------------------------------------------------------------|
+| `mnist`     |      60,000 |        784 | euclidean | Images of handwritten digits from [MNIST](https://en.wikipedia.org/wiki/MNIST_database)                                                     |
+| `nq768`     |   2,680,893 |        768 |    cosine | Natural language questions from [Google Research](https://ai.google.com/research/NaturalQuestions).                                         |
+| `yfcc-10M`  |  10,000,000 |        192 | euclidean | Images from [Yahoo Flickr Creative Commons 100M](https://paperswithcode.com/dataset/yfcc100m) annotated with a "bag" of tags                |
+| `cohere768` |  10,000,000 |        768 | euclidean | English wikipedia articles embedded with Cohere from [wikipedia-22-12](https://huggingface.co/datasets/Cohere/wikipedia-22-12/tree/main/en) |
+
+> [!TIP]
+> The list of supported workloads can also be shown from VSB by passing `help`
+> to the `--workload=` argument.
+
+There are also smaller test workloads available for most workloads, e.g.
+`mnist-test`, `nq768-test`. These are designed for basic sanity checking of a test
+environment, however may not have correct ground-truth nearest neighbors and hence
+should not be used for evaluating recall.
+
 ## Usage
 
 Two parameters are required:
