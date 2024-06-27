@@ -168,6 +168,17 @@ class PgvectorDB(DB):
             )
             match self.index_type:
                 case "ivfflat":
+                    if self.ivfflat_lists == 0:
+                        # Automatically calculate number of lists as per
+                        # pgvector docs recommendation.
+                        if record_count <= 1_000_000:
+                            self.ivfflat_lists = max(1, record_count // 1_000)
+                        else:
+                            self.ivfflat_lists = math.isqrt(record_count)
+                        logger.debug(
+                            f"finalize_population: calculated IVFFlat lists:"
+                            f" {self.ivfflat_lists}"
+                        ),
                     sql += f" WITH (lists = {self.ivfflat_lists})"
             self.conn.execute(sql)
 
