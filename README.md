@@ -90,6 +90,17 @@ Each experiment consists of three phases: _Setup_, _Populate_, and _Run_:
 VSB automatically runs these phases in sequence, and reports the results at the 
 end; writing detailed results to `stats.json` file and displaying a summary.
 
+### Supported databases
+
+The following databases are currently supported by VSB:
+
+* [Pinecone](vsb/databases/pinecone/README.md)
+* [pgvector](vsb/databases/pgvector/README.md)
+
+> [!TIP]
+> The list of supported databases can also be shown from VSB by passing `help`
+> to the `--database=` argument.
+
 ## Usage
 
 Two parameters are required:
