@@ -128,8 +128,10 @@ def add_vsb_cmdline_args(
     pgvector_group.add_argument(
         "--pgvector_ivfflat_lists",
         type=int,
-        default="100",
-        help="For pgvector IVFFLAT indexes, number of lists to create. Default is %(default)s",
+        default=0,
+        help="For pgvector IVFFLAT indexes the number of lists to create. A value of "
+        "0 (default) means to automatically calculate based on the number of "
+        "records R: R/1000 for up to 1M records, sqrt(R) for over 1M records.",
     )
     pgvector_group.add_argument(
         "--pgvector_search_candidates",
