@@ -21,7 +21,6 @@ from locust.runners import WorkerRunner
 from locust.stats import (
     RequestStats,
     get_readable_percentiles,
-    PERCENTILES_TO_REPORT,
 )
 
 import vsb
@@ -44,6 +43,22 @@ phases: dict[str, str] = {}
 # in domain [0.0, 1.0], yet HdrHistogram only deals with integer values so
 # we need to map to the supported range.
 HDR_SCALE_FACTOR = 1000
+
+# Percentiles to report for each metric, expressed in the range [0.0, 1.0].
+REPORT_PERCENTILES = [
+    0.001,
+    0.01,
+    0.05,
+    0.10,
+    0.25,
+    0.50,
+    0.75,
+    0.90,
+    0.95,
+    0.99,
+    0.999,
+    0.9999,
+]
 
 
 def get_histogram(request_type: str, metric: str) -> HdrHistogram:
@@ -92,9 +107,10 @@ def get_stats_json(stats: RequestStats) -> str:
                         "mean": value.get_mean_value() / HDR_SCALE_FACTOR,
                         "percentiles": {},
                     }
-                    for p in [1, 5, 25, 50, 75, 90, 99, 99.9, 99.99]:
-                        info["percentiles"][p] = (
-                            value.get_value_at_percentile(p) / HDR_SCALE_FACTOR
+                    for p in REPORT_PERCENTILES:
+                        p_key = f"{p * 100:g}"
+                        info["percentiles"][p_key] = (
+                            value.get_value_at_percentile(p * 100) / HDR_SCALE_FACTOR
                         )
                 else:
                     info = value
@@ -212,7 +228,7 @@ def get_percentile_stats_summary(stats: RequestStats) -> rich.table.Table:
     # Define columns
     table.add_column("Operation", justify="left", style="cyan", no_wrap=True)
     table.add_column("Metric", justify="left", style="magenta")
-    for percentile in get_readable_percentiles(PERCENTILES_TO_REPORT):
+    for percentile in get_readable_percentiles(REPORT_PERCENTILES):
         table.add_column(
             percentile,
             justify="right",
@@ -229,7 +245,7 @@ def get_percentile_stats_summary(stats: RequestStats) -> rich.table.Table:
                 "latency (ms)",
                 *[
                     f"{r.get_response_time_percentile(p):.0f}"
-                    for p in PERCENTILES_TO_REPORT
+                    for p in REPORT_PERCENTILES
                 ],
                 str(r.num_requests),
             ]
