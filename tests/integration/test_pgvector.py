@@ -98,8 +98,11 @@ class TestPgvector:
     def test_mnist_skip_populate(self):
         # Test that skip_populate doesn't re-populate data.
 
-        # Run once to initially populate.
-        (proc, stdout, stderr) = spawn_vsb(workload="mnist-test")
+        # Run once to initially populate. Using ivfflat to increase coverage
+        # of that index type across tests.
+        (proc, stdout, stderr) = spawn_vsb(
+            workload="mnist-test", extra_args=["--pgvector_index_type=ivfflat"]
+        )
         assert proc.returncode == 0
         check_request_counts(
             stdout,
@@ -113,7 +116,7 @@ class TestPgvector:
         # Run again without population
         (proc, stdout, stderr) = spawn_vsb(
             workload="mnist-test",
-            extra_args=["--skip_populate"],
+            extra_args=["--pgvector_index_type=ivfflat", "--skip_populate"],
         )
         assert proc.returncode == 0
         check_request_counts(
