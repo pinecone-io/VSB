@@ -4,19 +4,20 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from vsb.workloads.dataset import Dataset
+from vsb import default_cache_dir
 import pytest
 
 
 class TestDataset:
     def test_get_batch_iter_all(self):
         # Test a batch iter for a single chunk yields the entire dataset.
-        dataset = Dataset("mnist")
+        dataset = Dataset("mnist", cache_dir=default_cache_dir)
         iter = dataset.get_batch_iterator(1, 0, 10)
         assert sum([len(batch) for batch in iter]) == 60000
 
     def test_get_batch_iter_chunks(self):
         # Test a batch iter for multiple chunks yields the entire dataset.
-        dataset = Dataset("mnist")
+        dataset = Dataset("mnist", cache_dir=default_cache_dir)
         # Choosing num_chunks which is not a factor of dataset size, so
         # chunk sizes are uneven.
         num_chunks = 7
@@ -31,7 +32,7 @@ class TestDataset:
         # Test a batch iter for multiple chunks yields the entire dataset when
         # a limit is applied.
         dataset_limit = 1000
-        dataset = Dataset("mnist", limit=dataset_limit)
+        dataset = Dataset("mnist", cache_dir=default_cache_dir, limit=dataset_limit)
         # Choosing num_chunks which is not a factor of dataset size, so
         # chunk sizes are uneven.
         num_chunks = 7
