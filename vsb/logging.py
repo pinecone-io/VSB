@@ -168,15 +168,16 @@ def make_progressbar() -> rich.progress.Progress:
     progress = ExtraInfoProgressBar(
         rich.progress.TextColumn(
             "[progress.description]{task.description}",
-            table_column=rich.table.Column(width=30),
+            table_column=rich.table.Column(width=36),
         ),
-        rich.progress.MofNCompleteColumn(),
-        rich.progress.BarColumn(),
+        rich.progress.MofNCompleteColumn(
+            table_column=rich.table.Column(justify="right", width=12)
+        ),
+        rich.progress.BarColumn(bar_width=48),
         rich.progress.TaskProgressColumn(),
-        "[progress.elapsed]elapsed:",
         rich.progress.TimeElapsedColumn(),
-        "[progress.remaining]remaining:",
         rich.progress.TimeRemainingColumn(compact=True),
+        "",  # Padding so the progress bar doesn't touch the right edge of the terminal
         console=vsb.console,
     )
     progress.start()

@@ -186,7 +186,11 @@ def get_stats_summary(stats: RequestStats, current=True) -> str:
     """
     stats summary will be returned as a string containing a formatted table
     """
-    table = rich.table.Table(title="Operation Summary", box=rich.box.HORIZONTALS)
+    table = rich.table.Table(
+        title="Operation Summary",
+        box=rich.box.SIMPLE_HEAD,
+        collapse_padding=True,
+    )
 
     table.add_column("Operation", justify="left", style="cyan", no_wrap=True)
     table.add_column("Requests", justify="right", style="blue")
@@ -217,7 +221,7 @@ def get_metrics_stats_summary(stats: RequestStats) -> rich.table.Table:
     """
     table = rich.table.Table(
         title="Metrics Summary",
-        box=rich.box.HORIZONTALS,
+        box=rich.box.SIMPLE_HEAD,
         collapse_padding=True,
     )
 
@@ -281,9 +285,7 @@ def print_metrics_on_quitting(environment: locust.env.Environment):
     ):
         vsb.console.print("")
         vsb.console.print(get_stats_summary(environment.stats, False))
-        vsb.console.print("")
         vsb.console.print(get_metrics_stats_summary(environment.stats))
-        vsb.console.print("")
 
         stats_file = vsb.log_dir / "stats.json"
         stats_file.write_text(get_stats_json(environment.stats))
