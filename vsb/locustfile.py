@@ -92,6 +92,7 @@ def setup_worker_dataset(environment, **_kwargs):
         try:
             options = environment.parsed_options
             environment.database = Database(options.database).get_class()(
+                record_count=environment.workload.record_count,
                 dimensions=environment.workload.dimensions,
                 metric=environment.workload.metric,
                 name=environment.workload.name,
