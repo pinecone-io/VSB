@@ -75,7 +75,12 @@ class PgvectorNamespace(Namespace):
 
 class PgvectorDB(DB):
     def __init__(
-        self, dimensions: int, metric: DistanceMetric, name: str, config: dict
+        self,
+        record_count: int,
+        dimensions: int,
+        metric: DistanceMetric,
+        name: str,
+        config: dict,
     ):
         self.index_type = config["pgvector_index_type"]
         match self.index_type:
@@ -83,6 +88,18 @@ class PgvectorDB(DB):
                 self.ivfflat_lists = None
             case "ivfflat":
                 self.ivfflat_lists = config["pgvector_ivfflat_lists"]
+                if self.ivfflat_lists == 0:
+                    # Automatically calculate number of lists as per
+                    # pgvector docs recommendation.
+                    if record_count <= 1_000_000:
+                        self.ivfflat_lists = max(1, record_count // 1_000)
+                    else:
+                        self.ivfflat_lists = math.isqrt(record_count)
+                    logger.debug(
+                        "PgvectorDB: automatically calculated IVFFlat lists="
+                        f"{self.ivfflat_lists}"
+                    ),
+
             case _:
                 raise ValueError(
                     "Unsupported pgvector index type {}".format(self.index_type)
@@ -168,17 +185,6 @@ class PgvectorDB(DB):
             )
             match self.index_type:
                 case "ivfflat":
-                    if self.ivfflat_lists == 0:
-                        # Automatically calculate number of lists as per
-                        # pgvector docs recommendation.
-                        if record_count <= 1_000_000:
-                            self.ivfflat_lists = max(1, record_count // 1_000)
-                        else:
-                            self.ivfflat_lists = math.isqrt(record_count)
-                        logger.debug(
-                            f"finalize_population: calculated IVFFlat lists:"
-                            f" {self.ivfflat_lists}"
-                        ),
                     sql += f" WITH (lists = {self.ivfflat_lists})"
             self.conn.execute(sql)
 

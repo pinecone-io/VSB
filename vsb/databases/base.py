@@ -33,7 +33,12 @@ class DB(ABC):
 
     @abstractmethod
     def __init__(
-        self, dimensions: int, metric: DistanceMetric, name: str, config: dict
+        self,
+        record_count: int,
+        dimensions: int,
+        metric: DistanceMetric,
+        name: str,
+        config: dict,
     ) -> None:
         raise NotImplementedError
 
