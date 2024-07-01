@@ -3,12 +3,24 @@ import json
 
 class FilterUtil:
     """
-    Utility to convert MongoDB-style query JSON into SQL.
+    Utility to parse or convert MongoDB-style query JSON to SQL.
     Supports a *very* limited subset, only what is used by the tested
     datasets:
      - label match - {"tags": "1"}
      - Conjunction of two matches (AND) - {"$and": [{"tags": "2"}, {"tags": "3"}]
     """
+
+    @staticmethod
+    def to_set(filter: dict) -> set:
+        if filter is None:
+            return set()
+        if "$and" in filter:
+            assert len(filter["$and"]) == 2
+            return FilterUtil.to_set(filter["$and"][0]) | FilterUtil.to_set(
+                filter["$and"][1]
+            )
+        assert "tags" in filter
+        return {filter["tags"]}
 
     @staticmethod
     def to_sql(filter: dict) -> str:

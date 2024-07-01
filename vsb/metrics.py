@@ -31,6 +31,10 @@ class Recall(Metric):
     @staticmethod
     def _calculate(actual: list[str], expected: list[str]) -> float:
         if not expected:
+            if not actual:
+                # If we expect [] and receive [], the result is fully correct.
+                return 1.0
+            # If we expect [] and receive vectors, the result is (fully) incorrect.
             return 0.0
         matches = len(set(expected) & set(actual))
         return matches / len(expected)

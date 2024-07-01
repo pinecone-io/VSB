@@ -10,6 +10,7 @@ import pyarrow
 from ..base import VectorWorkload
 from ..dataset import Dataset
 from ...vsb_types import SearchRequest, RecordList, Record, DistanceMetric
+from ...databases.pgvector.filter_util import FilterUtil
 
 
 class ParquetWorkload(VectorWorkload, ABC):
@@ -95,6 +96,13 @@ class ParquetWorkload(VectorWorkload, ABC):
 
 
 class ParquetSubsetWorkload(ParquetWorkload):
+    """A subclass of ParquetWorkload that reads a subset of records and queries
+    from the original dataset.
+    The expected results of the queries are incorrect with respect to the new
+    subset of records, so we recalculate correct expected results in-memory during
+    each request.
+    """
+
     def __init__(
         self,
         name: str,
@@ -112,27 +120,65 @@ class ParquetSubsetWorkload(ParquetWorkload):
         )
         # Store records in memory; we run a k-NN search to find correct top-k neighbors for each request.
         batch_iter = self.get_record_batch_iter(1, 0, self.record_count)
-        (_, batch) = next(batch_iter)
-        self.records = batch
+        self.records = []
+        for _, batch in batch_iter:
+            self.records += batch.root
 
     def _get_topk(self, req: SearchRequest) -> list[str]:
         # Run a k-NN search to find the top-k nearest neighbors.
         def dist(v: Record):
             match self.metric:
                 case DistanceMetric.Cosine:
-                    return 1 - (
-                        np.dot(v.values, req.values)
-                        / (np.linalg.norm(v.values) * np.linalg.norm(req.values))
+                    return np.dot(v.values, req.values) / (
+                        np.linalg.norm(v.values) * np.linalg.norm(req.values)
                     )
                 case DistanceMetric.Euclidean:
                     return np.linalg.norm(np.array(v.values) - np.array(req.values))
                 case DistanceMetric.DotProduct:
-                    return -1 * np.dot(v.values, req.values)
+                    return np.dot(v.values, req.values)
             raise ValueError(f"Unsupported metric {self.metric}")
 
-        return list(
-            map((lambda r: r.id), sorted(self.records.root, key=dist)[: req.top_k])
+        # Filter by metadata tags if provided (e.g. yfcc)
+        if req.filter is not None:
+            filters = FilterUtil.to_set(req.filter)
+
+            def filt(v: Record):
+                if v.metadata is not None:
+                    assert "tags" in v.metadata  # We only support yfcc tags for now.
+                    return filters <= set(v.metadata["tags"])
+                return filters <= set()
+
+            filtered_records = filter(filt, self.records)
+        else:
+            filtered_records = self.records
+
+        ordered_records = list(
+            map((lambda r: r.id), sorted(filtered_records, key=dist))
         )
+        # Euclidean is sorted closest -> farthest, Cosine/DotProduct gives farthest -> closest
+        match self.metric:
+            case DistanceMetric.Cosine:
+                ordered_records = list(
+                    map(
+                        (lambda r: r.id),
+                        sorted(filtered_records, key=dist, reverse=True),
+                    )
+                )
+            case DistanceMetric.DotProduct:
+                ordered_records = list(
+                    map(
+                        (lambda r: r.id),
+                        sorted(filtered_records, key=dist, reverse=True),
+                    )
+                )
+            case DistanceMetric.Euclidean:
+                ordered_records = list(
+                    map((lambda r: r.id), sorted(filtered_records, key=dist))
+                )
+            case _:
+                raise ValueError(f"Unsupported metric {self.metric}")
+
+        return ordered_records[: req.top_k]
 
     def get_query_iter(
         self, num_users: int, user_id: int
