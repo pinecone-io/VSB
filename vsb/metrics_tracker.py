@@ -18,10 +18,16 @@ import locust.env
 from hdrh.histogram import HdrHistogram
 from locust import events
 from locust.runners import WorkerRunner
-from locust.stats import RequestStats, get_percentile_stats_summary, get_stats_summary
+from locust.stats import (
+    RequestStats,
+    get_readable_percentiles,
+)
 
 import vsb
 from vsb import logger
+import rich.table
+import rich.console
+import rich.box
 
 # Calculated custom metrics for each performed operation.
 # Nested dict, where top-level is the request_type (Populate, Search, ...), under
@@ -37,6 +43,22 @@ phases: dict[str, str] = {}
 # in domain [0.0, 1.0], yet HdrHistogram only deals with integer values so
 # we need to map to the supported range.
 HDR_SCALE_FACTOR = 1000
+
+# Percentiles to report for each metric, expressed in the range [0.0, 1.0].
+REPORT_PERCENTILES = [
+    0.001,
+    0.01,
+    0.05,
+    0.10,
+    0.25,
+    0.50,
+    0.75,
+    0.90,
+    0.95,
+    0.99,
+    0.999,
+    0.9999,
+]
 
 
 def get_histogram(request_type: str, metric: str) -> HdrHistogram:
@@ -85,9 +107,10 @@ def get_stats_json(stats: RequestStats) -> str:
                         "mean": value.get_mean_value() / HDR_SCALE_FACTOR,
                         "percentiles": {},
                     }
-                    for p in [1, 5, 25, 50, 75, 90, 99, 99.9, 99.99]:
-                        info["percentiles"][p] = (
-                            value.get_value_at_percentile(p) / HDR_SCALE_FACTOR
+                    for p in REPORT_PERCENTILES:
+                        p_key = f"{p * 100:g}"
+                        info["percentiles"][p_key] = (
+                            value.get_value_at_percentile(p * 100) / HDR_SCALE_FACTOR
                         )
                 else:
                     info = value
@@ -152,6 +175,102 @@ def on_worker_report(client_id, data: dict()):
                 update_counter(req_type, metric_name, value)
 
 
+def format_error_count(value: int) -> str:
+    style_if_above = ("red",)
+    default_style = "blue"
+    style = style_if_above if value > 0 else default_style
+    return f"[{style}]{value}[/]"
+
+
+def get_stats_summary(stats: RequestStats, current=True) -> str:
+    """
+    stats summary will be returned as a string containing a formatted table
+    """
+    table = rich.table.Table(title="Operation Summary", box=rich.box.HORIZONTALS)
+
+    table.add_column("Operation", justify="left", style="cyan", no_wrap=True)
+    table.add_column("Requests", justify="right", style="blue")
+    table.add_column("Failures", justify="right", style="blue")
+    table.add_column("Requests/sec", justify="right", style="blue")
+    table.add_column("Failures/sec", justify="right", style="blue")
+
+    for key in sorted(stats.entries.keys()):
+        r = stats.entries[key]
+        table.add_row(
+            r.method,
+            str(r.num_requests),
+            format_error_count(r.num_failures) + f"({r.fail_ratio * 100:.0f}%)",
+            f"{r.current_rps:.0f}" if current else f"{r.total_rps:.0f}",
+            (
+                format_error_count(r.current_fail_per_sec)
+                if current
+                else format_error_count(r.total_fail_per_sec)
+            ),
+        )
+
+    return table
+
+
+def get_metrics_stats_summary(stats: RequestStats) -> rich.table.Table:
+    """
+    Format the latency and any custom metrics into a table and return it.
+    """
+    table = rich.table.Table(
+        title="Metrics Summary",
+        box=rich.box.HORIZONTALS,
+        collapse_padding=True,
+    )
+
+    # Define columns
+    table.add_column("Operation", justify="left", style="cyan", no_wrap=True)
+    table.add_column("Metric", justify="left", style="blue", no_wrap=True)
+    table.add_column("Min", justify="right", style="magenta", min_width=4)
+    for percentile in get_readable_percentiles(REPORT_PERCENTILES):
+        table.add_column(percentile, justify="right", style="yellow", min_width=4)
+    table.add_column("Max", justify="right", style="magenta", min_width=4)
+    table.add_column("Mean", justify="right", style="magenta", min_width=4)
+
+    # Populate the table with stats entries, sorted by Operation
+    for index, key in enumerate(sorted(stats.entries.keys())):
+        # First add the locust-tracked response times (latency)
+        r = stats.entries[key]
+        if r.response_times:
+            row = [
+                r.method,
+                "Latency (ms)",
+                f"{(r.min_response_time or 0):.0f}",
+                *[
+                    f"{r.get_response_time_percentile(p):.0f}"
+                    for p in REPORT_PERCENTILES
+                ],
+                f"{r.max_response_time:.0f}",
+                f"{r.avg_response_time:.0f}",
+            ]
+            table.add_row(*row)
+        request = key[1]
+        # Also include any custom metrics for this request type.
+        if custom := calculated_metrics.get(request, None):
+            for metric, value in custom.items():
+                if isinstance(value, HdrHistogram):
+                    row = [
+                        request,
+                        metric.capitalize(),
+                        *[
+                            f"{value.get_value_at_percentile(p * 100) / HDR_SCALE_FACTOR:.2f}"
+                            for p in REPORT_PERCENTILES
+                        ],
+                        f"{value.get_min_value() / HDR_SCALE_FACTOR:.2f}",
+                        f"{value.get_max_value() / HDR_SCALE_FACTOR:.2f}",
+                        f"{value.get_mean_value() / HDR_SCALE_FACTOR:.2f}",
+                    ]
+                    table.add_row(*row)
+        # Separate each request type with a blank row
+        if index < len(stats.entries) - 1:
+            table.add_row()
+
+    return table
+
+
 @events.quitting.add_listener
 def print_metrics_on_quitting(environment: locust.env.Environment):
     # Emit stats once on the master (if running in distributed mode) or
@@ -160,10 +279,11 @@ def print_metrics_on_quitting(environment: locust.env.Environment):
         not isinstance(environment.runner, WorkerRunner)
         and environment.shape_class.finished
     ):
-        for line in get_stats_summary(environment.stats, False):
-            logger.info("    " + line)
-        for line in get_percentile_stats_summary(environment.stats):
-            logger.info("    " + line)
+        vsb.console.print("")
+        vsb.console.print(get_stats_summary(environment.stats, False))
+        vsb.console.print("")
+        vsb.console.print(get_metrics_stats_summary(environment.stats))
+        vsb.console.print("")
 
         stats_file = vsb.log_dir / "stats.json"
         stats_file.write_text(get_stats_json(environment.stats))
