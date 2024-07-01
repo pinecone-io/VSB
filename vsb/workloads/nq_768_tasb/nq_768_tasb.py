@@ -1,6 +1,6 @@
 from abc import ABC
 
-from ..parquet_workload.parquet_workload import ParquetWorkload
+from ..parquet_workload.parquet_workload import ParquetWorkload, ParquetSubsetWorkload
 from ...vsb_types import DistanceMetric
 
 
@@ -27,7 +27,7 @@ class Nq768Tasb(Nq768TasbBase):
         3_452
 
 
-class Nq768TasbTest(Nq768TasbBase):
+class Nq768TasbTest(ParquetSubsetWorkload, Nq768TasbBase):
     """Reduced, "test" variant of nq768; with ~1% of the full dataset."""
 
     def __init__(self, name: str, cache_dir: str):

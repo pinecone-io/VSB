@@ -22,3 +22,18 @@ class TestFilterUtil:
         json_str = {"$and": [{"tags": "1"}, {"$and": [{"tags": "2"}, {"tags": "3"}]}]}
         expected_sql = """WHERE metadata @> \'{"tags": ["1"]}\' AND metadata @> \'{"tags": ["2"]}\' AND metadata @> \'{"tags": ["3"]}\'"""
         assert FilterUtil.to_sql(json_str) == expected_sql
+
+    def test_toset_normal(self):
+        filt = {"tags": "4244"}
+        expected_set = {"4244"}
+        assert FilterUtil.to_set(filt) == expected_set
+
+    def test_toset_and(self):
+        filt = {"$and": [{"tags": "123"}, {"tags": "126"}]}
+        expected_set = {"123", "126"}
+        assert FilterUtil.to_set(filt) == expected_set
+
+    def test_toset_nestedand(self):
+        filt = {"$and": [{"$and": [{"tags": "1"}, {"tags": "2"}]}, {"tags": "3"}]}
+        expected_set = {"1", "2", "3"}
+        assert FilterUtil.to_set(filt) == expected_set

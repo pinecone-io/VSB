@@ -1,6 +1,6 @@
 from abc import ABC
 
-from ..parquet_workload.parquet_workload import ParquetWorkload
+from ..parquet_workload.parquet_workload import ParquetWorkload, ParquetSubsetWorkload
 from ...vsb_types import DistanceMetric
 
 
@@ -29,7 +29,7 @@ class YFCC(YFCCBase):
         return 100_000
 
 
-class YFCCTest(YFCCBase):
+class YFCCTest(ParquetSubsetWorkload, YFCCBase):
     """Reduced, "test" variant of YFCC; with ~0.1% of the full dataset / 0.5%
     of queries"""
 
