@@ -161,16 +161,23 @@ class PgvectorDB(DB):
         with vsb.logging.progress_task(
             "  Create pgvector table", "  ✔ pgvector table created"
         ):
-            # Start with an empty table if we are going to populate it.
-            if not self.skip_populate:
-                self.conn.execute("DROP TABLE IF EXISTS " + self.table)
-            self.conn.execute(
-                "CREATE TABLE IF NOT EXISTS "
-                + self.table
-                + " (id VARCHAR PRIMARY KEY, embedding vector("
-                + str(self.dimensions)
-                + "), metadata JSONB)",
-            )
+            with self.conn.cursor() as cur:
+                # Disable notices around DROP TABLE / CREATE TABLE - Postgres reports a
+                # notice if the table already exists - even when using
+                # "IF NOT EXISTS"
+                cur.execute("SET client_min_messages TO ERROR")
+
+                # Start with an empty table if we are going to populate it.
+                if not self.skip_populate:
+                    cur.execute("DROP TABLE IF EXISTS " + self.table)
+                cur.execute(
+                    "CREATE TABLE IF NOT EXISTS "
+                    + self.table
+                    + " (id VARCHAR PRIMARY KEY, embedding vector("
+                    + str(self.dimensions)
+                    + "), metadata JSONB);",
+                )
+                cur.execute("RESET client_min_messages")
 
     def finalize_population(self, record_count: int):
         # Create index.
