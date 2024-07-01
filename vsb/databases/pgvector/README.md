@@ -47,6 +47,9 @@ By default, the _hnsw_ index type is used. To use the _ivfflat_ index type, spec
 
 * `--pgvector_index_type=ivfflat`
 
+Possible values for `--pgvector_index_type` are _hnsw_, _ivfflat_, _gin_, _hnsw+gin_,
+_ivfflat+gin_, and _none_ (which will default to an exhaustive kNN search).
+
 The amount of memory to use when creating the index (`maintenance_work_mem`) can be set
 via `--pgvector_maintenance_work_mem`. This defaults to 4GB (50% of the memory assigned
 to the Docker container). This should generally be set to at least as large as

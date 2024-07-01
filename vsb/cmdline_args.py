@@ -176,7 +176,7 @@ def add_vsb_cmdline_args(
     pgvector_group.add_argument(
         "--pgvector_index_type",
         type=str,
-        choices=["none", "ivfflat", "hnsw"],
+        choices=["none", "ivfflat", "hnsw", "gin", "hnsw+gin", "ivfflat+gin"],
         default="hnsw",
         help="Index type to use for pgvector. Specifying 'none' will not create an "
         "ANN index, instead brute-force kNN search will be performed."
