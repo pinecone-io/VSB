@@ -168,15 +168,16 @@ def make_progressbar() -> rich.progress.Progress:
     progress = ExtraInfoProgressBar(
         rich.progress.TextColumn(
             "[progress.description]{task.description}",
-            table_column=rich.table.Column(width=30),
+            table_column=rich.table.Column(width=36),
         ),
-        rich.progress.MofNCompleteColumn(),
-        rich.progress.BarColumn(),
+        rich.progress.MofNCompleteColumn(
+            table_column=rich.table.Column(justify="right", width=12)
+        ),
+        rich.progress.BarColumn(bar_width=48),
         rich.progress.TaskProgressColumn(),
-        "[progress.elapsed]elapsed:",
         rich.progress.TimeElapsedColumn(),
-        "[progress.remaining]remaining:",
         rich.progress.TimeRemainingColumn(compact=True),
+        "",  # Padding so the progress bar doesn't touch the right edge of the terminal
         console=vsb.console,
     )
     progress.start()
@@ -198,14 +199,17 @@ def progress_task(initial_description: str, completed_description=None, total=No
         return
 
     # Add a task to the progress bar on entering the context
-    total = total if total else 1
     task_id = vsb.progress.add_task(initial_description, total=total)
     try:
         # Yield control back to the caller with the task_id so caller can
         # update amount completed etc.
         yield task_id
     finally:
-        # Mark the task as completed on exiting the context
-        vsb.progress.update(task_id, completed=total)
+        # Mark the task as completed on exiting the context.
+        # If total is None then we get a nice animation "waiting" and a
+        # total shown as "?" in the progress bar before we complete. However
+        # on completion we want to replace that with a 1/1.
+        total = total if total else 1
+        vsb.progress.update(task_id, total=total, completed=total)
         if completed_description:
             vsb.progress.update(task_id, description=completed_description)

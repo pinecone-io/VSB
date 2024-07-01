@@ -159,7 +159,9 @@ class PgvectorDB(DB):
 
     def initialize_population(self):
         with vsb.logging.progress_task(
-            "  Create pgvector table", "  ✔ pgvector table created"
+            "  Create pgvector table",
+            "  ✔ pgvector table created",
+            total=None,
         ):
             # Start with an empty table if we are going to populate it.
             if not self.skip_populate:
@@ -177,6 +179,7 @@ class PgvectorDB(DB):
         with vsb.logging.progress_task(
             f"  Create pgvector index ({self.index_type})",
             f"  ✔ pgvector index ({self.index_type}) created",
+            total=None,
         ):
             sql = (
                 f"CREATE INDEX IF NOT EXISTS {self.table}_embedding_idx ON "
