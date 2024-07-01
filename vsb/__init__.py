@@ -12,6 +12,9 @@ logger = logging.getLogger("vsb")
 log_dir: Path = None
 """Directory where logs will be written to. Set in main()"""
 
+default_cache_dir: str = "/tmp/VSB/cache"
+"""Default directory where datasets are downloaded and cached. Set by cmdline_args."""
+
 console: rich.console.Console = None
 
 progress: rich.progress.Progress = None

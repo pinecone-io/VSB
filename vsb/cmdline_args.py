@@ -1,6 +1,7 @@
 import configargparse
 from vsb.databases import Database
 from vsb.workloads import Workload
+from vsb import default_cache_dir
 
 
 def add_vsb_cmdline_args(
@@ -30,7 +31,7 @@ def add_vsb_cmdline_args(
     general_group.add_argument(
         "--cache_dir",
         type=str,
-        default="/tmp/VSB/cache",
+        default=default_cache_dir,
         help="Directory to store downloaded datasets. Default is %(default)s).",
     )
     general_group.add_argument(
