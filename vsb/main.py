@@ -36,7 +36,7 @@ def main():
     args = parser.parse_args()
     validate_parsed_args(parser, args)
 
-    log_base = Path("reports") / args.database
+    log_base = Path(args.log_dir) / args.database
     vsb.log_dir = setup_logging(log_base=log_base, level=args.loglevel)
     requests_per_sec = (
         "{:g}".format(args.requests_per_sec) if args.requests_per_sec else "unlimited"
