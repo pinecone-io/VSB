@@ -299,6 +299,14 @@ That's it! You should now be able to run VSB against your database by specifying
 To add a new workload to VSB you need to create a new module for your workload,
 then register with VSB.
 
+This can be any kind of workload - for example a synthetic workload, a real-world
+dataset, or a workload based on a specific use-case. If the dataset already exists
+in parquet format, you can use the
+[`ParquetWorkload`](vsb/workloads/parquet_workload/parquet_workload.py) base class
+to simplify this.
+Otherwise, you'll have to implement the full [`VectorWorkload`](vsb/workloads/base.py)
+base class.
+
 #### Parquet-based workloads
 
 VSB has support for loading  static datasets from Parquet files, assuming the 
@@ -309,8 +317,8 @@ files match the
    workload - 
    e.g. for `my-workload` create `vsb/workloads/my-workload/my_workload.py`.
 2. **Implement a Workload class** in this module - inheriting from
-   [`parquet_workload.ParquetWorkload`](vsb/workloads/parquet_workload.py) and 
-   implementing the required methods / properties:
+   [`parquet_workload.ParquetWorkload`](vsb/workloads/parquet_workload/parquet_workload.py)
+   and implementing the required methods / properties:
     * `__init__()` - Call to the superclass constructor passing the dataset path - e.g:
       ```python
       class MyWorkload(ParquetWorkload):
@@ -325,4 +333,33 @@ files match the
    [`vsb/workloads/__init__.py`](vsb/workloads/__init__.py), and updating `get_class()`.
 
 All done. You should now be able to run this workload by specifying 
+`--workload=my-workload`.
+
+#### Other workloads
+
+If the dataset is not in parquet format, or you want to have more control over the
+operation of it, then you need to implement the
+[`VectorWorkload`](vsb/workloads/base.py) base class:
+
+1. **Create a new module** in [`vsb/workloads/`](vsb/workloads/) for your
+   workload -
+   e.g. for `my-workload` create `vsb/workloads/my-workload/my_workload.py`.
+2. **Implement a Workload class** in this module - inheriting from
+   [`base.VectorWorkload`](vsb/workloads/base.py) and
+   implementing the required methods / properties:
+    * `__init__()` - Whatever initialisation is needed for the workload.
+    * `dimensions` - The dimensionality of the vectors in the dataset.
+    * `metric` - The distance metric to use for the workload.
+    * `record_count` - The number of records in the dataset.
+    * `request_count` - The number of queries to perform.
+    * `get_sample_record()` - Return a sample record from the dataset. (This is used by
+      specific databases to calculate a suitable batch size for the populate phase.)
+    * `get_record_batch_iter()` - Return an iterator over a batch of records to
+      initially populate the database with.
+    * `get_query_iter()` - Return an iterator over the queries a client should
+      perform during the Run phase.
+3. **Register the workload with VSB** by adding an entry to the `Workload` enum in
+   [`vsb/workloads/__init__.py`](vsb/workloads/__init__.py), and updating `get_class()`.
+
+All done. You should now be able to run this workload by specifying
 `--workload=my-workload`.
