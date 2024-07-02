@@ -35,6 +35,12 @@ def add_vsb_cmdline_args(
         help="Directory to store downloaded datasets. Default is %(default)s).",
     )
     general_group.add_argument(
+        "--log_dir",
+        "-o",
+        default="reports",
+        help="Directory to write logs to. Default is %(default)s.",
+    )
+    general_group.add_argument(
         "--skip_populate",
         action="store_true",
         help="Skip the populate phase (useful if workload has already been loaded and is static)",
