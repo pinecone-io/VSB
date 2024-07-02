@@ -59,3 +59,14 @@ class Workload(Enum):
                 from .cohere_768.cohere_768 import Cohere768Test
 
                 return Cohere768Test
+
+    def describe(self) -> tuple[str, int, int, str, int]:
+        """Return a tuple with attributes of the workload: name, dataset size, dimensionality, distance metric, and query count."""
+        cls = self._get_class()
+        return (
+            self.value,
+            cls.record_count(),
+            cls.dimensions(),
+            cls.metric().value,
+            cls.request_count(),
+        )

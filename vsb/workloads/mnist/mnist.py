@@ -8,12 +8,12 @@ import numpy as np
 
 
 class MnistBase(ParquetWorkload, ABC):
-    @property
-    def dimensions(self) -> int:
+    @staticmethod
+    def dimensions() -> int:
         return 784
 
-    @property
-    def metric(self) -> DistanceMetric:
+    @staticmethod
+    def metric() -> DistanceMetric:
         return DistanceMetric.Euclidean
 
 
@@ -21,12 +21,12 @@ class Mnist(MnistBase):
     def __init__(self, name: str, cache_dir: str):
         super().__init__(name, "mnist", cache_dir=cache_dir)
 
-    @property
-    def record_count(self) -> int:
+    @staticmethod
+    def record_count() -> int:
         return 60000
 
-    @property
-    def request_count(self) -> int:
+    @staticmethod
+    def request_count() -> int:
         return 10_000
 
 
@@ -37,10 +37,10 @@ class MnistTest(ParquetSubsetWorkload, MnistBase):
     def __init__(self, name: str, cache_dir: str):
         super().__init__(name, "mnist", cache_dir=cache_dir, limit=600, query_limit=20)
 
-    @property
-    def record_count(self) -> int:
+    @staticmethod
+    def record_count() -> int:
         return 600
 
-    @property
-    def request_count(self) -> int:
+    @staticmethod
+    def request_count() -> int:
         return 20
