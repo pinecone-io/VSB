@@ -47,8 +47,8 @@ class SetupUser(User):
                     {
                         "user": 0,
                         "phase": "setup",
-                        "record_count": self.environment.workload.record_count,
-                        "request_count": self.environment.workload.request_count,
+                        "record_count": self.environment.workload.record_count(),
+                        "request_count": self.environment.workload.request_count(),
                     },
                 )
                 self.state = self.State.Done
@@ -137,7 +137,7 @@ class PopulateUser(User):
             # First user only performs finalization (don't want
             # to call repeatedly if >1 user).
             logger.debug("PopulateUser finalizing population...")
-            self.database.finalize_population(self.workload.record_count)
+            self.database.finalize_population(self.workload.record_count())
         self.environment.runner.send_message(
             "update_progress", {"user": self.user_id, "phase": "populate"}
         )

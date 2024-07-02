@@ -10,12 +10,12 @@ from ...vsb_types import DistanceMetric
 
 
 class CohereBase(ParquetWorkload, ABC):
-    @property
-    def dimensions(self) -> int:
+    @staticmethod
+    def dimensions() -> int:
         return 768
 
-    @property
-    def metric(self) -> DistanceMetric:
+    @staticmethod
+    def metric() -> DistanceMetric:
         return DistanceMetric.Cosine
 
 
@@ -23,12 +23,12 @@ class Cohere768(CohereBase):
     def __init__(self, name: str, cache_dir: str):
         super().__init__(name, "cohere-768", cache_dir=cache_dir)
 
-    @property
-    def record_count(self) -> int:
+    @staticmethod
+    def record_count() -> int:
         return 10_000_000
 
-    @property
-    def request_count(self) -> int:
+    @staticmethod
+    def request_count() -> int:
         return 1_000
 
 
@@ -41,14 +41,14 @@ class Cohere768Test(ParquetSubsetWorkload, CohereBase):
             name,
             "cohere-768",
             cache_dir=cache_dir,
-            limit=self.record_count,
-            query_limit=self.request_count,
+            limit=self.record_count(),
+            query_limit=self.request_count(),
         )
 
-    @property
-    def record_count(self) -> int:
+    @staticmethod
+    def record_count() -> int:
         return 100_000
 
-    @property
-    def request_count(self) -> int:
+    @staticmethod
+    def request_count() -> int:
         return 100

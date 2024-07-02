@@ -5,12 +5,12 @@ from ...vsb_types import DistanceMetric
 
 
 class Nq768TasbBase(ParquetWorkload, ABC):
-    @property
-    def dimensions(self) -> int:
+    @staticmethod
+    def dimensions() -> int:
         return 768
 
-    @property
-    def metric(self) -> DistanceMetric:
+    @staticmethod
+    def metric() -> DistanceMetric:
         return DistanceMetric.DotProduct
 
 
@@ -18,13 +18,13 @@ class Nq768Tasb(Nq768TasbBase):
     def __init__(self, name: str, cache_dir: str):
         super().__init__(name, "nq-768-tasb", cache_dir=cache_dir)
 
-    @property
-    def record_count(self) -> int:
+    @staticmethod
+    def record_count() -> int:
         return 2_680_893
 
-    @property
-    def request_count(self) -> int:
-        3_452
+    @staticmethod
+    def request_count() -> int:
+        return 3_452
 
 
 class Nq768TasbTest(ParquetSubsetWorkload, Nq768TasbBase):
@@ -35,10 +35,10 @@ class Nq768TasbTest(ParquetSubsetWorkload, Nq768TasbBase):
             name, "nq-768-tasb", cache_dir=cache_dir, limit=26809, query_limit=35
         )
 
-    @property
-    def record_count(self) -> int:
+    @staticmethod
+    def record_count() -> int:
         return 26809
 
-    @property
-    def request_count(self) -> int:
-        35
+    @staticmethod
+    def request_count() -> int:
+        return 35

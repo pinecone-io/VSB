@@ -1,7 +1,28 @@
 import configargparse
+import argparse
+import rich.table
+import rich.console
 from vsb.databases import Database
 from vsb.workloads import Workload
 from vsb import default_cache_dir
+
+
+class WorkloadHelpAction(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        if values == "help":
+            table = rich.table.Table(title="Available Workloads")
+            table.add_column("Name", justify="left", no_wrap=True)
+            table.add_column("Record Count", justify="right", style="green")
+            table.add_column("Dimensions")
+            table.add_column("Distance Metric", justify="center")
+            table.add_column("Query Count", justify="right", style="red")
+            for workload in Workload:
+                table.add_row(*tuple(str(x) for x in workload.describe()))
+            console = rich.console.Console()
+            console.print(table)
+            parser.exit(0)
+        else:
+            setattr(namespace, self.dest, values)
 
 
 def add_vsb_cmdline_args(
@@ -22,8 +43,9 @@ def add_vsb_cmdline_args(
     )
     main_group.add_argument(
         "--workload",
+        action=WorkloadHelpAction,
         required=True,
-        choices=tuple(e.value for e in Workload),
+        choices=tuple(e.value for e in Workload) + ("help",),
         help="The workload to run",
     )
 
@@ -176,6 +198,7 @@ def validate_parsed_args(
     If validation fails then parser.error() is called with an appropriate
     message, which will terminate the process.
     """
+
     match args.database:
         case "pinecone":
             required = ("pinecone_api_key", "pinecone_index_name")

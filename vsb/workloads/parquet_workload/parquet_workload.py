@@ -119,7 +119,7 @@ class ParquetSubsetWorkload(ParquetWorkload):
             query_limit=query_limit,
         )
         # Store records in memory; we run a k-NN search to find correct top-k neighbors for each request.
-        batch_iter = self.get_record_batch_iter(1, 0, self.record_count)
+        batch_iter = self.get_record_batch_iter(1, 0, self.record_count())
         self.records = []
         for _, batch in batch_iter:
             self.records += batch.root
@@ -127,7 +127,7 @@ class ParquetSubsetWorkload(ParquetWorkload):
     def _get_topk(self, req: SearchRequest) -> list[str]:
         # Run a k-NN search to find the top-k nearest neighbors.
         def dist(v: Record):
-            match self.metric:
+            match self.metric():
                 case DistanceMetric.Cosine:
                     return np.dot(v.values, req.values) / (
                         np.linalg.norm(v.values) * np.linalg.norm(req.values)
@@ -136,7 +136,7 @@ class ParquetSubsetWorkload(ParquetWorkload):
                     return np.linalg.norm(np.array(v.values) - np.array(req.values))
                 case DistanceMetric.DotProduct:
                     return np.dot(v.values, req.values)
-            raise ValueError(f"Unsupported metric {self.metric}")
+            raise ValueError(f"Unsupported metric {self.metric()}")
 
         # Filter by metadata tags if provided (e.g. yfcc)
         if req.filter is not None:
@@ -156,7 +156,7 @@ class ParquetSubsetWorkload(ParquetWorkload):
             map((lambda r: r.id), sorted(filtered_records, key=dist))
         )
         # Euclidean is sorted closest -> farthest, Cosine/DotProduct gives farthest -> closest
-        match self.metric:
+        match self.metric():
             case DistanceMetric.Cosine:
                 ordered_records = list(
                     map(
@@ -176,7 +176,7 @@ class ParquetSubsetWorkload(ParquetWorkload):
                     map((lambda r: r.id), sorted(filtered_records, key=dist))
                 )
             case _:
-                raise ValueError(f"Unsupported metric {self.metric}")
+                raise ValueError(f"Unsupported metric {self.metric()}")
 
         return ordered_records[: req.top_k]
 

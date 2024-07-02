@@ -13,34 +13,34 @@ class VectorWorkload(ABC):
     def name(self) -> str:
         return self._name
 
-    @property
+    @staticmethod
     @abstractmethod
-    def dimensions(self) -> int:
+    def dimensions() -> int:
         """
         The dimensions of (dense) vectors for this workload.
         """
         raise NotImplementedError
 
-    @property
+    @staticmethod
     @abstractmethod
-    def metric(self) -> DistanceMetric:
+    def metric() -> DistanceMetric:
         """
         The distance metric of this workload.
         """
         raise NotImplementedError
 
-    @property
+    @staticmethod
     @abstractmethod
-    def record_count(self) -> int:
+    def record_count() -> int:
         """
         The number of records in the initial workload after population, but
         before issuing any additional requests.
         """
         raise NotImplementedError
 
-    @property
+    @staticmethod
     @abstractmethod
-    def request_count(self) -> int:
+    def request_count() -> int:
         """
         The number of requests in the Run phase of the test.
         """

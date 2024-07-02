@@ -5,12 +5,12 @@ from ...vsb_types import DistanceMetric
 
 
 class YFCCBase(ParquetWorkload, ABC):
-    @property
-    def dimensions(self) -> int:
+    @staticmethod
+    def dimensions() -> int:
         return 192
 
-    @property
-    def metric(self) -> DistanceMetric:
+    @staticmethod
+    def metric() -> DistanceMetric:
         return DistanceMetric.Euclidean
 
 
@@ -20,12 +20,12 @@ class YFCC(YFCCBase):
             name, "yfcc-10M-filter-euclidean-formatted-multipart", cache_dir=cache_dir
         )
 
-    @property
-    def record_count(self) -> int:
+    @staticmethod
+    def record_count() -> int:
         return 10_000_000
 
-    @property
-    def request_count(self) -> int:
+    @staticmethod
+    def request_count() -> int:
         return 100_000
 
 
@@ -42,10 +42,10 @@ class YFCCTest(ParquetSubsetWorkload, YFCCBase):
             cache_dir=cache_dir,
         )
 
-    @property
-    def record_count(self) -> int:
+    @staticmethod
+    def record_count() -> int:
         return 10_000
 
-    @property
-    def request_count(self) -> int:
+    @staticmethod
+    def request_count() -> int:
         return 500
