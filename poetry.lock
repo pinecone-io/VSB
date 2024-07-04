@@ -1579,13 +1579,13 @@ numpy = "*"
 
 [[package]]
 name = "pinecone-client"
-version = "4.1.1"
+version = "4.1.2"
 description = "Pinecone client and SDK"
 optional = false
 python-versions = "<4.0,>=3.8"
 files = [
-    {file = "pinecone_client-4.1.1-py3-none-any.whl", hash = "sha256:e74ea91a0129a80f301662e286b1883f2eb896683ff7d2cdb03ea06346844d0d"},
-    {file = "pinecone_client-4.1.1.tar.gz", hash = "sha256:b2e78c29de50c180dbfe75e15f08c87ec1a3a4f1bc6b2be1f0ccaee1ab4434fa"},
+    {file = "pinecone_client-4.1.2-py3-none-any.whl", hash = "sha256:3d69cbbca2d9d4f77c90bad59a1194e3d20d535b29f277eee32b439fd526546b"},
+    {file = "pinecone_client-4.1.2.tar.gz", hash = "sha256:fa89c605792ec94de36d4c9585250b47b0b643407457053eca89008424be6281"},
 ]
 
 [package.dependencies]
