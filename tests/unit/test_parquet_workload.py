@@ -1,3 +1,4 @@
+import pandas
 import pytest
 
 import vsb
@@ -6,14 +7,16 @@ from vsb.workloads.parquet_workload.parquet_workload import ParquetSubsetWorkloa
 
 
 class TestSubsetWorkloadKNN:
-    records: RecordList = [
-        Record(id="a", values=[2, 0, 0]),
-        Record(id="b", values=[0, 2, 0]),
-        Record(id="c", values=[5, 5, 0]),
-        Record(id="d", values=[-1, 0, 2]),
-        Record(id="e", values=[0, 5, 5]),
-        Record(id="f", values=[0, 2, 2]),
-    ]
+    records = pandas.DataFrame(
+        [
+            {"id": "a", "values": [2, 0, 0]},
+            {"id": "b", "values": [0, 2, 0]},
+            {"id": "c", "values": [5, 5, 0]},
+            {"id": "d", "values": [-1, 0, 2]},
+            {"id": "e", "values": [0, 5, 5]},
+            {"id": "f", "values": [0, 2, 2]},
+        ]
+    )
 
     queries = [
         SearchRequest(values=[10, 0.5, 0], top_k=3),

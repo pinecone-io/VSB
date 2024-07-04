@@ -59,9 +59,7 @@ class ParquetWorkload(VectorWorkload, ABC):
                 # See: https://github.com/apache/arrow/issues/28694
                 # TODO: Add multiple tenant support.
                 records: pandas.DataFrame = batch.to_pandas()
-                # Metadata is encoded as a string, need to convert to JSON dict
-                if "metadata" in records:
-                    records["metadata"] = records["metadata"].map(json.loads)
+                self._decode_metadata(records)
                 yield "", RecordList(records.to_dict("records"))
 
         return recordbatch_to_dataframe(batch_iter)
@@ -94,6 +92,12 @@ class ParquetWorkload(VectorWorkload, ABC):
 
         return make_query_iter(user_chunk)
 
+    @staticmethod
+    def _decode_metadata(records):
+        # Metadata is encoded as a string, need to convert to JSON dict
+        if "metadata" in records:
+            records["metadata"] = records["metadata"].map(json.loads)
+
 
 class ParquetSubsetWorkload(ParquetWorkload, ABC):
     """A subclass of ParquetWorkload that reads a subset of records and queries
@@ -118,34 +122,41 @@ class ParquetSubsetWorkload(ParquetWorkload, ABC):
             limit=limit,
             query_limit=query_limit,
         )
-        # Store records in memory; we run a k-NN search to find correct top-k neighbors for each request.
-        batch_iter = self.get_record_batch_iter(1, 0, self.record_count())
-        self.records = []
-        for _, batch in batch_iter:
-            self.records += batch.root
+        # Store records in memory; we run a k-NN search to find correct top-k
+        # neighbors for each request.
+        self.records: pandas.DataFrame = self._get_records()
+
+    def _get_records(self) -> pandas.DataFrame:
+        batch_iter = self.dataset.get_batch_iterator(1, 0, self.record_count())
+        all_records: pandas.DataFrame = pandas.DataFrame()
+        for batch in batch_iter:
+            records = batch.to_pandas()
+            self._decode_metadata(records)
+            all_records = pandas.concat([all_records, records])
+        return all_records
 
     def _get_topk(self, req: SearchRequest) -> list[str]:
         return self.calc_k_nearest_neighbors(self.records, self.metric(), req)
 
     @staticmethod
     def calc_k_nearest_neighbors(
-        records: RecordList, metric: DistanceMetric, req: SearchRequest
+        records: pandas.DataFrame, metric: DistanceMetric, req: SearchRequest
     ) -> list[str]:
         """Calculate the k-nearest neighbors for a given query to the given set
         of records.
         """
 
         # Run a k-NN search to find the top-k nearest neighbors.
-        def dist(v: Record):
+        def dist(vec):
             match metric:
                 case DistanceMetric.Cosine:
-                    return np.dot(v.values, req.values) / (
-                        np.linalg.norm(v.values) * np.linalg.norm(req.values)
+                    return np.dot(vec, req.values) / (
+                        np.linalg.norm(vec) * np.linalg.norm(req.values)
                     )
                 case DistanceMetric.Euclidean:
-                    return np.linalg.norm(np.array(v.values) - np.array(req.values))
+                    return np.linalg.norm(np.array(vec) - np.array(req.values))
                 case DistanceMetric.DotProduct:
-                    return np.dot(v.values, req.values)
+                    return np.dot(vec, req.values)
             raise ValueError(f"Unsupported metric {metric}")
 
         # Filter by metadata tags if provided (e.g. yfcc)
@@ -162,33 +173,25 @@ class ParquetSubsetWorkload(ParquetWorkload, ABC):
         else:
             filtered_records = records
 
-        ordered_records = list(
-            map((lambda r: r.id), sorted(filtered_records, key=dist))
+        # Calculate the distance metric and create a new DataFrame
+        distance = filtered_records["values"].apply(dist)
+        id_by_dist = pandas.DataFrame(
+            {"id": filtered_records["id"], "distance": distance}
         )
+
         # Euclidean is sorted closest -> farthest, Cosine/DotProduct gives farthest -> closest
         match metric:
             case DistanceMetric.Cosine:
-                ordered_records = list(
-                    map(
-                        (lambda r: r.id),
-                        sorted(filtered_records, key=dist, reverse=True),
-                    )
-                )
+                ascending = False
             case DistanceMetric.DotProduct:
-                ordered_records = list(
-                    map(
-                        (lambda r: r.id),
-                        sorted(filtered_records, key=dist, reverse=True),
-                    )
-                )
+                ascending = False
             case DistanceMetric.Euclidean:
-                ordered_records = list(
-                    map((lambda r: r.id), sorted(filtered_records, key=dist))
-                )
+                ascending = True
             case _:
                 raise ValueError(f"Unsupported metric {metric}")
 
-        return ordered_records[: req.top_k]
+        ordered_records = id_by_dist.sort_values("distance", ascending=ascending)
+        return ordered_records.head(req.top_k)["id"].tolist()
 
     def get_query_iter(
         self, num_users: int, user_id: int
