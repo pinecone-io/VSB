@@ -45,7 +45,7 @@ class ProgressIOWrapper(io.IOBase):
     written to the file.
     """
 
-    def __init__(self, dest, total, progress, indent=0, *args, **kwargs):
+    def __init__(self, dest, total, progress, scale=1, indent=0, *args, **kwargs):
         """Create a new ProgressIOWrapper object.
         :param dest: The destination file-like object to write to.
         :param total: The total number of bytes expected to be written (used to
@@ -53,15 +53,16 @@ class ProgressIOWrapper(io.IOBase):
                       a percentage complete, but will otherwise track progress.
         :param progress: The Progress object to add a progress bar to. If None
                          then no progress bar will be shown.
+        :param scale: Scale the progress bar by this amount (e.g. 1024 for KiB)
         :param indent: The number of spaces to indent the progress bar label
         """
         self.path = dest
         self.file = dest.open("wb")
         self.progress = progress
+        self.scale = scale
         if self.progress:
-            self.task_id = progress.add_task(
-                (" " * indent) + dest.parent.name + "/" + dest.name, total=total
-            )
+            description = (" " * indent) + dest.parent.name + "/" + dest.name
+            self.task_id = progress.add_task(description, total=total / scale)
         super().__init__(*args, **kwargs)
 
     def __del__(self):
@@ -70,7 +71,7 @@ class ProgressIOWrapper(io.IOBase):
 
     def write(self, b):
         # Write data to the base object
-        bytes_written = self.file.write(b)
+        bytes_written = self.file.write(b) / self.scale
         if self.progress:
             # Update the progress bar with the amount written
             self.progress.update(self.task_id, advance=bytes_written)

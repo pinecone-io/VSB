@@ -203,7 +203,11 @@ class Dataset:
                 dest_path.parent.mkdir(parents=True, exist_ok=True)
                 blob.download_to_file(
                     ProgressIOWrapper(
-                        dest=dest_path, progress=vsb.progress, total=blob.size, indent=2
+                        dest=dest_path,
+                        progress=vsb.progress,
+                        total=blob.size,
+                        scale=1024 * 1024,
+                        indent=2,
                     )
                 )
                 if vsb.progress:
