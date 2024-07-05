@@ -146,19 +146,6 @@ class ParquetSubsetWorkload(ParquetWorkload, ABC):
         of records.
         """
 
-        # Run a k-NN search to find the top-k nearest neighbors.
-        def dist(vec):
-            match metric:
-                case DistanceMetric.Cosine:
-                    return np.dot(vec, req.values) / (
-                        np.linalg.norm(vec) * np.linalg.norm(req.values)
-                    )
-                case DistanceMetric.Euclidean:
-                    return np.linalg.norm(np.array(vec) - np.array(req.values))
-                case DistanceMetric.DotProduct:
-                    return np.dot(vec, req.values)
-            raise ValueError(f"Unsupported metric {metric}")
-
         # Filter by metadata tags if provided (e.g. yfcc)
         if req.filter is not None:
             filters = FilterUtil.to_set(req.filter)
@@ -173,25 +160,49 @@ class ParquetSubsetWorkload(ParquetWorkload, ABC):
         else:
             filtered_records = records
 
-        # Calculate the distance metric and create a new DataFrame
-        distance = filtered_records["values"].apply(dist)
-        id_by_dist = pandas.DataFrame(
-            {"id": filtered_records["id"], "distance": distance}
-        )
+        # Find the top_K nearest neighbors for the query vector. We use
+        # numpy to perform the calculations in bulk across the entire dataset,
+        # then sort the results.
+        # This is at least an order of magnitude faster than calculating
+        # distances one-by-one in plain Python - see test_benchmark_parquet.py.
 
-        # Euclidean is sorted closest -> farthest, Cosine/DotProduct gives farthest -> closest
+        # 1. Convert the values column and query to numpy arrays (so we can
+        # perform bulk distance calculations).
+        stacked = np.stack(filtered_records["values"].values)
+        xq = np.array(req.values)
+
+        # 2. Calculate the distance between the query vector and all records,
+        # using the appropriate distance metric.
         match metric:
             case DistanceMetric.Cosine:
-                ascending = False
+                # Compute the cosine similarity between the query vector and all
+                # records in the dataset.
+
+                # Normalize the embeddings and the query vector
+                stacked_norm = np.linalg.norm(stacked, axis=1)
+                xq_norm = np.linalg.norm(xq)
+                # Compute the cosine similarity against all records.
+                distances = np.dot(stacked, xq) / (stacked_norm * xq_norm)
+
+                # Get the indices of the K largest cosine distances and sort.
+                sorted_indices = np.argsort(-distances)[: req.top_k]
             case DistanceMetric.DotProduct:
-                ascending = False
+                # Calculate the Euclidean distance between each record and the
+                # query vector.
+                distances = np.dot(stacked, xq)
+                # Get the indices of the K largest distances and sort.
+                sorted_indices = np.argsort(-distances)[: req.top_k]
             case DistanceMetric.Euclidean:
-                ascending = True
+                # Calculate the Euclidean distance between each record and the
+                # query vector.
+                distances = np.linalg.norm(stacked - xq, axis=1)
+                # Get the indices of the K smallest distances and sort.
+                sorted_indices = np.argsort(distances)[: req.top_k]
             case _:
                 raise ValueError(f"Unsupported metric {metric}")
 
-        ordered_records = id_by_dist.sort_values("distance", ascending=ascending)
-        return ordered_records.head(req.top_k)["id"].tolist()
+        # Extract the corresponding IDs and return.
+        return filtered_records.iloc[sorted_indices]["id"].tolist()
 
     def get_query_iter(
         self, num_users: int, user_id: int
