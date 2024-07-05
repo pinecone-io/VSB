@@ -52,7 +52,10 @@ class PgvectorNamespace(Namespace):
             case "ivfflat":
                 # For IVFFLAT, we use a default of sqrt(lists) for probes. See https://github.com/pgvector/pgvector.
                 setup_search_statement = f"SET ivfflat.probes = {math.isqrt(self.ivfflat_lists) if self.search_candidates == 0 else self.search_candidates}"
-        self.conn.execute(setup_search_statement)
+            case "none":
+                setup_search_statement = None
+        if setup_search_statement:
+            self.conn.execute(setup_search_statement)
         match self.metric:
             case DistanceMetric.Cosine:
                 operator = "<=>"
@@ -84,6 +87,8 @@ class PgvectorDB(DB):
     ):
         self.index_type = config["pgvector_index_type"]
         match self.index_type:
+            case "none":
+                self.ivfflat_lists = None
             case "hnsw":
                 self.ivfflat_lists = None
             case "ivfflat":
@@ -183,6 +188,9 @@ class PgvectorDB(DB):
 
     def finalize_population(self, record_count: int):
         # Create index.
+        if self.index_type == "none":
+            return
+
         with vsb.logging.progress_task(
             f"  Create pgvector index ({self.index_type})",
             f"  ✔ pgvector index ({self.index_type}) created",

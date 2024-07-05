@@ -150,9 +150,11 @@ def add_vsb_cmdline_args(
     pgvector_group.add_argument(
         "--pgvector_index_type",
         type=str,
-        choices=["ivfflat", "hnsw"],
+        choices=["none", "ivfflat", "hnsw"],
         default="hnsw",
-        help="Index type to use for pgvector. Default is %(default)s",
+        help="Index type to use for pgvector. Specifying 'none' will not create an "
+        "ANN index, instead brute-force kNN search will be performed."
+        "Default is %(default)s",
     )
     pgvector_group.add_argument(
         "--pgvector_ivfflat_lists",
