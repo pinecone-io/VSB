@@ -2,6 +2,7 @@ import json
 from abc import ABC
 from collections.abc import Iterator
 from typing import Generator
+from sklearn.neighbors import NearestNeighbors
 
 import pandas
 import numpy as np
@@ -158,6 +159,10 @@ class ParquetSubsetWorkload(ParquetWorkload, ABC):
     ) -> pandas.Series:
         """Recalculate the neighbors field for each query in the given set of
         queries, using the given set of records.
+
+        We use the NearestNeighbors class from scikit-learn to find the
+        nearest neighbors, this is significantly faster (~10x) than even
+        a numpy optimised brute-force search.
         """
 
         # Convert the list of embeddings to a numpy array for faster computation
@@ -182,40 +187,66 @@ class ParquetSubsetWorkload(ParquetWorkload, ABC):
                     )
                     return 1 - cosine_similarities
 
-        # Function to find top k nearest neighbors for a single query
-        def get_top_k_nearest(query_vector, top_k, q_filter):
-            distances = calculate_distances(query_vector, embeddings)
+        # Convert the list of embeddings to a numpy array for faster computation
+        embeddings = np.stack(records["values"].values)
 
-            # Filter by metadata tags if provided (e.g. yfcc)
+        # Setup handling for each distance metric.
+        match metric:
+            case DistanceMetric.Cosine:
+                distance_metric = "cosine"
+                # Need to normalize the embeddings for cosine similarity
+                # as defined by NearestNeighbors.
+                embeddings = embeddings / np.linalg.norm(
+                    embeddings, axis=1, keepdims=True
+                )
+            case DistanceMetric.DotProduct:
+
+                def dot_product_distance(x, y):
+                    # Since NearestNeighbors attempts to minimize the distance,
+                    # return the negative dot-product.
+                    return -np.dot(x, y)
+
+                distance_metric = dot_product_distance
+            case DistanceMetric.Euclidean:
+                distance_metric = "euclidean"
+            case _:
+                raise ValueError("Unsupported distance metric")
+
+        # Initialize the NearestNeighbors model
+        nbrs = NearestNeighbors(metric=distance_metric).fit(embeddings)
+
+        def get_top_k_nearest(query_vector, top_k, q_filter=None):
+            if metric == DistanceMetric.Cosine:
+                # Need to normalize the query vector for cosine similarity
+                query_vector = query_vector / np.linalg.norm(query_vector)
+
+            # If we have a filter, then we cannot just return the top-k neighbors
+            # directly - we need order _all_ records, then perform post-filtering
+            # to ensure we return the exact kNN results.
             if q_filter is not None:
+                k = len(records)
+            else:
+                k = top_k
+
+            distances_, indices = nbrs.kneighbors([query_vector], n_neighbors=k)
+            top_k_indices = indices[0]
+
+            if q_filter is not None:
+                # Perform post-filtering on the complete result-set.
                 filters = FilterUtil.to_set(q_filter)
 
-                def filt(v: Record):
-                    if v.metadata is not None:
+                def filt(v: pandas.Series):
+                    if v.get("metadata") is not None:
                         assert (
-                            "tags" in v.metadata
+                            "tags" in v["metadata"]
                         )  # We only support yfcc tags for now.
-                        return filters <= set(v.metadata["tags"])
+                        return filters <= set(v["metadata"]["tags"])
                     return filters <= set()
 
-                filtered_indices = [
-                    i for i in range(len(records)) if filt(records.iloc[i])
-                ]
-            else:
-                filtered_indices = range(len(records))
+                filtered_indices = [i for i in indices if filt(records.iloc[i])]
+                top_k_indices = filtered_indices[:top_k]
 
-            # Get the distances of the filtered indices
-            filtered_distances = distances[filtered_indices]
-
-            # Get the indices of the top_k smallest distances
-            top_k_filtered_indices = np.argsort(filtered_distances)[:top_k]
-
-            # Map the filtered indices back to the original indices
-            top_k_original_indices = [
-                filtered_indices[i] for i in top_k_filtered_indices
-            ]
-
-            return records.iloc[top_k_original_indices]["id"].tolist()
+            return records.iloc[top_k_indices]["id"].tolist()
 
         # Apply the function to each query
         return queries.apply(
