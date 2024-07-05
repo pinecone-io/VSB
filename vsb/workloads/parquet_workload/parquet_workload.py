@@ -126,6 +126,20 @@ class ParquetSubsetWorkload(ParquetWorkload, ABC):
         # neighbors for each request.
         self.records: pandas.DataFrame = self._get_records()
 
+        # Recalculate neighbors for each query in the dataset
+        neighbors = self.recalculate_neighbors(
+            self.records, self.queries, self.metric()
+        )
+
+        def update_blob(blob, neighbors):
+            blob["neighbors"] = neighbors
+            return blob
+
+        self.queries["blob"] = self.queries.apply(
+            lambda row: update_blob(row["blob"], neighbors[row.name]),
+            axis=1,
+        )
+
     def _get_records(self) -> pandas.DataFrame:
         batch_iter = self.dataset.get_batch_iterator(1, 0, self.record_count())
         all_records: pandas.DataFrame = pandas.DataFrame()
@@ -139,85 +153,74 @@ class ParquetSubsetWorkload(ParquetWorkload, ABC):
         return self.calc_k_nearest_neighbors(self.records, self.metric(), req)
 
     @staticmethod
-    def calc_k_nearest_neighbors(
-        records: pandas.DataFrame, metric: DistanceMetric, req: SearchRequest
-    ) -> list[str]:
-        """Calculate the k-nearest neighbors for a given query to the given set
-        of records.
+    def recalculate_neighbors(
+        records: pandas.DataFrame, queries: pandas.DataFrame, metric: DistanceMetric
+    ) -> pandas.Series:
+        """Recalculate the neighbors field for each query in the given set of
+        queries, using the given set of records.
         """
 
-        # Filter by metadata tags if provided (e.g. yfcc)
-        if req.filter is not None:
-            filters = FilterUtil.to_set(req.filter)
+        # Convert the list of embeddings to a numpy array for faster computation
+        embeddings = np.stack(records["values"].values)
 
-            def filt(v: Record):
-                if v.metadata is not None:
-                    assert "tags" in v.metadata  # We only support yfcc tags for now.
-                    return filters <= set(v.metadata["tags"])
-                return filters <= set()
+        def calculate_distances(query_vector, embeddings):
+            match metric:
+                case DistanceMetric.Euclidean:
+                    # Compute the Euclidean distances
+                    return np.linalg.norm(embeddings - query_vector, axis=1)
+                case DistanceMetric.DotProduct:
+                    # Compute the negative dot-product (to use argsort for
+                    # descending order)
+                    return -np.dot(embeddings, query_vector)
+                case DistanceMetric.Cosine:
+                    # Compute the cosine distances (1 - cosine similarity) to use
+                    # argsort for descending order.
+                    query_norm = np.linalg.norm(query_vector)
+                    embeddings_norm = np.linalg.norm(embeddings, axis=1)
+                    cosine_similarities = np.dot(embeddings, query_vector) / (
+                        embeddings_norm * query_norm
+                    )
+                    return 1 - cosine_similarities
 
-            filtered_records = filter(filt, records)
-        else:
-            filtered_records = records
+        # Function to find top k nearest neighbors for a single query
+        def get_top_k_nearest(query_vector, top_k, q_filter):
+            distances = calculate_distances(query_vector, embeddings)
 
-        # Find the top_K nearest neighbors for the query vector. We use
-        # numpy to perform the calculations in bulk across the entire dataset,
-        # then sort the results.
-        # This is at least an order of magnitude faster than calculating
-        # distances one-by-one in plain Python - see test_benchmark_parquet.py.
+            # Filter by metadata tags if provided (e.g. yfcc)
+            if q_filter is not None:
+                filters = FilterUtil.to_set(q_filter)
 
-        # 1. Convert the values column and query to numpy arrays (so we can
-        # perform bulk distance calculations).
-        stacked = np.stack(filtered_records["values"].values)
-        xq = np.array(req.values)
+                def filt(v: Record):
+                    if v.metadata is not None:
+                        assert (
+                            "tags" in v.metadata
+                        )  # We only support yfcc tags for now.
+                        return filters <= set(v.metadata["tags"])
+                    return filters <= set()
 
-        # 2. Calculate the distance between the query vector and all records,
-        # using the appropriate distance metric.
-        match metric:
-            case DistanceMetric.Cosine:
-                # Compute the cosine similarity between the query vector and all
-                # records in the dataset.
+                filtered_indices = [
+                    i for i in range(len(records)) if filt(records.iloc[i])
+                ]
+            else:
+                filtered_indices = range(len(records))
 
-                # Normalize the embeddings and the query vector
-                stacked_norm = np.linalg.norm(stacked, axis=1)
-                xq_norm = np.linalg.norm(xq)
-                # Compute the cosine similarity against all records.
-                distances = np.dot(stacked, xq) / (stacked_norm * xq_norm)
+            # Get the distances of the filtered indices
+            filtered_distances = distances[filtered_indices]
 
-                # Get the indices of the K largest cosine distances and sort.
-                sorted_indices = np.argsort(-distances)[: req.top_k]
-            case DistanceMetric.DotProduct:
-                # Calculate the Euclidean distance between each record and the
-                # query vector.
-                distances = np.dot(stacked, xq)
-                # Get the indices of the K largest distances and sort.
-                sorted_indices = np.argsort(-distances)[: req.top_k]
-            case DistanceMetric.Euclidean:
-                # Calculate the Euclidean distance between each record and the
-                # query vector.
-                distances = np.linalg.norm(stacked - xq, axis=1)
-                # Get the indices of the K smallest distances and sort.
-                sorted_indices = np.argsort(distances)[: req.top_k]
-            case _:
-                raise ValueError(f"Unsupported metric {metric}")
+            # Get the indices of the top_k smallest distances
+            top_k_filtered_indices = np.argsort(filtered_distances)[:top_k]
 
-        # Extract the corresponding IDs and return.
-        return filtered_records.iloc[sorted_indices]["id"].tolist()
+            # Map the filtered indices back to the original indices
+            top_k_original_indices = [
+                filtered_indices[i] for i in top_k_filtered_indices
+            ]
 
-    def get_query_iter(
-        self, num_users: int, user_id: int
-    ) -> Iterator[tuple[str, SearchRequest]]:
-        """
-        Test workloads only use the first P passages from the original dataset,
-        as such the neighbors field is not necessarily the correct top-k nearest
-        neighbors from the truncated passages set.
-        As such, replace by re-calculating from the actual records in the dataset.
-        """
-        base_iter = super().get_query_iter(num_users, user_id)
+            return records.iloc[top_k_original_indices]["id"].tolist()
 
-        def update_neighbors():
-            for tenant, request in base_iter:
-                request.neighbors = self._get_topk(request)
-                yield tenant, request
-
-        return update_neighbors()
+        # Apply the function to each query
+        return queries.apply(
+            lambda row: get_top_k_nearest(
+                row["values"], row["top_k"], row["filter"] if "filter" in row else None
+            ),
+            axis=1,
+        )
