@@ -172,7 +172,7 @@ def make_progressbar() -> rich.progress.Progress:
             table_column=rich.table.Column(width=36),
         ),
         rich.progress.MofNCompleteColumn(
-            table_column=rich.table.Column(justify="right", width=12)
+            table_column=rich.table.Column(justify="right", min_width=12)
         ),
         rich.progress.BarColumn(bar_width=48),
         rich.progress.TaskProgressColumn(),
