@@ -9,7 +9,7 @@ import pyarrow
 
 from ..base import VectorWorkload
 from ..dataset import Dataset
-from ...vsb_types import SearchRequest, RecordList, Record, DistanceMetric
+from ...vsb_types import SearchRequest, RecordList, Record, DistanceMetric, Vector
 from ...databases.pgvector.filter_util import FilterUtil
 
 
@@ -95,7 +95,7 @@ class ParquetWorkload(VectorWorkload, ABC):
         return make_query_iter(user_chunk)
 
 
-class ParquetSubsetWorkload(ParquetWorkload):
+class ParquetSubsetWorkload(ParquetWorkload, ABC):
     """A subclass of ParquetWorkload that reads a subset of records and queries
     from the original dataset.
     The expected results of the queries are incorrect with respect to the new
@@ -125,9 +125,19 @@ class ParquetSubsetWorkload(ParquetWorkload):
             self.records += batch.root
 
     def _get_topk(self, req: SearchRequest) -> list[str]:
+        return self.calc_k_nearest_neighbors(self.records, self.metric(), req)
+
+    @staticmethod
+    def calc_k_nearest_neighbors(
+        records: RecordList, metric: DistanceMetric, req: SearchRequest
+    ) -> list[str]:
+        """Calculate the k-nearest neighbors for a given query to the given set
+        of records.
+        """
+
         # Run a k-NN search to find the top-k nearest neighbors.
         def dist(v: Record):
-            match self.metric():
+            match metric:
                 case DistanceMetric.Cosine:
                     return np.dot(v.values, req.values) / (
                         np.linalg.norm(v.values) * np.linalg.norm(req.values)
@@ -136,7 +146,7 @@ class ParquetSubsetWorkload(ParquetWorkload):
                     return np.linalg.norm(np.array(v.values) - np.array(req.values))
                 case DistanceMetric.DotProduct:
                     return np.dot(v.values, req.values)
-            raise ValueError(f"Unsupported metric {self.metric()}")
+            raise ValueError(f"Unsupported metric {metric}")
 
         # Filter by metadata tags if provided (e.g. yfcc)
         if req.filter is not None:
@@ -148,15 +158,15 @@ class ParquetSubsetWorkload(ParquetWorkload):
                     return filters <= set(v.metadata["tags"])
                 return filters <= set()
 
-            filtered_records = filter(filt, self.records)
+            filtered_records = filter(filt, records)
         else:
-            filtered_records = self.records
+            filtered_records = records
 
         ordered_records = list(
             map((lambda r: r.id), sorted(filtered_records, key=dist))
         )
         # Euclidean is sorted closest -> farthest, Cosine/DotProduct gives farthest -> closest
-        match self.metric():
+        match metric:
             case DistanceMetric.Cosine:
                 ordered_records = list(
                     map(
@@ -176,7 +186,7 @@ class ParquetSubsetWorkload(ParquetWorkload):
                     map((lambda r: r.id), sorted(filtered_records, key=dist))
                 )
             case _:
-                raise ValueError(f"Unsupported metric {self.metric()}")
+                raise ValueError(f"Unsupported metric {metric}")
 
         return ordered_records[: req.top_k]
 
