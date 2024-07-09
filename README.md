@@ -42,15 +42,9 @@ provide suitable credentials to an existing database instance. For example
 to run workload _mnist-test_ against a Pinecone index:
 ```shell
 vsb --database=pinecone --workload=mnist-test \
-    --pinecone_api_key=<API_KEY> \
-    --pinecone_index_name=<INDEX_NAME>
+    --pinecone_api_key=<API_KEY> 
 ```
-Where `--api_key` specifies the [Pinecone](https://app.pinecone.io) API key to use
-and `--index_name` specifies the name of the index to connect to.
-
-> [!TIP]
-> The _mnist-test_ workload has dimensions=784 and metric=euclidean, if you
-> don't have an existing index and need to create one via http://app.pinecone.io.
+Where `--api_key` specifies the [Pinecone](https://app.pinecone.io) API key to use.
 
 #### Local database via Docker
 

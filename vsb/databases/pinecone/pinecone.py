@@ -58,14 +58,22 @@ class PineconeDB(DB):
         self.pc = PineconeGRPC(config["pinecone_api_key"])
         self.skip_populate = config["skip_populate"]
         index_name = config["pinecone_index_name"]
+        if index_name is None:
+            # None specified, default to "vsb-<workload>"
+            index_name = f"vsb-{name}"
+        spec = config["pinecone_index_spec"]
         try:
             self.index = self.pc.Index(name=index_name)
-        except NotFoundException as e:
-            logger.error(
-                f"PineconeDB: Specified index '{index_name}' was not found. Check the "
-                f"index exists and the specified API key can access it."
+        except NotFoundException:
+            logger.info(
+                f"PineconeDB: Specified index '{index_name}' was not found, or the "
+                f"specified API key cannot access it. Creating new index '{index_name}'."
             )
-            raise StopUser() from e
+            self.pc.create_index(
+                name=index_name, dimension=dimensions, metric=metric.value, spec=spec
+            )
+            self.index = self.pc.Index(name=index_name)
+
         info = self.pc.describe_index(index_name)
         index_dims = info["dimension"]
         if dimensions != index_dims:
