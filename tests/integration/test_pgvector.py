@@ -172,6 +172,27 @@ class TestPgvector:
             },
         )
 
+    def test_no_index(self):
+        # Test without an index.
+        # Test "-test" variant of mnist loads and runs successfully, and gives
+        # perfect recall (as Postgres will perform a full kNN scan).
+        (proc, stdout, stderr) = spawn_vsb(
+            workload="mnist-test", extra_args=["--pgvector_index_type=none"]
+        )
+        assert proc.returncode == 0
+
+        check_request_counts(
+            stdout,
+            {
+                "Populate": {"num_requests": 1, "num_failures": 0},
+                "Search": {
+                    "num_requests": 20,
+                    "num_failures": 0,
+                    "recall": check_recall_correctness(1.0),
+                },
+            },
+        )
+
     def test_search_candidates(self):
         # Test pgvector_search_candidates parameter.
         # Test "-test" variant of mnist loads and runs successfully.
