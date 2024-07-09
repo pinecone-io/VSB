@@ -2,18 +2,10 @@ import datetime
 from conftest import (
     check_request_counts,
     read_env_var,
-    random_string,
     spawn_vsb_inner,
     check_recall_stats,
     check_recall_correctness,
 )
-
-
-def _get_index_name() -> str:
-    now = datetime.datetime.utcnow().replace(microsecond=0).isoformat()
-    now = now.replace(":", "-")
-    index_name = read_env_var("NAME_PREFIX") + "--" + now + "--" + random_string(10)
-    index_name = index_name.lower()
 
 
 def spawn_vsb(workload, timeout=60, extra_args=None):

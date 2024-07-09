@@ -7,15 +7,23 @@ It supports connecting to both Pod-based and Serverless indexes.
 
 To run VSB against a Pinecone index:
 
-1. Create an index via the [Pinecone console](https://app.pinecone.io) with the
-   appropriate dimensionality & metric - e.g. for `mnist-test` use `dimensions=784` and
-   `metric=euclidean`.
-2. Invoke VSB with `--database=pinecone` and provide the API key and index name to VSB.
+1. Invoke VSB with `--database=pinecone` and provide your API key to VSB.
+   A serverless index will be created for you, using aws/us-east-1.
+
+```shell
+vsb --database=pinecone --workload=mnist-test \
+    --pinecone_api_key=<YOUR_API_KEY>
+```
+
+If you wish to configure the created index or use an already existing one,
+specify the name and/or spec with `--pinecone_index_name` and `--pinecone_index_spec`.
+The `--pinecone_index_spec` option takes a JSON string described in the [Pinecone docs](https://docs.pinecone.io/reference/api/control-plane/create_index).
 
 ```shell
 vsb --database=pinecone --workload=mnist-test \
     --pinecone_api_key=<YOUR_API_KEY> \
-    --pinecone_index_name=<YOUR_INDEX_NAME>
+    --pinecone_index_name=<YOUR_INDEX_NAME> \
+    --pinecone_index_spec=<YOUR_INDEX_SPEC>
 ```
 
 > [!TIP]
