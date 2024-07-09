@@ -17,15 +17,10 @@ VSB has the following requirements:
 * [Docker Compose](https://docs.docker.com/compose/) >= 2.27 (for non-cloud hosted databases)
 
 > [!NOTE]
-> macOS ships with an older version of Python (3.9 or earlier). 
+> macOS ships with an older version of Python (3.9 or earlier). Ensure you have a new enough version of  Python or VSB installation will fail. For example, you can use [Homebrew](https://brew.sh) with the following command:
+> 
+>`brew install python@3.11`
 
-Ensure you have a new enough version of Python or VSB installation will fail.
-
-For example, you can use [Homebrew](https://brew.sh) with the following command:
-
-```shell
-brew install python@3.11
-```
 
 ### Install
 
@@ -103,7 +98,7 @@ vector databases and measure how they perform.
 
 Each experiment consists of three phases: _Setup_, _Populate_, and _Run_:
 
-* **Setup**: Prepares the database and workload for the experiment by createing tables and 
+* **Setup**: Prepares the database and workload for the experiment by creating tables and 
   indexes and downloading or generating data.
 * **Populate**: Loads the database with data, creates indexes, etc.
 * **Run**: Executes the workload against the database, measuring throughput, latency, 
@@ -150,7 +145,7 @@ The `vsb` command requires two parameters:
 * `--database=<database>`: the database to run against.
 * `--workload=<workload>`: the workload to execute.
 
-Omitting the value for either `database`` or `workload` displays a list of 
+Omitting the value for either `database` or `workload` displays a list of 
 available choices. 
 
 Specify additional parameters to further configure the database 
@@ -231,7 +226,7 @@ vsb --database=pgvector --workload=nq768 --users=10 --processes=10
 ```
 #### Designing a throughput experiment
 
-Throughput experiments are typically trying to answer one of three questions:
+Throughput experiments are typically trying to answer one of two questions:
 
 1. Can the system handle the expected production workload?
 1. How far can the system scale within acceptable latency bounds?
