@@ -52,17 +52,12 @@ Install VSB by following these steps:
 To run VSB against a cloud-hosted vector database,
 provide suitable credentials for an existing database instance. 
 
-For example, to run the _mnist-test_ workload against a Pinecone index, provide parameters like the following, where `--api_key` specifies the [Pinecone](https://app.pinecone.io) API key to use
-and `--index_name` specifies the name of the index to connect to.
+For example, to run the _mnist-test_ workload against a Pinecone index, provide parameters like the following, where `--api_key` specifies the [Pinecone](https://app.pinecone.io) API key to use.
 
 ```shell
 vsb --database=pinecone --workload=mnist-test \
-    --pinecone_api_key=<API_KEY> \
-    --pinecone_index_name=<INDEX_NAME>
+    --pinecone_api_key=<API_KEY> 
 ```
-
-> [!TIP]
-> If you don't have an existing index for the _mnist-test_ workload and need to create one via http://app.pinecone.io., the _mnist-test_ workload has 784 dimensions and uses the `euclidean` distance metric.
 
 #### Local database via Docker
 

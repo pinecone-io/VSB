@@ -2,6 +2,8 @@ import configargparse
 import argparse
 import rich.table
 import rich.console
+import json
+from pinecone import ServerlessSpec
 from vsb.databases import Database
 from vsb.workloads import Workload
 from vsb import default_cache_dir
@@ -23,6 +25,20 @@ class WorkloadHelpAction(argparse.Action):
             parser.exit(0)
         else:
             setattr(namespace, self.dest, values)
+
+
+def json_to_pinecone_spec(spec_string):
+    try:
+        spec = json.loads(spec_string)
+        assert "pod" in spec or "serverless" in spec
+        assert len(spec) == 1
+        if "pod" in spec:
+            assert "environment" in spec["pod"] and "pod_type" in spec["pod"]
+        if "serverless" in spec:
+            assert "cloud" in spec["serverless"] and "region" in spec["serverless"]
+        return spec
+    except Exception as e:
+        raise ValueError from e
 
 
 def add_vsb_cmdline_args(
@@ -111,8 +127,16 @@ def add_vsb_cmdline_args(
     pinecone_group.add_argument(
         "--pinecone_index_name",
         type=str,
-        help="Name of Pinecone index to connect to",
+        default=None,
+        help="Name of Pinecone index to connect to. One will be created if it does not exist. Default is vsb-<workload>.",
         env_var="VSB__PINECONE_INDEX_NAME",
+    )
+
+    pinecone_group.add_argument(
+        "--pinecone_index_spec",
+        type=json_to_pinecone_spec,
+        default={"serverless": {"cloud": "aws", "region": "us-east-1"}},
+        help="JSON spec of Pinecone index to create (if it does not exist). Default is %(default)s",
     )
 
     pgvector_group = parser.add_argument_group("Options specific to pgvector database")
@@ -150,9 +174,11 @@ def add_vsb_cmdline_args(
     pgvector_group.add_argument(
         "--pgvector_index_type",
         type=str,
-        choices=["ivfflat", "hnsw"],
+        choices=["none", "ivfflat", "hnsw"],
         default="hnsw",
-        help="Index type to use for pgvector. Default is %(default)s",
+        help="Index type to use for pgvector. Specifying 'none' will not create an "
+        "ANN index, instead brute-force kNN search will be performed."
+        "Default is %(default)s",
     )
     pgvector_group.add_argument(
         "--pgvector_ivfflat_lists",
@@ -201,7 +227,11 @@ def validate_parsed_args(
 
     match args.database:
         case "pinecone":
-            required = ("pinecone_api_key", "pinecone_index_name")
+            required = (
+                "pinecone_api_key",
+                "pinecone_index_name",
+                "pinecone_index_spec",
+            )
             missing = list()
             for name in required:
                 if not getattr(args, name):

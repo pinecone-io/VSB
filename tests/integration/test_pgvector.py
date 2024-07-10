@@ -2,18 +2,10 @@ import datetime
 from conftest import (
     check_request_counts,
     read_env_var,
-    random_string,
     spawn_vsb_inner,
     check_recall_stats,
     check_recall_correctness,
 )
-
-
-def _get_index_name() -> str:
-    now = datetime.datetime.utcnow().replace(microsecond=0).isoformat()
-    now = now.replace(":", "-")
-    index_name = read_env_var("NAME_PREFIX") + "--" + now + "--" + random_string(10)
-    index_name = index_name.lower()
 
 
 def spawn_vsb(workload, timeout=60, extra_args=None):
@@ -168,6 +160,27 @@ class TestPgvector:
                     "num_requests": 20,
                     "num_failures": 0,
                     "recall": check_recall_stats,
+                },
+            },
+        )
+
+    def test_no_index(self):
+        # Test without an index.
+        # Test "-test" variant of mnist loads and runs successfully, and gives
+        # perfect recall (as Postgres will perform a full kNN scan).
+        (proc, stdout, stderr) = spawn_vsb(
+            workload="mnist-test", extra_args=["--pgvector_index_type=none"]
+        )
+        assert proc.returncode == 0
+
+        check_request_counts(
+            stdout,
+            {
+                "Populate": {"num_requests": 1, "num_failures": 0},
+                "Search": {
+                    "num_requests": 20,
+                    "num_failures": 0,
+                    "recall": check_recall_correctness(1.0),
                 },
             },
         )
