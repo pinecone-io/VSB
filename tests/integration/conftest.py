@@ -1,6 +1,7 @@
 import json
 import os
 import random
+import datetime
 import re
 import string
 import subprocess
@@ -15,8 +16,13 @@ def read_env_var(name):
     return value
 
 
-def random_string(length):
-    return "".join(random.choice(string.ascii_lowercase) for _ in range(length))
+def uuid() -> str:
+    """Returns a lowercase unique ID."""
+    now = datetime.datetime.utcnow().replace(microsecond=0).isoformat()
+    now = now.replace(":", "-")
+    randstr = "".join(random.choice(string.ascii_lowercase) for _ in range(10))
+    id = read_env_var("NAME_PREFIX") + "--" + now + "--" + randstr
+    return id.lower()
 
 
 def parse_stats_to_json(stdout: str) -> list(dict()):

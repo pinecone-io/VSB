@@ -19,7 +19,7 @@ locust-plugins = "^4.4.3"
 pgvector = "^0.3.0"
 psycopg = "^3.2.1"
 hdrhistogram = "^0.10.3"
-tenacity = "^8.4.2"
+tenacity = "^8.5.0"
 rich = "^13.7.1"
 
 [tool.poetry.scripts]
