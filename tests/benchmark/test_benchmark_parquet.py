@@ -3,6 +3,7 @@ import pytest
 import vsb
 from vsb.workloads.mnist.mnist import MnistTest
 from vsb.workloads.nq_768_tasb.nq_768_tasb import Nq768TasbTest
+from vsb.workloads.yfcc.yfcc import YFCCTest
 
 
 def test_topk_recalc_mnist_euclidean(benchmark):
@@ -56,6 +57,38 @@ def test_topk_recalc_mnist_euclidean(benchmark):
                     assert query.neighbors == expected_neighbours_0
                 case 19:
                     assert query.neighbors == expected_neighbours_19
+            pass
+
+    benchmark(benchmark_query_generation)
+
+
+def test_topk_recalc_yfcc_euclidean(benchmark):
+    # Benchmark recalculating the top-k nearest filtered neighbors when loading a
+    # subset of a parquet file - euclidean distance.
+    # Use yfcc-test to test filter performance for each query over records.
+    workload = YFCCTest(
+        "topk_bench_filtered_euclidean", cache_dir=vsb.default_cache_dir
+    )
+
+    # Expected top_k nearest neighbors for the first and last query. Disable
+    # black formatting as it tries to put every number on its own line (!)
+    # fmt: off
+    expected_neighbours_0 = ['7829', '9712', '9020', '3244', '8794', '4140', '4973', '6922', '2140', '6978']
+
+    expected_neighbours_499 = []
+
+    # fmt: on
+    def benchmark_query_generation():
+        query_iter = workload.get_query_iter(1, 0)
+        for i, (tenant, query) in enumerate(query_iter):
+            # Sanity check the correct number of neighbors, and
+            # first and last nearest queries neighbors are correct.
+            assert len(query.neighbors) <= 10
+            match i:
+                case 0:
+                    assert query.neighbors == expected_neighbours_0
+                case 499:
+                    assert query.neighbors == expected_neighbours_499
             pass
 
     benchmark(benchmark_query_generation)
