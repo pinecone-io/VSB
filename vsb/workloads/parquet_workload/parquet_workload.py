@@ -190,17 +190,15 @@ class ParquetSubsetWorkload(ParquetWorkload, ABC):
             if q_filter is not None:
                 filters = FilterUtil.to_set(q_filter)
 
-                def filt(v: Record):
-                    if v.metadata is not None:
-                        assert (
-                            "tags" in v.metadata
-                        )  # We only support yfcc tags for now.
-                        return filters <= set(v.metadata["tags"])
+                def filt(metadata: dict):
+                    if metadata is not None:
+                        assert "tags" in metadata  # We only support yfcc tags for now.
+                        return filters <= set(metadata["tags"])
                     return filters <= set()
 
-                filtered_indices = [
-                    i for i in range(len(records)) if filt(records.iloc[i])
-                ]
+                # np.nonzero returns a tuple of arrays with the non-zero (true) indices of an ndarray
+                # Apply filter to the 'metadata' Series to avoid iterating over DataFrame rows.
+                filtered_indices = np.nonzero(records["metadata"].apply(filt).array)[0]
             else:
                 filtered_indices = range(len(records))
 
