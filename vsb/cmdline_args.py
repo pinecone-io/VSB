@@ -229,7 +229,6 @@ def validate_parsed_args(
         case "pinecone":
             required = (
                 "pinecone_api_key",
-                "pinecone_index_name",
                 "pinecone_index_spec",
             )
             missing = list()
