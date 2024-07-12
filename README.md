@@ -59,6 +59,8 @@ vsb --database=pinecone --workload=mnist-test \
     --pinecone_api_key=<API_KEY> 
 ```
 
+When no index name is specified, VSB creates an index during the setup phase. The new index has a name of the form `vsb-<workload_name>`. For example, the command above creates an index named `vsb-mnist-test`.
+
 #### Local database via Docker
 
 Alternatively, VSB can run against a locally hosted vector database such as
