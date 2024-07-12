@@ -1129,20 +1129,20 @@ psutil = ">=5.9.1"
 pywin32 = {version = "*", markers = "platform_system == \"Windows\""}
 pyzmq = ">=25.0.0"
 requests = [
-    {version = ">=2.32.2", markers = "python_version > \"3.11\""},
     {version = ">=2.26.0", markers = "python_version <= \"3.11\""},
+    {version = ">=2.32.2", markers = "python_version > \"3.11\""},
 ]
 Werkzeug = ">=2.0.0"
 
 [[package]]
 name = "locust-plugins"
-version = "4.4.3"
+version = "4.5.0"
 description = "Useful plugins/extensions for Locust"
 optional = false
 python-versions = "<4,>=3.8"
 files = [
-    {file = "locust_plugins-4.4.3-py3-none-any.whl", hash = "sha256:80e11874f35211fe1ff4c85a04dec6b7cdaa31777faef6d515239d8a763518b2"},
-    {file = "locust_plugins-4.4.3.tar.gz", hash = "sha256:511cb352cabee076960fe563f4d375504041aa13cf39e1c00f551c49a06e64df"},
+    {file = "locust_plugins-4.5.0-py3-none-any.whl", hash = "sha256:96158c6a79999140541372fdc3061e64175bc6a204535227617147491d34736d"},
+    {file = "locust_plugins-4.5.0.tar.gz", hash = "sha256:7e549c1c039e988a0f16ff00008e83c75ad6828aef857c1cac3cfb41404f4ecc"},
 ]
 
 [package.dependencies]
@@ -1150,13 +1150,13 @@ locust = ">=2.20.0"
 typing-extensions = "*"
 
 [package.extras]
-all = ["boto3", "confluent-kafka", "lxml", "opencensus-ext-azure", "paho-mqtt (>=1.5.0)", "playwright (>=1.40.0)", "psycogreen", "psycopg2-binary", "pymongo", "websocket-client"]
+all = ["boto3", "confluent-kafka", "lxml", "opencensus-ext-azure", "paho-mqtt (>=2.1.0)", "playwright (>=1.40.0)", "psycogreen", "psycopg2-binary", "pymongo", "websocket-client"]
 appinsights = ["opencensus-ext-azure"]
 boto3 = ["boto3"]
 dashboards = ["psycogreen", "psycopg2-binary"]
 kafka = ["confluent-kafka"]
 mongo = ["pymongo"]
-mqtt = ["paho-mqtt (>=1.5.0)"]
+mqtt = ["paho-mqtt (>=2.1.0)"]
 playwright = ["playwright (>=1.40.0)"]
 resource = ["lxml"]
 webdriver = ["selenium (>=4.0.0)"]
@@ -1510,8 +1510,8 @@ files = [
 
 [package.dependencies]
 numpy = [
-    {version = ">=1.26.0", markers = "python_version >= \"3.12\""},
     {version = ">=1.23.2", markers = "python_version == \"3.11\""},
+    {version = ">=1.26.0", markers = "python_version >= \"3.12\""},
 ]
 python-dateutil = ">=2.8.2"
 pytz = ">=2020.1"
@@ -1599,8 +1599,8 @@ protoc-gen-openapiv2 = {version = ">=0.0.1,<0.0.2", optional = true, markers = "
 tqdm = ">=4.64.1"
 typing-extensions = ">=3.7.4"
 urllib3 = [
-    {version = ">=1.26.5", markers = "python_version >= \"3.12\" and python_version < \"4.0\""},
     {version = ">=1.26.0", markers = "python_version >= \"3.8\" and python_version < \"3.12\""},
+    {version = ">=1.26.5", markers = "python_version >= \"3.12\" and python_version < \"4.0\""},
 ]
 
 [package.extras]
@@ -1890,8 +1890,8 @@ files = [
 annotated-types = ">=0.4.0"
 pydantic-core = "2.20.1"
 typing-extensions = [
-    {version = ">=4.12.2", markers = "python_version >= \"3.13\""},
     {version = ">=4.6.1", markers = "python_version < \"3.13\""},
+    {version = ">=4.12.2", markers = "python_version >= \"3.13\""},
 ]
 
 [package.extras]
@@ -2549,4 +2549,4 @@ testing = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "4f9267b2fe409e9323f346bfb200f56a8b9ce71c4a3a8b73eece99780fdd3895"
+content-hash = "ead5769cd882849d93b3bcddad7d9ad41cc171438111e1d1dccf5ea6f7135021"
