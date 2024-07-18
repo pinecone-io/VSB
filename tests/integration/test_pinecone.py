@@ -155,6 +155,86 @@ class TestPinecone:
             },
         )
 
+    def test_mnist_double(self, api_key, pinecone_index_mnist):
+        # Test "-double-test" variant (WorkloadSequence) of mnist loads and runs successfully.
+        (proc, stdout, stderr) = spawn_vsb(
+            workload="mnist-double-test",
+            api_key=api_key,
+            index_name=pinecone_index_mnist,
+        )
+        assert proc.returncode == 0
+
+        check_request_counts(
+            stdout,
+            {
+                # Populate num_requests counts batches, not individual records.
+                "Populate": {"num_requests": 4, "num_failures": 0},
+                "Search": {
+                    "num_requests": 40,
+                    "num_failures": 0,
+                    "recall": check_recall_stats,
+                },
+            },
+        )
+
+    def test_mnist_double_concurrent(self, api_key, pinecone_index_mnist):
+        # Test "-double-test" variant (WorkloadSequence) of mnist loads and runs successfully with
+        # concurrent users, and with a request rate limit set.
+        (proc, stdout, stderr) = spawn_vsb(
+            workload="mnist-double-test",
+            api_key=api_key,
+            index_name=pinecone_index_mnist,
+            extra_args=["--users=4", "--requests_per_sec=40"],
+        )
+        assert proc.returncode == 0
+
+        check_request_counts(
+            stdout,
+            {
+                # For multiple users the populate phase will chunk the records to be
+                # loaded into num_users chunks - i.e. 4 here. Given the size of each
+                # chunk will be less than the batch size (600 / 4 < 200), then the
+                # number of requests will be equal to the number of users - i.e. 4.
+                # This happens twice for a total of 8 requests.
+                "Populate": {"num_requests": 8, "num_failures": 0},
+                "Search": {
+                    "num_requests": 40,
+                    "num_failures": 0,
+                    "recall": check_recall_stats,
+                },
+            },
+        )
+
+    def test_mnist_double_multiprocess(self, api_key, pinecone_index_mnist):
+        # Test "-double-test" variant (WorkloadSequence) of mnist loads and runs successfully with
+        # concurrent processes and users.
+        (proc, stdout, stderr) = spawn_vsb(
+            workload="mnist-double-test",
+            api_key=api_key,
+            index_name=pinecone_index_mnist,
+            extra_args=["--processes=4", "--users=4"],
+        )
+        assert proc.returncode == 0
+
+        check_request_counts(
+            stdout,
+            {
+                # For multiple users the populate phase will chunk the records to be
+                # loaded into num_users chunks - i.e. 4 here. Given the size of each
+                # chunk will be less than the batch size (600 / 4 < 200), then the
+                # number of requests will be equal to the number of users - i.e. 4
+                # This happens twice for a total of 8 requests.
+                "Populate": {"num_requests": 8, "num_failures": 0},
+                # The number of Search requests should equal the number in the dataset
+                # (40 for mnist-double-test).
+                "Search": {
+                    "num_requests": 40,
+                    "num_failures": 0,
+                    "recall": check_recall_stats,
+                },
+            },
+        )
+
     def test_mnist_skip_populate(self, api_key, pinecone_index_mnist):
         # Test that skip_populate doesn't re-populate data.
 

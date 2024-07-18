@@ -117,9 +117,7 @@ def setup_environment(environment, **_kwargs):
         for p in phases
         for i in range(env.workload_sequence.workload_count())
     ]:
-        users.distributors[phase] = Distributor(
-            env, iter(range(options.num_users)), phase
-        )
+        users.distributors[phase] = Distributor(env, iter(range(num_users)), phase)
 
     # Set workers_updated: used to wait for all workers to update their IterationHelper for each iteration
     environment.workers_updated = 0

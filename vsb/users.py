@@ -450,7 +450,7 @@ class LoadShape(LoadTestShape):
                             self.runner.environment.iteration_helper.record_count
                         )
                         self.request_count = (
-                            self.runner.environment.iteration_helper.workload.request_count
+                            self.runner.environment.iteration_helper.workload.request_count()
                         )
                         # Reset completed_users for next iteration
                         self.completed_users["run"] = set()

@@ -11,7 +11,6 @@ class Workload(Enum):
 
     Mnist = "mnist"
     MnistTest = "mnist-test"
-    MnistDoubleTest = "mnist-double-test"
     Nq768 = "nq768"
     Nq768Test = "nq768-test"
     YFCC = "yfcc-10M"
@@ -35,10 +34,6 @@ class Workload(Enum):
                 from .mnist.mnist import MnistTest
 
                 return MnistTest
-            case Workload.MnistDoubleTest:
-                from .mnist.mnist import MnistDoubleTest
-
-                return MnistDoubleTest
             case Workload.Nq768:
                 from .nq_768_tasb.nq_768_tasb import Nq768Tasb
 
@@ -85,6 +80,7 @@ class WorkloadSequence(Enum):
     """
 
     MnistSplit = "mnist-split"
+    MnistDoubleTest = "mnist-double-test"
     Nq768Split = "nq768-split"
     Cohere768Split = "cohere768-split"
     YFCCSplit = "yfcc-split"
@@ -101,6 +97,10 @@ class WorkloadSequence(Enum):
                 from .mnist.mnist import MnistSplit
 
                 return MnistSplit
+            case WorkloadSequence.MnistDoubleTest:
+                from .mnist.mnist import MnistDoubleTest
+
+                return MnistDoubleTest
             case WorkloadSequence.Nq768Split:
                 from .nq_768_tasb.nq_768_tasb import Nq768TasbSplit
 
