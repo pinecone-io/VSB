@@ -1,6 +1,7 @@
 from abc import ABC
 
 from ..parquet_workload.parquet_workload import ParquetWorkload, ParquetSubsetWorkload
+from vsb.workloads.base import VectorWorkloadSequence, VectorWorkload
 from ...vsb_types import DistanceMetric
 
 
@@ -42,3 +43,71 @@ class Nq768TasbTest(ParquetSubsetWorkload, Nq768TasbBase):
     @staticmethod
     def request_count() -> int:
         return 35
+
+
+class Nq768TasbCheese(Nq768TasbBase):
+    """A subset of nq768 with only the records that do not exist in
+    the top-k neighbors of any query."""
+
+    def __init__(self, name: str, cache_dir: str):
+        super().__init__(name, "nq-768-tasb-cheese", cache_dir=cache_dir)
+
+    @staticmethod
+    def record_count() -> int:
+        return 2_393_343
+
+    @staticmethod
+    def request_count() -> int:
+        return 0
+
+
+class Nq768TasbHoles(Nq768TasbBase):
+    """A subset of nq768 with only the records that exist in
+    the top-k neighbors of every query."""
+
+    def __init__(self, name: str, cache_dir: str):
+        super().__init__(name, "nq-768-tasb-holes", cache_dir=cache_dir)
+
+    @staticmethod
+    def record_count() -> int:
+        return 287_550
+
+    @staticmethod
+    def request_count() -> int:
+        return 3_452
+
+
+class Nq768TasbSplit(VectorWorkloadSequence):
+    """Drift sequence for nq768 that loads cheese values,
+    builds index, loads holes, and queries."""
+
+    def __init__(self, name: str, cache_dir: str):
+        self._name = name
+        self.cheese = Nq768TasbCheese("cheese", cache_dir)
+        self.holes = Nq768TasbHoles("holes", cache_dir)
+        self.workloads = [self.cheese, self.holes]
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @staticmethod
+    def workload_count() -> int:
+        return 2
+
+    def __next__(self) -> VectorWorkload:
+        if not self.workloads:
+            raise StopIteration
+        return self.workloads.pop(0)
+
+    def dimensions(self) -> int:
+        return 768
+
+    def metric(self) -> DistanceMetric:
+        return DistanceMetric.DotProduct
+
+    def record_count(self) -> int:
+        return 2_393_343 + 287_550
+
+    def request_count(self) -> int:
+        return 3_452

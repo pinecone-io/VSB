@@ -1,5 +1,6 @@
 from enum import Enum, unique
 from .base import VectorWorkload, VectorWorkloadSequence, SingleVectorWorkloadSequence
+from vsb import logger
 
 
 @unique
@@ -10,6 +11,7 @@ class Workload(Enum):
 
     Mnist = "mnist"
     MnistTest = "mnist-test"
+    MnistDoubleTest = "mnist-double-test"
     Nq768 = "nq768"
     Nq768Test = "nq768-test"
     YFCC = "yfcc-10M"
@@ -33,6 +35,10 @@ class Workload(Enum):
                 from .mnist.mnist import MnistTest
 
                 return MnistTest
+            case Workload.MnistDoubleTest:
+                from .mnist.mnist import MnistDoubleTest
+
+                return MnistDoubleTest
             case Workload.Nq768:
                 from .nq_768_tasb.nq_768_tasb import Nq768Tasb
 
@@ -80,6 +86,8 @@ class WorkloadSequence(Enum):
 
     MnistSplit = "mnist-split"
     Nq768Split = "nq768-split"
+    Cohere768Split = "cohere768-split"
+    YFCCSplit = "yfcc-split"
 
     def build(self, **kwargs) -> VectorWorkloadSequence:
         """Construct an instance of VectorWorkload based on the value of the enum."""
@@ -97,6 +105,14 @@ class WorkloadSequence(Enum):
                 from .nq_768_tasb.nq_768_tasb import Nq768TasbSplit
 
                 return Nq768TasbSplit
+            case WorkloadSequence.Cohere768Split:
+                from .cohere_768.cohere_768 import Cohere768Split
+
+                return Cohere768Split
+            case WorkloadSequence.YFCCSplit:
+                from .yfcc.yfcc import YFCCSplit
+
+                return YFCCSplit
         pass
 
 
@@ -104,6 +120,7 @@ def build_workload_sequence(name: str, **kwargs) -> VectorWorkloadSequence:
     """Takes either a Workload or WorkloadSequence name and returns the corresponding
     WorkloadSequence. Workloads will be wrapped into single-element WorkloadSequences.
     """
+    logger.debug(f"Building workload sequence {name}")
     try:
         return WorkloadSequence(name).build(**kwargs)
     except ValueError:

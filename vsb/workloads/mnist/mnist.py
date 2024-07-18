@@ -1,6 +1,7 @@
 from abc import ABC
 from collections.abc import Iterator
 
+from vsb.workloads.base import VectorWorkload, VectorWorkloadSequence
 from ..parquet_workload.parquet_workload import ParquetWorkload, ParquetSubsetWorkload
 from ...vsb_types import DistanceMetric, SearchRequest, Record
 
@@ -44,3 +45,107 @@ class MnistTest(ParquetSubsetWorkload, MnistBase):
     @staticmethod
     def request_count() -> int:
         return 20
+
+
+class MnistCheese(MnistBase):
+    """A subset of mnist with only the records that do not exist in
+    the top-k neighbors of any query."""
+
+    def __init__(self, name: str, cache_dir: str):
+        super().__init__(name, "mnist-cheese", cache_dir=cache_dir)
+
+    @staticmethod
+    def record_count() -> int:
+        return 672
+
+    @staticmethod
+    def request_count() -> int:
+        return 0
+
+
+class MnistHoles(MnistBase):
+    """A subset of mnist with only the records that exist in
+    the top-k neighbors of any query."""
+
+    def __init__(self, name: str, cache_dir: str):
+        super().__init__(name, "mnist-holes", cache_dir=cache_dir)
+
+    @staticmethod
+    def record_count() -> int:
+        return 59_328
+
+    @staticmethod
+    def request_count() -> int:
+        return 10_000
+
+
+class MnistSplit(VectorWorkloadSequence):
+    """Drift sequence for mnist that loads cheese values,
+    builds index, loads holes, and queries."""
+
+    def __init__(self, name: str, cache_dir: str):
+        self._name = name
+        self.cheese = MnistCheese("cheese", cache_dir)
+        self.holes = MnistHoles("holes", cache_dir)
+        self.workloads = [self.cheese, self.holes]
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @staticmethod
+    def workload_count() -> int:
+        return 2
+
+    def __next__(self) -> VectorWorkload:
+        if not self.workloads:
+            raise StopIteration
+        return self.workloads.pop(0)
+
+    def dimensions(self) -> int:
+        return 784
+
+    def metric(self) -> DistanceMetric:
+        return DistanceMetric.Euclidean
+
+    def record_count(self) -> int:
+        return 672 + 59_328
+
+    def request_count(self) -> int:
+        return 10_000
+
+
+class MnistDoubleTest(VectorWorkloadSequence):
+    """Reduced variant of mnist that reruns the test workload twice.
+    Primarily used for testing multi-iteration workloads."""
+
+    def __init__(self, name: str, cache_dir: str):
+        self._name = name
+        self.test1 = MnistTest("test1", cache_dir)
+        self.test2 = MnistTest("test2", cache_dir)
+        self.workloads = [self.test1, self.test2]
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @staticmethod
+    def workload_count() -> int:
+        return 2
+
+    def __next__(self) -> VectorWorkload:
+        if not self.workloads:
+            raise StopIteration
+        return self.workloads.pop(0)
+
+    def dimensions(self) -> int:
+        return 784
+
+    def metric(self) -> DistanceMetric:
+        return DistanceMetric.Euclidean
+
+    def record_count(self) -> int:
+        return 600 + 600
+
+    def request_count(self) -> int:
+        return 20 + 20
