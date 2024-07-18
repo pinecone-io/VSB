@@ -3,7 +3,7 @@ import argparse
 import rich.table
 import rich.console
 from vsb.databases import Database
-from vsb.workloads import Workload
+from vsb.workloads import Workload, WorkloadSequence
 from vsb import default_cache_dir
 
 
@@ -45,7 +45,9 @@ def add_vsb_cmdline_args(
         "--workload",
         action=WorkloadHelpAction,
         required=True,
-        choices=tuple(e.value for e in Workload) + ("help",),
+        choices=tuple(e.value for e in Workload)
+        + tuple(e.value for e in WorkloadSequence)
+        + ("help",),
         help="The workload to run",
     )
 

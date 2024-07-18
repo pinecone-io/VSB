@@ -1,5 +1,5 @@
 from enum import Enum, unique
-from .base import VectorWorkload
+from .base import VectorWorkload, VectorWorkloadSequence, SingleVectorWorkloadSequence
 
 
 @unique
@@ -70,3 +70,43 @@ class Workload(Enum):
             cls.metric().value,
             cls.request_count(),
         )
+
+
+@unique
+class WorkloadSequence(Enum):
+    """Set of supported workload sequences, the value is the string used to
+    specify via --workload=.
+    """
+
+    MnistSplit = "mnist-split"
+    Nq768Split = "nq768-split"
+
+    def build(self, **kwargs) -> VectorWorkloadSequence:
+        """Construct an instance of VectorWorkload based on the value of the enum."""
+        cls = self._get_class()
+        return cls(self.value, **kwargs)
+
+    def _get_class(self) -> type[VectorWorkloadSequence]:
+        """Return the VectorWorkloadSequence class to use, based on the value of the enum"""
+        match self:
+            case WorkloadSequence.MnistSplit:
+                from .mnist.mnist import MnistSplit
+
+                return MnistSplit
+            case WorkloadSequence.Nq768Split:
+                from .nq_768_tasb.nq_768_tasb import Nq768TasbSplit
+
+                return Nq768TasbSplit
+        pass
+
+
+def build_workload_sequence(name: str, **kwargs) -> VectorWorkloadSequence:
+    """Takes either a Workload or WorkloadSequence name and returns the corresponding
+    WorkloadSequence. Workloads will be wrapped into single-element WorkloadSequences.
+    """
+    try:
+        return WorkloadSequence(name).build(**kwargs)
+    except ValueError:
+        # Try to build a Workload.
+        workload = Workload(name).build(**kwargs)
+        return SingleVectorWorkloadSequence(name, workload)

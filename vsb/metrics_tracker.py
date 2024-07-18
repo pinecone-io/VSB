@@ -30,10 +30,11 @@ import rich.console
 import rich.box
 
 # Calculated custom metrics for each performed operation.
-# Nested dict, where top-level is the request_type (Populate, Search, ...), under
+# Nested dict, where top-level is the dataset name (for distinguishing multiple-
+# dataset workloads), then the request_type (Populate, Search, ...), under
 # that there is an instance of HdrHistogram or a plain int for each metric name (
 # recall, ...)
-calculated_metrics: dict[str, dict[str, HdrHistogram | int]] = {}
+calculated_metrics: dict[str, dict[str, dict[str, HdrHistogram | int]]] = {}
 
 # Start and end times for each phase of the workload.
 phases: dict[str, str] = {}
@@ -61,32 +62,38 @@ REPORT_PERCENTILES = [
 ]
 
 
-def get_histogram(request_type: str, metric: str) -> HdrHistogram:
+def get_histogram(name: str, request_type: str, metric: str) -> HdrHistogram:
     """
     Get the histogram for the given metric for the given request type,
     creating an empty histogram is the request type and/or metric is not already
     recorded.
     """
-    req_type_metrics = calculated_metrics.setdefault(request_type, dict())
+    req_type_metrics = calculated_metrics.setdefault(name, dict()).setdefault(
+        request_type, dict()
+    )
     return req_type_metrics.setdefault(metric, HdrHistogram(1, 100_000, 3))
 
 
-def update_counter(request_type: str, metric: str, value: int) -> None:
+def update_counter(name: str, request_type: str, metric: str, value: int) -> None:
     """
     Update the counter for the given metric for the given request type,
     creating a counter from zero histogram is the request type and/or metric is
     not already recorded.
     """
-    req_type_metrics = calculated_metrics.setdefault(request_type, defaultdict(int))
+    req_type_metrics = calculated_metrics.setdefault(name, dict()).setdefault(
+        request_type, defaultdict(int)
+    )
     req_type_metrics[metric] += value
 
 
-def get_metric_percentile(request_type: str, metric: str, percentile: float) -> float:
+def get_metric_percentile(
+    name: str, request_type: str, metric: str, percentile: float
+) -> float:
     """
     Get the value of the given percentile for the given metric for the given
     request type, or None if the metric is not recorded.
     """
-    if req_type_metrics := calculated_metrics.get(request_type, None):
+    if req_type_metrics := calculated_metrics.get(name, dict()).get(request_type, None):
         if isinstance(value := req_type_metrics.get(metric, None), HdrHistogram):
             return value.get_value_at_percentile(percentile) / HDR_SCALE_FACTOR
     return None
@@ -98,7 +105,7 @@ def get_stats_json(stats: RequestStats) -> str:
     """
     serialized = stats.serialize_stats()
     for s in serialized:
-        if custom := calculated_metrics.get(s["method"], None):
+        if custom := calculated_metrics.get(s["name"], dict()).get(s["method"], None):
             for metric, value in custom.items():
                 if isinstance(value, HdrHistogram):
                     info = {
@@ -126,10 +133,10 @@ def on_request(request_type, name, response_time, response_length, **kwargs):
     """
     if req_metrics := kwargs.get("metrics", None):
         for k, v in req_metrics.items():
-            get_histogram(request_type, k).record_value(v * HDR_SCALE_FACTOR)
+            get_histogram(name, request_type, k).record_value(v * HDR_SCALE_FACTOR)
     if req_counters := kwargs.get("counters", None):
         for k, v in req_counters.items():
-            update_counter(request_type, k, v)
+            update_counter(name, request_type, k, v)
 
 
 @events.report_to_master.add_listener
@@ -140,20 +147,19 @@ def on_report_to_master(client_id, data: dict()):
     from the local worker to the dict that is being sent, and then we clear
     the local metrics in the worker.
     """
-    logger.debug(
-        f"metrics.on_report_to_master(): calculated_metrics:{calculated_metrics}"
-    )
     serialized = {}
-    for req_type, metrics in calculated_metrics.items():
-        # Serialise each HdrHistogram to base64 string, then add to data to be sent to
-        # the master instance.
-        serialized[req_type] = {}
-        hist: HdrHistogram
-        for name, value in metrics.items():
-            if isinstance(value, HdrHistogram):
-                serialized[req_type][name] = value.encode()
-            else:
-                serialized[req_type][name] = value
+    for dataset, req_types in calculated_metrics.items():
+        serialized[dataset] = {}
+        for req_type, metrics in req_types.items():
+            # Serialise each HdrHistogram to base64 string, then add to data to be sent to
+            # the master instance.
+            serialized[dataset][req_type] = {}
+            hist: HdrHistogram
+            for name, value in metrics.items():
+                if isinstance(value, HdrHistogram):
+                    serialized[dataset][req_type][name] = value.encode()
+                else:
+                    serialized[dataset][req_type][name] = value
     data["metrics"] = serialized
     calculated_metrics.clear()
 
@@ -165,14 +171,15 @@ def on_worker_report(client_id, data: dict()):
     from a worker. Here we add our metrics to the master's aggregated
     stats dict.
     """
-    for req_type, metrics in data["metrics"].items():
-        for metric_name, value in metrics.items():
-            if isinstance(value, bytes):
-                # Decode the base64 string back to an HdrHistogram, then add to
-                # the master's stats.
-                get_histogram(req_type, metric_name).decode_and_add(value)
-            else:
-                update_counter(req_type, metric_name, value)
+    for dataset, req_types in data["metrics"].items():
+        for req_type, metrics in req_types.items():
+            for metric_name, value in metrics.items():
+                if isinstance(value, bytes):
+                    # Decode the base64 string back to an HdrHistogram, then add to
+                    # the master's stats.
+                    get_histogram(dataset, req_type, metric_name).decode_and_add(value)
+                else:
+                    update_counter(dataset, req_type, metric_name, value)
 
 
 def format_error_count(value: int) -> str:
@@ -192,6 +199,7 @@ def get_stats_summary(stats: RequestStats, current=True) -> str:
         collapse_padding=True,
     )
 
+    table.add_column("Dataset", justify="left", no_wrap=True)
     table.add_column("Operation", justify="left", style="cyan", no_wrap=True)
     table.add_column("Requests", justify="right", style="blue")
     table.add_column("Failures", justify="right", style="blue")
@@ -201,6 +209,7 @@ def get_stats_summary(stats: RequestStats, current=True) -> str:
     for key in sorted(stats.entries.keys()):
         r = stats.entries[key]
         table.add_row(
+            key[0],
             r.method,
             str(r.num_requests),
             format_error_count(r.num_failures) + f"({r.fail_ratio * 100:.0f}%)",
@@ -226,6 +235,7 @@ def get_metrics_stats_summary(stats: RequestStats) -> rich.table.Table:
     )
 
     # Define columns
+    table.add_column("Dataset", justify="left", no_wrap=True)
     table.add_column("Operation", justify="left", style="cyan", no_wrap=True)
     table.add_column("Metric", justify="left", style="blue", no_wrap=True)
     table.add_column("Min", justify="right", style="magenta", min_width=4)
@@ -240,6 +250,7 @@ def get_metrics_stats_summary(stats: RequestStats) -> rich.table.Table:
         r = stats.entries[key]
         if r.response_times:
             row = [
+                r.name,
                 r.method,
                 "Latency (ms)",
                 f"{(r.min_response_time or 0):.0f}",
@@ -253,10 +264,11 @@ def get_metrics_stats_summary(stats: RequestStats) -> rich.table.Table:
             table.add_row(*row)
         request = key[1]
         # Also include any custom metrics for this request type.
-        if custom := calculated_metrics.get(request, None):
+        if custom := calculated_metrics.get(r.name, dict()).get(request, None):
             for metric, value in custom.items():
                 if isinstance(value, HdrHistogram):
                     row = [
+                        r.name,
                         request,
                         metric.capitalize(),
                         *[
