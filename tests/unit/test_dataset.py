@@ -30,11 +30,15 @@ class TestDataset:
             total += chunk_total
             # Splitting a single parquet file into multiple chunks should yield
             # similar sized chunks.
-            min_chunk_length = min(min_chunk_length, chunk_total) if min_chunk_length else chunk_total
-            max_chunk_length = max(max_chunk_length, chunk_total) if max_chunk_length else chunk_total
+            min_chunk_length = (
+                min(min_chunk_length, chunk_total) if min_chunk_length else chunk_total
+            )
+            max_chunk_length = (
+                max(max_chunk_length, chunk_total) if max_chunk_length else chunk_total
+            )
         assert max_chunk_length - min_chunk_length <= 1
         assert total == 60000
-    
+
     def test_get_batch_iter_multifile(self):
         # Test a batch iter for multiple chunks yields the entire dataset,
         # when the dataset is split across multiple files.

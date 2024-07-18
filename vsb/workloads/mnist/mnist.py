@@ -115,6 +115,30 @@ class MnistSplit(VectorWorkloadSequence):
         return 10_000
 
 
+# class MnistMini(ParquetSubsetWorkload, MnistBase):
+#     def __init__(self, name: str, cache_dir: str):
+#         super().__init__(name, "mnist", cache_dir=cache_dir, limit=600, query_limit=0)
+
+#     @staticmethod
+#     def record_count() -> int:
+#         return 600
+
+#     @staticmethod
+#     def request_count() -> int:
+#         return 0
+
+# class MnistMini2(ParquetSubsetWorkload, MnistBase):
+#     def __init__(self, name: str, cache_dir: str):
+#         super().__init__(name, "mnist", cache_dir=cache_dir, limit=1, query_limit=20)
+
+#     @staticmethod
+#     def record_count() -> int:
+#         return 0
+
+
+#     @staticmethod
+#     def request_count() -> int:
+#         return 20
 class MnistDoubleTest(VectorWorkloadSequence):
     """Reduced variant of mnist that reruns the test workload twice.
     Primarily used for testing multi-iteration workloads."""
@@ -123,6 +147,11 @@ class MnistDoubleTest(VectorWorkloadSequence):
         self._name = name
         self.test1 = MnistTest("test1", cache_dir)
         self.test2 = MnistTest("test2", cache_dir)
+        # We have to "trick" pinecone's iteration helper to think we have 600 records
+        # by setting the record count to 0 for the second test.
+        # Otherwise, finalize will "wait" for 1200 records forever, even though only 600
+        # are actually available.
+        self.test2.record_count = lambda: 0
         self.workloads = [self.test1, self.test2]
 
     @property
