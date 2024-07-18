@@ -173,9 +173,15 @@ class RunUser(User):
         # Assign a globally unique (potentially across multiple locust processes)
         # user_id, to use for selecting which subset of the workload this User
         # will operate on.
-        self.user_id = next(
-            distributors[f"user_id.run.{environment.iteration_helper.iteration}"]
-        )
+        try:
+            self.user_id = next(
+                distributors[f"user_id.run.{environment.iteration_helper.iteration}"]
+            )
+        except StopIteration:
+            logger.error(
+                f"RunUser.__init__(): user_id exhausted for iteration {environment.iteration_helper.iteration}"
+            )
+            raise StopUser
         self.users_total = environment.parsed_options.num_users
         self.database = environment.database
         self.workload = environment.iteration_helper.workload

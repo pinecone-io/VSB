@@ -93,7 +93,12 @@ def check_request_counts(stdout, expected: dict) -> None:
         }
     """
     stats = parse_stats_to_json(stdout)
-    by_dataset = {s["name"]: {s["method"]: s} for s in stats}
+    by_dataset = {}
+    for stat in stats:
+        dataset = stat["name"]
+        method = stat["method"]
+        by_dataset.setdefault(dataset, {})[method] = stat
+
     if len(expected) == 0:
         assert len(stats) == 0, f"Expected no stats, got {len(stats)}"
         return
@@ -104,7 +109,7 @@ def check_request_counts(stdout, expected: dict) -> None:
         assert (
             len(by_dataset) == 1
         ), f"Tried to infer one dataset, but {len(by_dataset)} exist in results"
-        expected = {by_dataset.keys()[0]: expected}
+        expected = {next(iter(by_dataset.keys())): expected}
     for dataset, expected_phase_stats in expected.items():
         for phase, expected_stats in expected_phase_stats.items():
             assert (

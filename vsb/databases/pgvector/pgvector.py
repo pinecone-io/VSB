@@ -42,7 +42,12 @@ class PgvectorNamespace(Namespace):
             "VALUES (%s, %s, %s)"
         )
         with self.conn.cursor() as cur:
-            cur.executemany(upsert_query, data)
+            try:
+                cur.executemany(upsert_query, data)
+            except psycopg.errors.UniqueViolation as e:
+                logger.warning(
+                    f"pgvector: UniqueViolation while upserting. Are you populating the same record twice?"
+                )
 
     def search(self, request: SearchRequest) -> list[str]:
         match self.index_type:

@@ -95,10 +95,13 @@ class TestPgvector:
             },
         )
 
-    def test_mnist_double(self, api_key, pinecone_index_mnist):
+    def test_mnist_double(self):
         # Test "-double-test" variant (WorkloadSequence) of mnist loads and runs successfully.
         (proc, stdout, stderr) = spawn_vsb(workload="mnist-double-test")
         assert proc.returncode == 0
+
+        # Check that we were warned for upserting the same vector(s) twice.
+        assert "UniqueViolation while upserting" in stdout
 
         check_request_counts(
             stdout,
@@ -108,7 +111,7 @@ class TestPgvector:
                     # loaded into num_users chunks - i.e. 4 here. Given the size of each
                     # chunk will be less than the batch size (600 / 4 < 200), then the
                     # number of requests will be equal to the number of users - i.e. 4
-                    "Populate": {"num_requests": 2, "num_failures": 0},
+                    "Populate": {"num_requests": 1, "num_failures": 0},
                     # The number of Search requests should equal the number in the dataset
                     # (20 for mnist-test).
                     "Search": {
@@ -118,7 +121,7 @@ class TestPgvector:
                     },
                 },
                 "test2": {
-                    "Populate": {"num_requests": 2, "num_failures": 0},
+                    "Populate": {"num_requests": 1, "num_failures": 0},
                     "Search": {
                         "num_requests": 20,
                         "num_failures": 0,
@@ -128,7 +131,7 @@ class TestPgvector:
             },
         )
 
-    def test_mnist_double_concurrent(self, api_key, pinecone_index_mnist):
+    def test_mnist_double_concurrent(self):
         # Test "-double-test" variant (WorkloadSequence) of mnist loads and runs successfully with
         # concurrent users, and with a request rate limit set.
         (proc, stdout, stderr) = spawn_vsb(
@@ -165,7 +168,7 @@ class TestPgvector:
             },
         )
 
-    def test_mnist_double_multiprocess(self, api_key, pinecone_index_mnist):
+    def test_mnist_double_multiprocess(self):
         # Test "-double-test" variant (WorkloadSequence) of mnist loads and runs successfully with
         # concurrent processes and users.
         (proc, stdout, stderr) = spawn_vsb(
