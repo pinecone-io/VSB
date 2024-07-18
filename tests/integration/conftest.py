@@ -97,11 +97,13 @@ def check_request_counts(stdout, expected: dict) -> None:
     if len(expected) == 0:
         assert len(stats) == 0, f"Expected no stats, got {len(stats)}"
         return
-    if not isinstance(expected.values()[0].values()[0], dict):
+    if not isinstance(next(iter(next(iter(expected.values())).values())), dict):
         # If the expected dict is not nested, assume the top-level keys are
         # request types, and the values are the expected stats for that type.
         # Check that there is only one dataset in the stats.
-        assert len(by_dataset) == 1, f"Expected one dataset, got {len(by_dataset)}"
+        assert (
+            len(by_dataset) == 1
+        ), f"Tried to infer one dataset, but {len(by_dataset)} exist in results"
         expected = {by_dataset.keys()[0]: expected}
     for dataset, expected_phase_stats in expected.items():
         for phase, expected_stats in expected_phase_stats.items():
