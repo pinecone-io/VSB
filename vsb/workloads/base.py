@@ -106,70 +106,35 @@ class VectorWorkloadSequence(ABC):
         """
         raise NotImplementedError
 
-    def __iter__(self) -> Iterator[VectorWorkload]:
-        return self
-
     @abstractmethod
-    def __next__(self) -> VectorWorkload:
+    def __getitem__(self, index: int) -> VectorWorkload:
         """
-        Get the next workload in the sequence.
+        Return the workload at the specified index.
         """
         raise NotImplementedError
+    
+    def record_count_upto(self, index: int) -> int:
+        """
+        Return the total number of records in the sequencedf 
+        up to and including the specified index's workload.
+        """
+        if (index >= self.workload_count()):
+            raise IndexError
+        return sum(self[index].record_count() for index in range(index + 1))
+    
 
-    @abstractmethod
-    def dimensions(self) -> int:
-        """
-        The dimensions of (dense) vectors for this workload sequence.
-        """
-        raise NotImplementedError
-
-    @abstractmethod
-    def metric(self) -> DistanceMetric:
-        """
-        The distance metric of this workload sequence.
-        """
-        raise NotImplementedError
-
-    @abstractmethod
-    def record_count(self) -> int:
-        """
-        The number of records in the initial workload after population, but
-        before issuing any additional requests.
-        """
-        raise NotImplementedError
-
-    @abstractmethod
-    def request_count(self) -> int:
-        """
-        The number of requests in the Run phase of the test.
-        """
-        raise NotImplementedError
 
 
 class SingleVectorWorkloadSequence(VectorWorkloadSequence):
     def __init__(self, name: str, workload: VectorWorkload):
         super().__init__(name)
         self.workload = workload
-        self.used = False
 
     @staticmethod
     def workload_count() -> int:
         return 1
 
-    def __next__(self) -> VectorWorkload:
-        if self.used:
-            raise StopIteration
-        self.used = True
+    def __getitem__(self, index: int) -> VectorWorkload:
+        if index != 0:
+            raise IndexError
         return self.workload
-
-    def dimensions(self) -> int:
-        return self.workload.dimensions()
-
-    def metric(self) -> DistanceMetric:
-        return self.workload.metric()
-
-    def record_count(self) -> int:
-        return self.workload.record_count()
-
-    def request_count(self) -> int:
-        return self.workload.request_count()

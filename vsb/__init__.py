@@ -26,8 +26,3 @@ Progress bar for the current task. Only created for non-Worker processes
 """
 
 live: rich.live.Live = None
-
-WORKLOAD_SEQUENCE_INIT = gevent.event.Event()
-"""
-Event to signal that the workload sequence has been loaded into the environment.
-"""

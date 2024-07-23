@@ -97,48 +97,12 @@ class MnistSplit(VectorWorkloadSequence):
     def workload_count() -> int:
         return 2
 
-    def __next__(self) -> VectorWorkload:
-        if not self.workloads:
-            raise StopIteration
-        return self.workloads.pop(0)
-
-    def dimensions(self) -> int:
-        return 784
-
-    def metric(self) -> DistanceMetric:
-        return DistanceMetric.Euclidean
-
-    def record_count(self) -> int:
-        return 672 + 59_328
-
-    def request_count(self) -> int:
-        return 10_000
+    def __getitem__(self, index: int) -> VectorWorkload:
+        if index < 0 or index >= len(self.workloads):
+            raise IndexError
+        return self.workloads[index]
 
 
-# class MnistMini(ParquetSubsetWorkload, MnistBase):
-#     def __init__(self, name: str, cache_dir: str):
-#         super().__init__(name, "mnist", cache_dir=cache_dir, limit=600, query_limit=0)
-
-#     @staticmethod
-#     def record_count() -> int:
-#         return 600
-
-#     @staticmethod
-#     def request_count() -> int:
-#         return 0
-
-# class MnistMini2(ParquetSubsetWorkload, MnistBase):
-#     def __init__(self, name: str, cache_dir: str):
-#         super().__init__(name, "mnist", cache_dir=cache_dir, limit=1, query_limit=20)
-
-#     @staticmethod
-#     def record_count() -> int:
-#         return 0
-
-
-#     @staticmethod
-#     def request_count() -> int:
-#         return 20
 class MnistDoubleTest(VectorWorkloadSequence):
     """Reduced variant of mnist that reruns the test workload twice.
     Primarily used for testing multi-iteration workloads."""
@@ -162,19 +126,7 @@ class MnistDoubleTest(VectorWorkloadSequence):
     def workload_count() -> int:
         return 2
 
-    def __next__(self) -> VectorWorkload:
-        if not self.workloads:
-            raise StopIteration
-        return self.workloads.pop(0)
-
-    def dimensions(self) -> int:
-        return 784
-
-    def metric(self) -> DistanceMetric:
-        return DistanceMetric.Euclidean
-
-    def record_count(self) -> int:
-        return 600 + 600
-
-    def request_count(self) -> int:
-        return 20 + 20
+    def __getitem__(self, index: int) -> VectorWorkload:
+        if index < 0 or index >= len(self.workloads):
+            raise IndexError
+        return self.workloads[index]

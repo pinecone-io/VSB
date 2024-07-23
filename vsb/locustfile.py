@@ -20,10 +20,12 @@ from vsb.workloads import (
     build_workload_sequence,
     VectorWorkloadSequence,
 )
-from vsb import console, logger, WORKLOAD_SEQUENCE_INIT
+from vsb import console, logger
 from locust import events, log
 from locust.runners import WorkerRunner, MasterRunner
 from locust_plugins.distributor import Distributor
+from vsb.subscriber import Subscriber
+from gevent.event import AsyncResult
 import gevent
 import locust.stats
 
@@ -36,38 +38,26 @@ from users import SetupUser, PopulateUser, RunUser, LoadShape
 locust.stats.CONSOLE_STATS_INTERVAL_SEC = 5
 
 
-class IterationHelper:
-    """
-    Helper class that keeps track of workload iteration in WorkloadSequences.
-    In distributed runs, each WorkerRunner will have its own instance of this class.
-    In local runs, there is one instance managed by the LocalRunner.
-    """
+# class IterationHelper:
+#     """
+#     Helper class that keeps track of workload iteration in WorkloadSequences.
+#     In distributed runs, each WorkerRunner will have its own instance of this class.
+#     In local runs, there is one instance managed by the LocalRunner.
+#     """
 
-    def __init__(self, workload_sequence: VectorWorkloadSequence):
-        self.iteration = 0
-        self.workload_sequence = workload_sequence
-        self.workload = next(workload_sequence)
-        self.record_count = self.workload.record_count()
+#     def __init__(self, workload_sequence: VectorWorkloadSequence):
+#         self.iteration = 0
+#         self.workload_sequence = workload_sequence
+#         self.workload = next(workload_sequence)
+#         self.record_count = self.workload.record_count()
 
-    def next(self):
-        self.iteration += 1
-        # This may raise StopIteration, to be caught by the caller.
-        self.workload = next(self.workload_sequence)
-        # env.record_count represents the cumulative record count so far,
-        # and is thus independent from the current workload's count.
-        self.record_count += self.workload.record_count()
-
-
-def update_worker_iterhelper(environment, msg, **kwargs):
-    """Update the iteration number in the IterationHelper for the current Worker."""
-    environment.iteration_helper.next()
-    environment.runner.send_message("master_acknowledge_worker_update")
-
-
-def master_acknowledge_worker_update(environment, msg, **kwargs):
-    """Master acknowledges that the Worker has updated its IterationHelper."""
-    environment.workers_updated += 1
-
+#     def next(self):
+#         self.iteration += 1
+#         # This may raise StopIteration, to be caught by the caller.
+#         self.workload = next(self.workload_sequence)
+#         # env.record_count represents the cumulative record count so far,
+#         # and is thus independent from the current workload's count.
+#         self.record_count += self.workload.record_count()
 
 @events.init_command_line_parser.add_listener
 def on_locust_init_cmd_line_parser(parser):
@@ -82,17 +72,6 @@ def on_locust_init(environment, **_kwargs):
     """Hook into the locust init event to setup the VSB environment.
     This is called once per run for each process.
     """
-    if isinstance(environment.runner, WorkerRunner):
-        environment.runner.register_message(
-            "update_worker_iterhelper", update_worker_iterhelper
-        )
-
-    if isinstance(environment.runner, MasterRunner):
-        environment.runner.register_message(
-            "master_acknowledge_worker_update", master_acknowledge_worker_update
-        )
-
-    setup_environment(environment)
 
 
 def setup_environment(environment, **_kwargs):
@@ -106,7 +85,6 @@ def setup_environment(environment, **_kwargs):
     environment.workload_sequence = build_workload_sequence(
         options.workload, cache_dir=options.cache_dir
     )
-    environment.iteration_helper = IterationHelper(environment.workload_sequence)
 
     # Reset distributors for new Populate -> Run iteration
     phases = ["setup", "populate", "run"]
@@ -118,11 +96,6 @@ def setup_environment(environment, **_kwargs):
         for i in range(env.workload_sequence.workload_count())
     ]:
         users.distributors[phase] = Distributor(env, iter(range(num_users)), phase)
-
-    # Set workers_updated: used to wait for all workers to update their IterationHelper for each iteration
-    environment.workers_updated = 0
-
-    WORKLOAD_SEQUENCE_INIT.set()  # Signal that the workload sequence and iteration helper is setup.
 
     logger.debug(
         f"Workload sequence: {environment.workload_sequence.name}, runner={type(environment.runner)}"
@@ -139,20 +112,29 @@ def setup_environment(environment, **_kwargs):
 def setup_runner(env):
     options = env.parsed_options
 
+    setup_environment(env)
+
     logger.info(
-        f"Workload '{env.workload_sequence.name}' initialized - records"
-        f"={env.workload_sequence.record_count()}, "
-        f"dimensions={env.workload_sequence.dimensions()}, "
-        f"metric={env.workload_sequence.metric().value}, "
+        f"Workload '{env.workload_sequence.name}' initialized "
+        f"record_count={env.workload_sequence[0].record_count()} "
+        f"dimensions={env.workload_sequence[0].dimensions()} "
+        f"metric={env.workload_sequence[0].metric()} "
     )
 
 
+# Note that this listener is guaranteed to finish before Users are spawned, but not
+# before LoadShape is initialized and potentially goes through Init; be careful 
+# of accessing env.iteration_helper or other environment attributes set up in
+# setup_environment() before this event listener finishes.
 @events.test_start.add_listener
 def setup_worker_dataset(environment, **_kwargs):
     # happens only once in headless runs, but can happen multiple times in web ui-runs
     # in a distributed run, the master does not typically need any test data
-    WORKLOAD_SEQUENCE_INIT.wait()  # Wait for env.workload_sequence to be setup.
-    if not isinstance(environment.runner, MasterRunner):
+
+    environment.iteration = 0
+    users.subscribers["iteration"] = Subscriber(environment, environment.iteration, "iteration")
+
+    # if not isinstance(environment.runner, MasterRunner):
         # Make the Workload available for non-MasterRunners (MasterRunners
         # only orchestrate the run when --processes is used, they don't
         # perform any actual operations and hence don't need to load a copy
@@ -161,31 +143,32 @@ def setup_worker_dataset(environment, **_kwargs):
         # gevent greenlet) as otherwise we block the current greenlet (pandas data
         # loading is not gevent-friendly) and locust's master / worker heartbeat
         # thinks the worker has gone missing and can terminate it.
-        pool = gevent.get_hub().threadpool
-        pool.apply(setup_runner, kwds={"env": environment})
+    pool = gevent.get_hub().threadpool
+    pool.apply(setup_runner, kwds={"env": environment})
 
-        try:
-            options = environment.parsed_options
-            environment.database = Database(options.database).get_class()(
-                record_count=environment.workload_sequence.record_count(),
-                dimensions=environment.workload_sequence.dimensions(),
-                metric=environment.workload_sequence.metric(),
-                name=environment.workload_sequence.name,
-                config=vars(options),
-            )
-        except StopUser:
-            # This is a special exception that is raised when we want to
-            # stop the User from running, e.g. because the database
-            # connection failed.
-            log.unhandled_greenlet_exception = True
-            environment.runner.quit()
-        except:
-            logger.error(
-                "Uncaught exception in during setup - quitting: \n%s",
-                traceback.format_exc(),
-            )
-            log.unhandled_greenlet_exception = True
-            environment.runner.quit()
+    try:
+        options = environment.parsed_options
+        environment.database = Database(options.database).get_class()(
+            record_count=environment.workload_sequence[0].record_count(),
+            dimensions=environment.workload_sequence[0].dimensions(),
+            metric=environment.workload_sequence[0].metric(),
+            name=environment.workload_sequence.name,
+            config=vars(options),
+        )
+    except StopUser:
+        # This is a special exception that is raised when we want to
+        # stop the User from running, e.g. because the database
+        # connection failed.
+        log.unhandled_greenlet_exception = True
+        environment.runner.quit()
+    except:
+        logger.error(
+            "Uncaught exception in during setup - quitting: \n%s",
+            traceback.format_exc(),
+        )
+        log.unhandled_greenlet_exception = True
+        environment.runner.quit()
+    
 
 
 @events.quit.add_listener

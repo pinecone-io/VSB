@@ -127,3 +127,15 @@ def build_workload_sequence(name: str, **kwargs) -> VectorWorkloadSequence:
         # Try to build a Workload.
         workload = Workload(name).build(**kwargs)
         return SingleVectorWorkloadSequence(name, workload)
+
+def get_workload_sequence_stats(name: str, **kwargs) -> list[tuple[int, int]]:
+    """Takes a workload sequence name and returns a list of tuples:
+    (record_count, request_count) for each workload in the sequence.
+
+    Does not build the sequence, since stats are static for each workload.
+    """
+    stats = []
+    for index in range(WorkloadSequence(name).workload_count()):
+        workload = WorkloadSequence(name).get_workload_at(index)
+        stats.append((workload.record_count(), workload.request_count()))
+    return stats
