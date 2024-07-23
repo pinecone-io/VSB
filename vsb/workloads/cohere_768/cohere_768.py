@@ -104,19 +104,7 @@ class Cohere768Split(VectorWorkloadSequence):
     def workload_count() -> int:
         return 2
 
-    def __next__(self) -> VectorWorkload:
-        if not self.workloads:
-            raise StopIteration
-        return self.workloads.pop(0)
-
-    def dimensions(self) -> int:
-        return 768
-
-    def metric(self) -> DistanceMetric:
-        return DistanceMetric.Cosine
-
-    def record_count(self) -> int:
-        return 6_379_955 + 3_620_045
-
-    def request_count(self) -> int:
-        return 1_000
+    def __getitem__(self, index: int) -> VectorWorkload:
+        if index < 0 or index >= len(self.workloads):
+            raise IndexError
+        return self.workloads[index]

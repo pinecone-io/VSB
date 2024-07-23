@@ -110,19 +110,7 @@ class YFCCSplit(VectorWorkloadSequence):
     def workload_count() -> int:
         return 2
 
-    def __next__(self) -> VectorWorkload:
-        if not self.workloads:
-            raise StopIteration
-        return self.workloads.pop(0)
-
-    def dimensions(self) -> int:
-        return 192
-
-    def metric(self) -> DistanceMetric:
-        return DistanceMetric.Euclidean
-
-    def record_count(self) -> int:
-        return 9_264_264 + 735_736
-
-    def request_count(self) -> int:
-        return 100_000
+    def __getitem__(self, index: int) -> VectorWorkload:
+        if index < 0 or index >= len(self.workloads):
+            raise IndexError
+        return self.workloads[index]
