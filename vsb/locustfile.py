@@ -38,27 +38,6 @@ from users import SetupUser, PopulateUser, RunUser, LoadShape
 locust.stats.CONSOLE_STATS_INTERVAL_SEC = 5
 
 
-# class IterationHelper:
-#     """
-#     Helper class that keeps track of workload iteration in WorkloadSequences.
-#     In distributed runs, each WorkerRunner will have its own instance of this class.
-#     In local runs, there is one instance managed by the LocalRunner.
-#     """
-
-#     def __init__(self, workload_sequence: VectorWorkloadSequence):
-#         self.iteration = 0
-#         self.workload_sequence = workload_sequence
-#         self.workload = next(workload_sequence)
-#         self.record_count = self.workload.record_count()
-
-#     def next(self):
-#         self.iteration += 1
-#         # This may raise StopIteration, to be caught by the caller.
-#         self.workload = next(self.workload_sequence)
-#         # env.record_count represents the cumulative record count so far,
-#         # and is thus independent from the current workload's count.
-#         self.record_count += self.workload.record_count()
-
 @events.init_command_line_parser.add_listener
 def on_locust_init_cmd_line_parser(parser):
     """Add the VSB-specific cmdline arguments to locust's parser, so it
@@ -107,19 +86,14 @@ def setup_environment(environment, **_kwargs):
         # workers, and (b) because logs from non-master will corrupt the
         # progress bar display.
         vsb.logger.setLevel(logging.ERROR)
-
-
-def setup_runner(env):
-    options = env.parsed_options
-
-    setup_environment(env)
-
+    
     logger.info(
         f"Workload '{env.workload_sequence.name}' initialized "
         f"record_count={env.workload_sequence[0].record_count()} "
         f"dimensions={env.workload_sequence[0].dimensions()} "
         f"metric={env.workload_sequence[0].metric()} "
     )
+
 
 
 # Note that this listener is guaranteed to finish before Users are spawned, but not
@@ -134,17 +108,12 @@ def setup_worker_dataset(environment, **_kwargs):
     environment.iteration = 0
     users.subscribers["iteration"] = Subscriber(environment, environment.iteration, "iteration")
 
-    # if not isinstance(environment.runner, MasterRunner):
-        # Make the Workload available for non-MasterRunners (MasterRunners
-        # only orchestrate the run when --processes is used, they don't
-        # perform any actual operations and hence don't need to load a copy
-        # of the workload data).
-        # We need to perform this work in a background thread (not in the current
-        # gevent greenlet) as otherwise we block the current greenlet (pandas data
-        # loading is not gevent-friendly) and locust's master / worker heartbeat
-        # thinks the worker has gone missing and can terminate it.
+    # We need to perform this work in a background thread (not in the current
+    # gevent greenlet) as otherwise we block the current greenlet (pandas data
+    # loading is not gevent-friendly) and locust's master / worker heartbeat
+    # thinks the worker has gone missing and can terminate it.
     pool = gevent.get_hub().threadpool
-    pool.apply(setup_runner, kwds={"env": environment})
+    pool.apply(setup_environment, kwds={"environment": environment})
 
     try:
         options = environment.parsed_options

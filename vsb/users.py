@@ -73,7 +73,6 @@ class PopulateUser(User):
 
     def __init__(self, environment):
         super().__init__(environment)
-        logger.debug(f"Initialising PopulateUser, subscribers['iteration']:{subscribers['iteration']}")
         iteration = subscribers["iteration"]()
         logger.debug(f"PopulateUser.__init__() iteration:{iteration}")
         # Assign a globally unique (potentially across multiple locust processes)
@@ -126,7 +125,7 @@ class PopulateUser(User):
 
                 elapsed_ms = (stop - start) * 1000.0
                 self.environment.events.request.fire(
-                    request_type="Populate",
+                    request_type=f"{self.workload.name}.Populate",
                     name=self.workload.name,
                     response_time=elapsed_ms,
                     response_length=0,
@@ -233,7 +232,7 @@ class RunUser(User):
             calc_metrics = metrics.calculate_metrics(request, results)
 
             self.environment.events.request.fire(
-                request_type="Search",
+                request_type=f"{self.workload.name}.Search",
                 name=self.workload.name,
                 response_time=elapsed_ms,
                 response_length=0,
@@ -271,8 +270,6 @@ class LoadShape(LoadTestShape):
         """Wait for all Populate Users to complete before advancing to Run phase"""
         Run = auto()
         """Issue requests (queries) to the database and recording the results."""
-        TransitionToNextWorkload = auto()
-        """Wait for WorkerRunners to switch to the next workload in the sequence."""
         Done = auto()
         """Final phase when all Run Users have completed"""
 
@@ -302,7 +299,6 @@ class LoadShape(LoadTestShape):
                 self.runner.register_message("update_progress", self.on_update_progress)
                 parsed_opts = self.runner.environment.parsed_options
                 self.num_users = parsed_opts.num_users
-                # self.num_workers = parsed_opts.expect_workers
                 self.skip_populate = parsed_opts.skip_populate
                 self._transition_phase(LoadShape.Phase.Setup)
                 return self.tick()
@@ -333,14 +329,6 @@ class LoadShape(LoadTestShape):
             case LoadShape.Phase.Run:
                 self._update_progress_bar()
                 return self.num_users, self.num_users, [RunUser]
-            # case LoadShape.Phase.TransitionToNextWorkload:
-            #     # This phase should only occur in distributed runs, where LoadShape is running on the master.
-            #     assert isinstance(self.runner, runners.MasterRunner)
-            #     if self.runner.environment.workers_updated == self.num_workers:
-            #         self.runner.environment.workers_updated = 0
-            #         self._transition_phase(LoadShape.Phase.TransitionFromSetup)
-            #         return self.tick()
-            #     return 0, self.num_users, []
             case LoadShape.Phase.Done:
                 return None
             case _:
@@ -365,8 +353,15 @@ class LoadShape(LoadTestShape):
             vsb.progress.stop()
             vsb.progress = None
         if hasattr(self.runner.environment, "workload_sequence"):
-            workload = self.runner.environment.workload_sequence[self.runner.environment.iteration]
-            phase_display_name = f"{workload.name}-{self.phase.name}"
+            # We have to use the previous iteration for the ending phase, for 
+            # all workloads except the first one.
+            if self.runner.environment.iteration > 0:
+                iteration = self.runner.environment.iteration - 1
+            else:
+                iteration = 0
+            workload = self.runner.environment.workload_sequence[iteration]
+            # Setup phase is a special case, as it doesn't have a workload
+            phase_display_name = f"{workload.name}-{self.phase.name}" if self.phase != LoadShape.Phase.Setup else self.phase.name
         else:
             phase_display_name = self.phase.name
         if self.phase in tracked_phases:
@@ -374,6 +369,11 @@ class LoadShape(LoadTestShape):
                 phase_display_name
             )
         self.phase = new
+        if hasattr(self.runner.environment, "workload_sequence"):
+            workload = self.runner.environment.workload_sequence[self.runner.environment.iteration]
+            phase_display_name = f"{workload.name}-{self.phase.name}"
+        else:
+            phase_display_name = self.phase.name
         if self.phase in tracked_phases:
             metrics_tracker.record_phase_start(
                 phase_display_name
@@ -477,15 +477,13 @@ class LoadShape(LoadTestShape):
                 workload = env.workload_sequence[env.iteration]
 
                 completed = (
-                    vsb.metrics_tracker.calculated_metrics.get(
-                        workload.name, {}
-                    )
-                    .get("Populate", {})
+                    vsb.metrics_tracker.calculated_metrics
+                    .get(f"{workload.name}.Populate", {})
                     .get("records", 0)
                 )
 
                 stats: locust.stats.StatsEntry = env.stats.get(
-                    workload.name, "Populate"
+                    workload.name, f"{workload.name}.Populate"
                 )
                 duration = time.time() - stats.start_time
                 rps_str = "  Records/sec: [magenta]{:.1f}".format(completed / duration)
@@ -504,7 +502,7 @@ class LoadShape(LoadTestShape):
                 env = self.runner.environment
                 workload = env.workload_sequence[env.iteration]
                 stats: locust.stats.StatsEntry = env.stats.get(
-                    workload.name, "Search"
+                    workload.name, f"{workload.name}.Search"
                 )
 
                 # Display current (last 10s) values for some significant metrics
@@ -519,7 +517,7 @@ class LoadShape(LoadTestShape):
 
                 def get_recall_pct(p):
                     recall = vsb.metrics_tracker.get_metric_percentile(
-                        workload.name, "Search", "recall", p
+                        f"{workload.name}.Search", "recall", p
                     )
                     return f"{recall:.2f}" if recall else "..."
 
