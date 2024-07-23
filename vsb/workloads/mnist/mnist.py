@@ -3,7 +3,7 @@ from collections.abc import Iterator
 
 from vsb.workloads.base import VectorWorkload, VectorWorkloadSequence
 from ..parquet_workload.parquet_workload import ParquetWorkload, ParquetSubsetWorkload
-from ...vsb_types import DistanceMetric, SearchRequest, Record
+from ...vsb_types import DistanceMetric, RecordList
 
 import numpy as np
 
@@ -45,6 +45,32 @@ class MnistTest(ParquetSubsetWorkload, MnistBase):
     @staticmethod
     def request_count() -> int:
         return 20
+
+
+class MnistSecondTest(ParquetSubsetWorkload, MnistBase):
+    """Reduced, "test" variant of mnist; with 1% of the full dataset (600
+    passages and 20 queries). IDs are appended with a prefix to avoid
+    conflicts with the first test."""
+
+    def __init__(self, name: str, cache_dir: str):
+        super().__init__(name, "mnist", cache_dir=cache_dir, limit=600, query_limit=20)
+
+    @staticmethod
+    def record_count() -> int:
+        return 600
+
+    @staticmethod
+    def request_count() -> int:
+        return 20
+
+    def get_record_batch_iter(
+        self, num_users: int, user_id: int, batch_size: int
+    ) -> Iterator[tuple[str, RecordList]]:
+        for batch in super().get_record_batch_iter(num_users, user_id, batch_size):
+            record_list = batch[1]
+            for record in record_list:
+                record.id += "_2"
+            yield (batch[0], record_list)
 
 
 class MnistCheese(MnistBase):
@@ -110,12 +136,7 @@ class MnistDoubleTest(VectorWorkloadSequence):
     def __init__(self, name: str, cache_dir: str):
         self._name = name
         self.test1 = MnistTest("test1", cache_dir)
-        self.test2 = MnistTest("test2", cache_dir)
-        # We have to "trick" pinecone's iteration helper to think we have 600 records
-        # by setting the record count to 0 for the second test.
-        # Otherwise, finalize will "wait" for 1200 records forever, even though only 600
-        # are actually available.
-        self.test2.record_count = lambda: 0
+        self.test2 = MnistSecondTest("test2", cache_dir)
         self.workloads = [self.test1, self.test2]
 
     @property

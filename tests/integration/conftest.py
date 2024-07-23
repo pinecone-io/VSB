@@ -1,6 +1,7 @@
 import json
 import os
 import random
+import datetime
 import re
 import string
 import subprocess
@@ -15,8 +16,13 @@ def read_env_var(name):
     return value
 
 
-def random_string(length):
-    return "".join(random.choice(string.ascii_lowercase) for _ in range(length))
+def uuid() -> str:
+    """Returns a lowercase unique ID."""
+    now = datetime.datetime.utcnow().replace(microsecond=0).isoformat()
+    now = now.replace(":", "-")
+    randstr = "".join(random.choice(string.ascii_lowercase) for _ in range(10))
+    id = read_env_var("NAME_PREFIX") + "--" + now + "--" + randstr
+    return id.lower()
 
 
 def parse_stats_to_json(stdout: str) -> list[dict]:
@@ -63,23 +69,13 @@ def check_request_counts(stdout, expected: dict) -> None:
     any mismatches.
 
     Elements of expected should be nested dicts where their top-level keys
-    are dataset names, containing dicts of request_type names (Populate, Search, ...)
-    to dict of expected elements to find for each request type - e.g.
-        {
-            "mnist-test": {
-                "Search": {
-                    "num_requests": 20,
-                    "num_failures": 0,
-                },
-            },
-        }
+    are request_type names (Populate, Search, ...) and the values are dicts
+    of expected elements to find for each request type - e.g.
 
-    A nested dict with top-level keys of request_types is also possible for
-    single-dataset workloads (dataset name will be inferred) - e.g.
         {
             "Search": {
-                "num_requests": 20,
-                "num_failures": 0,
+                 "num_requests": 20,
+                 "num_failures": 0,
             },
         }
 
@@ -93,41 +89,19 @@ def check_request_counts(stdout, expected: dict) -> None:
         }
     """
     stats = parse_stats_to_json(stdout)
-    by_dataset = {}
-    for stat in stats:
-        dataset = stat["name"]
-        method = stat["method"]
-        by_dataset.setdefault(dataset, {})[method] = stat
-
-    if len(expected) == 0:
-        assert len(stats) == 0, f"Expected no stats, got {len(stats)}"
-        return
-    if not isinstance(next(iter(next(iter(expected.values())).values())), dict):
-        # If the expected dict is not nested, assume the top-level keys are
-        # request types, and the values are the expected stats for that type.
-        # Check that there is only one dataset in the stats.
-        assert (
-            len(by_dataset) == 1
-        ), f"Tried to infer one dataset, but {len(by_dataset)} exist in results"
-        expected = {next(iter(by_dataset.keys())): expected}
-    for dataset, expected_phase_stats in expected.items():
-        for phase, expected_stats in expected_phase_stats.items():
-            assert (
-                dataset in by_dataset
-            ), f"Missing stats for expected dataset '{dataset}'"
-            assert (
-                phase in by_dataset[dataset]
-            ), f"Missing stats for expected phase '{phase}'"
-            for ex_name, ex_value in expected_stats.items():
-                actual_value = by_dataset[dataset][phase][ex_name]
-                if callable(ex_value):
-                    assert ex_value(actual_value), (
-                        f"For phase {phase} and " f"stat {ex_name}"
-                    )
-                else:
-                    assert actual_value == ex_value, (
-                        f"For phase {phase} and " f"stat {ex_name}"
-                    )
+    by_method = {s["method"]: s for s in stats}
+    for phase, expected_stats in expected.items():
+        assert phase in by_method, f"Missing stats for expected phase '{phase}'"
+        for ex_name, ex_value in expected_stats.items():
+            actual_value = by_method[phase][ex_name]
+            if callable(ex_value):
+                assert ex_value(actual_value), (
+                    f"For phase {phase} and " f"stat {ex_name}"
+                )
+            else:
+                assert actual_value == ex_value, (
+                    f"For phase {phase} and " f"stat {ex_name}"
+                )
 
 
 def spawn_vsb_inner(

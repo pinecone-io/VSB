@@ -112,17 +112,15 @@ class VectorWorkloadSequence(ABC):
         Return the workload at the specified index.
         """
         raise NotImplementedError
-    
+
     def record_count_upto(self, index: int) -> int:
         """
-        Return the total number of records in the sequencedf 
+        Return the total number of records in the sequencedf
         up to and including the specified index's workload.
         """
-        if (index >= self.workload_count()):
+        if index >= self.workload_count():
             raise IndexError
         return sum(self[index].record_count() for index in range(index + 1))
-    
-
 
 
 class SingleVectorWorkloadSequence(VectorWorkloadSequence):

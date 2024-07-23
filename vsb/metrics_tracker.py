@@ -68,9 +68,7 @@ def get_histogram(request_type: str, metric: str) -> HdrHistogram:
     creating an empty histogram is the request type and/or metric is not already
     recorded.
     """
-    req_type_metrics = calculated_metrics.setdefault(
-        request_type, dict()
-    )
+    req_type_metrics = calculated_metrics.setdefault(request_type, dict())
     return req_type_metrics.setdefault(metric, HdrHistogram(1, 100_000, 3))
 
 
@@ -80,15 +78,11 @@ def update_counter(request_type: str, metric: str, value: int) -> None:
     creating a counter from zero histogram is the request type and/or metric is
     not already recorded.
     """
-    req_type_metrics = calculated_metrics.setdefault(
-        request_type, defaultdict(int)
-    )
+    req_type_metrics = calculated_metrics.setdefault(request_type, defaultdict(int))
     req_type_metrics[metric] += value
 
 
-def get_metric_percentile(
-     request_type: str, metric: str, percentile: float
-) -> float:
+def get_metric_percentile(request_type: str, metric: str, percentile: float) -> float:
     """
     Get the value of the given percentile for the given metric for the given
     request type, or None if the metric is not recorded.

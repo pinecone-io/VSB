@@ -86,7 +86,7 @@ def setup_environment(environment, **_kwargs):
         # workers, and (b) because logs from non-master will corrupt the
         # progress bar display.
         vsb.logger.setLevel(logging.ERROR)
-    
+
     logger.info(
         f"Workload '{env.workload_sequence.name}' initialized "
         f"record_count={env.workload_sequence[0].record_count()} "
@@ -95,9 +95,8 @@ def setup_environment(environment, **_kwargs):
     )
 
 
-
 # Note that this listener is guaranteed to finish before Users are spawned, but not
-# before LoadShape is initialized and potentially goes through Init; be careful 
+# before LoadShape is initialized and potentially goes through Init; be careful
 # of accessing env.iteration_helper or other environment attributes set up in
 # setup_environment() before this event listener finishes.
 @events.test_start.add_listener
@@ -106,7 +105,9 @@ def setup_worker_dataset(environment, **_kwargs):
     # in a distributed run, the master does not typically need any test data
 
     environment.iteration = 0
-    users.subscribers["iteration"] = Subscriber(environment, environment.iteration, "iteration")
+    users.subscribers["iteration"] = Subscriber(
+        environment, environment.iteration, "iteration"
+    )
 
     # We need to perform this work in a background thread (not in the current
     # gevent greenlet) as otherwise we block the current greenlet (pandas data
@@ -137,7 +138,6 @@ def setup_worker_dataset(environment, **_kwargs):
         )
         log.unhandled_greenlet_exception = True
         environment.runner.quit()
-    
 
 
 @events.quit.add_listener

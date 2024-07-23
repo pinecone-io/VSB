@@ -107,10 +107,6 @@ class TestPgvector:
             stdout,
             {
                 "test1": {
-                    # For multiple users the populate phase will chunk the records to be
-                    # loaded into num_users chunks - i.e. 4 here. Given the size of each
-                    # chunk will be less than the batch size (600 / 4 < 200), then the
-                    # number of requests will be equal to the number of users - i.e. 4
                     "Populate": {"num_requests": 1, "num_failures": 0},
                     # The number of Search requests should equal the number in the dataset
                     # (20 for mnist-test).
