@@ -167,23 +167,19 @@ class TestPinecone:
         check_request_counts(
             stdout,
             {
-                "test1": {
-                    "Populate": {"num_requests": 2, "num_failures": 0},
-                    # The number of Search requests should equal the number in the dataset
-                    # (20 for mnist-test).
-                    "Search": {
-                        "num_requests": 20,
-                        "num_failures": 0,
-                        "recall": check_recall_stats,
-                    },
+                "test1.Populate": {"num_requests": 2, "num_failures": 0},
+                # The number of Search requests should equal the number in the dataset
+                # (20 for mnist-test).
+                "test1.Search": {
+                    "num_requests": 20,
+                    "num_failures": 0,
+                    "recall": check_recall_stats,
                 },
-                "test2": {
-                    "Populate": {"num_requests": 2, "num_failures": 0},
-                    "Search": {
-                        "num_requests": 20,
-                        "num_failures": 0,
-                        "recall": check_recall_stats,
-                    },
+                "test2.Populate": {"num_requests": 2, "num_failures": 0},
+                "test2.Search": {
+                    "num_requests": 20,
+                    "num_failures": 0,
+                    "recall": check_recall_stats,
                 },
             },
         )
@@ -202,27 +198,23 @@ class TestPinecone:
         check_request_counts(
             stdout,
             {
-                "test1": {
-                    # For multiple users the populate phase will chunk the records to be
-                    # loaded into num_users chunks - i.e. 4 here. Given the size of each
-                    # chunk will be less than the batch size (600 / 4 < 200), then the
-                    # number of requests will be equal to the number of users - i.e. 4
-                    "Populate": {"num_requests": 4, "num_failures": 0},
-                    # The number of Search requests should equal the number in the dataset
-                    # (20 for mnist-test).
-                    "Search": {
-                        "num_requests": 20,
-                        "num_failures": 0,
-                        "recall": check_recall_stats,
-                    },
+                # For multiple users the populate phase will chunk the records to be
+                # loaded into num_users chunks - i.e. 4 here. Given the size of each
+                # chunk will be less than the batch size (600 / 4 < 200), then the
+                # number of requests will be equal to the number of users - i.e. 4
+                "test1.Populate": {"num_requests": 4, "num_failures": 0},
+                # The number of Search requests should equal the number in the dataset
+                # (20 for mnist-test).
+                "test1.Search": {
+                    "num_requests": 20,
+                    "num_failures": 0,
+                    "recall": check_recall_stats,
                 },
-                "test2": {
-                    "Populate": {"num_requests": 4, "num_failures": 0},
-                    "Search": {
-                        "num_requests": 20,
-                        "num_failures": 0,
-                        "recall": check_recall_stats,
-                    },
+                "test2.Populate": {"num_requests": 4, "num_failures": 0},
+                "test2.Search": {
+                    "num_requests": 20,
+                    "num_failures": 0,
+                    "recall": check_recall_stats,
                 },
             },
         )
@@ -241,27 +233,23 @@ class TestPinecone:
         check_request_counts(
             stdout,
             {
-                "test1": {
-                    # For multiple users the populate phase will chunk the records to be
-                    # loaded into num_users chunks - i.e. 4 here. Given the size of each
-                    # chunk will be less than the batch size (600 / 4 < 200), then the
-                    # number of requests will be equal to the number of users - i.e. 4
-                    "Populate": {"num_requests": 4, "num_failures": 0},
-                    # The number of Search requests should equal the number in the dataset
-                    # (20 for mnist-test).
-                    "Search": {
-                        "num_requests": 20,
-                        "num_failures": 0,
-                        "recall": check_recall_stats,
-                    },
+                # For multiple users the populate phase will chunk the records to be
+                # loaded into num_users chunks - i.e. 4 here. Given the size of each
+                # chunk will be less than the batch size (600 / 4 < 200), then the
+                # number of requests will be equal to the number of users - i.e. 4
+                "test1.Populate": {"num_requests": 4, "num_failures": 0},
+                # The number of Search requests should equal the number in the dataset
+                # (20 for mnist-test).
+                "test1.Search": {
+                    "num_requests": 20,
+                    "num_failures": 0,
+                    "recall": check_recall_stats,
                 },
-                "test2": {
-                    "Populate": {"num_requests": 4, "num_failures": 0},
-                    "Search": {
-                        "num_requests": 20,
-                        "num_failures": 0,
-                        "recall": check_recall_stats,
-                    },
+                "test2.Populate": {"num_requests": 4, "num_failures": 0},
+                "test2.Search": {
+                    "num_requests": 20,
+                    "num_failures": 0,
+                    "recall": check_recall_stats,
                 },
             },
         )
