@@ -1,4 +1,3 @@
-import datetime
 import os
 
 import pytest
@@ -7,7 +6,7 @@ from pinecone import Pinecone
 from conftest import (
     check_request_counts,
     read_env_var,
-    random_string,
+    uuid,
     spawn_vsb_inner,
     check_recall_stats,
 )
@@ -26,10 +25,7 @@ def api_key():
 
 def _create_pinecone_index(dims: int, metric: str) -> str:
     pc = Pinecone(api_key=read_env_var("PINECONE_API_KEY"))
-    now = datetime.datetime.utcnow().replace(microsecond=0).isoformat()
-    now = now.replace(":", "-")
-    index_name = read_env_var("NAME_PREFIX") + "--" + now + "--" + random_string(10)
-    index_name = index_name.lower()
+    index_name = uuid()
     environment = os.environ.get("ENVIRONMENT")
     if environment:
         spec = {"pod": {"environment": environment, "pod_type": "p1.x1"}}
@@ -63,13 +59,22 @@ def pinecone_index_yfcc():
     _delete_pinecone_index(index_name)
 
 
-def spawn_vsb(workload, api_key=None, index_name=None, timeout=60, extra_args=None):
+def spawn_vsb(
+    workload,
+    api_key=None,
+    index_name=None,
+    index_spec=None,
+    timeout=60,
+    extra_args=None,
+):
     """Spawn an instance of vsb with the given arguments, returning the proc object,
     its stdout and stderr.
     """
     args = []
     if index_name:
         args += ["--pinecone_index_name", index_name]
+    if index_spec:
+        args += ["--pinecone_index_spec", index_spec]
     if extra_args:
         args += extra_args
     extra_env = {}
@@ -90,8 +95,8 @@ class TestPinecone:
             stdout,
             {
                 # Populate num_requests counts batches, not individual records.
-                "Populate": {"num_requests": 2, "num_failures": 0},
-                "Search": {
+                "mnist-test.Populate": {"num_requests": 2, "num_failures": 0},
+                "mnist-test.Search": {
                     "num_requests": 20,
                     "num_failures": 0,
                     "recall": check_recall_stats,
@@ -117,8 +122,8 @@ class TestPinecone:
                 # loaded into num_users chunks - i.e. 4 here. Given the size of each
                 # chunk will be less than the batch size (600 / 4 < 200), then the
                 # number of requests will be equal to the number of users - i.e. 4
-                "Populate": {"num_requests": 4, "num_failures": 0},
-                "Search": {
+                "mnist-test.Populate": {"num_requests": 4, "num_failures": 0},
+                "mnist-test.Search": {
                     "num_requests": 20,
                     "num_failures": 0,
                     "recall": check_recall_stats,
@@ -144,10 +149,10 @@ class TestPinecone:
                 # loaded into num_users chunks - i.e. 4 here. Given the size of each
                 # chunk will be less than the batch size (600 / 4 < 200), then the
                 # number of requests will be equal to the number of users - i.e. 4
-                "Populate": {"num_requests": 4, "num_failures": 0},
+                "mnist-test.Populate": {"num_requests": 4, "num_failures": 0},
                 # The number of Search requests should equal the number in the dataset
                 # (20 for mnist-test).
-                "Search": {
+                "mnist-test.Search": {
                     "num_requests": 20,
                     "num_failures": 0,
                     "recall": check_recall_stats,
@@ -266,8 +271,8 @@ class TestPinecone:
             stdout,
             {
                 # Populate num_requests counts batches, not individual records.
-                "Populate": {"num_requests": 2, "num_failures": 0},
-                "Search": {
+                "mnist-test.Populate": {"num_requests": 2, "num_failures": 0},
+                "mnist-test.Search": {
                     "num_requests": 20,
                     "num_failures": 0,
                     "recall": check_recall_stats,
@@ -287,7 +292,7 @@ class TestPinecone:
             stdout,
             {
                 # Populate num_requests counts batches, not individual records.
-                "Search": {
+                "mnist-test.Search": {
                     "num_requests": 20,
                     "num_failures": 0,
                     "recall": check_recall_stats,
@@ -308,8 +313,8 @@ class TestPinecone:
             stdout,
             {
                 # Populate num_requests counts batches, not individual records.
-                "Populate": {"num_requests": 210, "num_failures": 0},
-                "Search": {
+                "yfcc-test.Populate": {"num_requests": 210, "num_failures": 0},
+                "yfcc-test.Search": {
                     "num_requests": 500,
                     "num_failures": 0,
                     "recall": check_recall_stats,
@@ -319,14 +324,6 @@ class TestPinecone:
 
     def test_required_args(self, api_key, pinecone_index_mnist):
         # Tests that all required args are correctly checked for at vsb startup.
-        (proc, stdout, stderr) = spawn_vsb(api_key=api_key, workload="mnist-test")
-        assert proc.returncode == 2
-        assert (
-            "The following arguments must be specified when --database is "
-            "'pinecone':"
-        ) in stderr
-        assert "--pinecone_index_name" in stderr
-
         (proc, stdout, stderr) = spawn_vsb(
             index_name=pinecone_index_mnist, workload="mnist-test"
         )
@@ -337,14 +334,27 @@ class TestPinecone:
         ) in stderr
         assert "--pinecone_api_key" in stderr
 
-    def test_invalid_index(self, api_key):
-        # Tests that specifying an index which doesn't exist is reported gracefully,
-        # without printing additional metrics / stats (which could suggest the expirment ran correctly.
+    def test_invalid_index(self, api_key, pinecone_index_mnist):
+        # Tests that specifying an improperly configured index is reported gracefully,
+        # without printing additional metrics / stats (which could suggest the experiment ran correctly.
         (proc, stdout, stderr) = spawn_vsb(
-            workload="mnist-test",
+            workload="yfcc-test",
             api_key=api_key,
-            index_name="index-name-which-does-not-exist",
+            index_name=pinecone_index_mnist,
         )
         assert proc.returncode == 2
         assert "Response time percentiles" not in stdout
         assert "Saved stats to 'reports/" not in stdout
+
+    def test_nonexistent_index(self, api_key):
+        # Tests that specifying an index which doesn't exist informs the user that a new one is created.
+        index_name = uuid()
+        (proc, stdout, stderr) = spawn_vsb(
+            workload="mnist-test",
+            api_key=api_key,
+            index_name=index_name,
+        )
+        _delete_pinecone_index(index_name)
+        assert proc.returncode == 0
+        assert "Creating new index" in stdout
+        assert "Saved stats to 'reports/" in stdout

@@ -59,9 +59,7 @@ class ParquetWorkload(VectorWorkload, ABC):
                 # See: https://github.com/apache/arrow/issues/28694
                 # TODO: Add multiple tenant support.
                 records: pandas.DataFrame = batch.to_pandas()
-                # Metadata is encoded as a string, need to convert to JSON dict
-                if "metadata" in records:
-                    records["metadata"] = records["metadata"].map(json.loads)
+                self._decode_metadata(records)
                 yield "", RecordList(records.to_dict("records"))
 
         return recordbatch_to_dataframe(batch_iter)
@@ -94,6 +92,12 @@ class ParquetWorkload(VectorWorkload, ABC):
 
         return make_query_iter(user_chunk)
 
+    @staticmethod
+    def _decode_metadata(records):
+        # Metadata is encoded as a string, need to convert to JSON dict
+        if "metadata" in records:
+            records["metadata"] = records["metadata"].map(json.loads)
+
 
 class ParquetSubsetWorkload(ParquetWorkload, ABC):
     """A subclass of ParquetWorkload that reads a subset of records and queries
@@ -118,92 +122,103 @@ class ParquetSubsetWorkload(ParquetWorkload, ABC):
             limit=limit,
             query_limit=query_limit,
         )
-        # Store records in memory; we run a k-NN search to find correct top-k neighbors for each request.
-        batch_iter = self.get_record_batch_iter(1, 0, self.record_count())
-        self.records = []
-        for _, batch in batch_iter:
-            self.records += batch.root
+        # Store records in memory; we run a k-NN search to find correct top-k
+        # neighbors for each request.
+        self.records: pandas.DataFrame = self._get_records()
+
+        # Recalculate neighbors for each query in the dataset
+        neighbors = self.recalculate_neighbors(
+            self.records, self.queries, self.metric()
+        )
+
+        def update_blob(blob, neighbors):
+            blob["neighbors"] = neighbors
+            return blob
+
+        self.queries["blob"] = self.queries.apply(
+            lambda row: update_blob(row["blob"], neighbors[row.name]),
+            axis=1,
+        )
+
+    def _get_records(self) -> pandas.DataFrame:
+        batch_iter = self.dataset.get_batch_iterator(1, 0, self.record_count())
+        all_records: pandas.DataFrame = pandas.DataFrame()
+        for batch in batch_iter:
+            records = batch.to_pandas()
+            self._decode_metadata(records)
+            all_records = pandas.concat([all_records, records])
+        return all_records
 
     def _get_topk(self, req: SearchRequest) -> list[str]:
         return self.calc_k_nearest_neighbors(self.records, self.metric(), req)
 
     @staticmethod
-    def calc_k_nearest_neighbors(
-        records: RecordList, metric: DistanceMetric, req: SearchRequest
-    ) -> list[str]:
-        """Calculate the k-nearest neighbors for a given query to the given set
-        of records.
+    def recalculate_neighbors(
+        records: pandas.DataFrame, queries: pandas.DataFrame, metric: DistanceMetric
+    ) -> pandas.Series:
+        """Recalculate the neighbors field for each query in the given set of
+        queries, using the given set of records.
         """
 
-        # Run a k-NN search to find the top-k nearest neighbors.
-        def dist(v: Record):
+        # Convert the list of embeddings to a numpy array for faster computation
+        embeddings = np.stack(records["values"].values)
+
+        def calculate_distances(query_vector, embeddings):
             match metric:
-                case DistanceMetric.Cosine:
-                    return np.dot(v.values, req.values) / (
-                        np.linalg.norm(v.values) * np.linalg.norm(req.values)
-                    )
                 case DistanceMetric.Euclidean:
-                    return np.linalg.norm(np.array(v.values) - np.array(req.values))
+                    # Compute the Euclidean distances
+                    return np.linalg.norm(embeddings - query_vector, axis=1)
                 case DistanceMetric.DotProduct:
-                    return np.dot(v.values, req.values)
-            raise ValueError(f"Unsupported metric {metric}")
+                    # Compute the negative dot-product (to use argsort for
+                    # descending order)
+                    return -np.dot(embeddings, query_vector)
+                case DistanceMetric.Cosine:
+                    # Compute the cosine distances (1 - cosine similarity) to use
+                    # argsort for descending order.
+                    query_norm = np.linalg.norm(query_vector)
+                    embeddings_norm = np.linalg.norm(embeddings, axis=1)
+                    cosine_similarities = np.dot(embeddings, query_vector) / (
+                        embeddings_norm * query_norm
+                    )
+                    return 1 - cosine_similarities
 
-        # Filter by metadata tags if provided (e.g. yfcc)
-        if req.filter is not None:
-            filters = FilterUtil.to_set(req.filter)
+        # Function to find top k nearest neighbors for a single query
+        def get_top_k_nearest(query_vector, top_k, q_filter):
+            distances = calculate_distances(query_vector, embeddings)
 
-            def filt(v: Record):
-                if v.metadata is not None:
-                    assert "tags" in v.metadata  # We only support yfcc tags for now.
-                    return filters <= set(v.metadata["tags"])
-                return filters <= set()
+            # Filter by metadata tags if provided (e.g. yfcc)
+            if q_filter is not None:
+                filters = FilterUtil.to_set(q_filter)
 
-            filtered_records = filter(filt, records)
-        else:
-            filtered_records = records
+                def filt(metadata: dict):
+                    if metadata is not None:
+                        assert "tags" in metadata  # We only support yfcc tags for now.
+                        return filters <= set(metadata["tags"])
+                    return filters <= set()
 
-        ordered_records = list(
-            map((lambda r: r.id), sorted(filtered_records, key=dist))
+                # np.nonzero returns a tuple of arrays with the non-zero (true) indices of an ndarray
+                # Apply filter to the 'metadata' Series to avoid iterating over DataFrame rows.
+                filtered_indices = np.nonzero(records["metadata"].apply(filt).array)[0]
+            else:
+                filtered_indices = range(len(records))
+
+            # Get the distances of the filtered indices
+            filtered_distances = distances[filtered_indices]
+
+            # Get the indices of the top_k smallest distances
+            top_k_filtered_indices = np.argsort(filtered_distances)[:top_k]
+
+            # Map the filtered indices back to the original indices
+            top_k_original_indices = [
+                filtered_indices[i] for i in top_k_filtered_indices
+            ]
+
+            return records.iloc[top_k_original_indices]["id"].tolist()
+
+        # Apply the function to each query
+        return queries.apply(
+            lambda row: get_top_k_nearest(
+                row["values"], row["top_k"], row["filter"] if "filter" in row else None
+            ),
+            axis=1,
         )
-        # Euclidean is sorted closest -> farthest, Cosine/DotProduct gives farthest -> closest
-        match metric:
-            case DistanceMetric.Cosine:
-                ordered_records = list(
-                    map(
-                        (lambda r: r.id),
-                        sorted(filtered_records, key=dist, reverse=True),
-                    )
-                )
-            case DistanceMetric.DotProduct:
-                ordered_records = list(
-                    map(
-                        (lambda r: r.id),
-                        sorted(filtered_records, key=dist, reverse=True),
-                    )
-                )
-            case DistanceMetric.Euclidean:
-                ordered_records = list(
-                    map((lambda r: r.id), sorted(filtered_records, key=dist))
-                )
-            case _:
-                raise ValueError(f"Unsupported metric {metric}")
-
-        return ordered_records[: req.top_k]
-
-    def get_query_iter(
-        self, num_users: int, user_id: int
-    ) -> Iterator[tuple[str, SearchRequest]]:
-        """
-        Test workloads only use the first P passages from the original dataset,
-        as such the neighbors field is not necessarily the correct top-k nearest
-        neighbors from the truncated passages set.
-        As such, replace by re-calculating from the actual records in the dataset.
-        """
-        base_iter = super().get_query_iter(num_users, user_id)
-
-        def update_neighbors():
-            for tenant, request in base_iter:
-                request.neighbors = self._get_topk(request)
-                yield tenant, request
-
-        return update_neighbors()

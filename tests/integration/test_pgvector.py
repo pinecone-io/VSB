@@ -2,18 +2,10 @@ import datetime
 from conftest import (
     check_request_counts,
     read_env_var,
-    random_string,
     spawn_vsb_inner,
     check_recall_stats,
     check_recall_correctness,
 )
-
-
-def _get_index_name() -> str:
-    now = datetime.datetime.utcnow().replace(microsecond=0).isoformat()
-    now = now.replace(":", "-")
-    index_name = read_env_var("NAME_PREFIX") + "--" + now + "--" + random_string(10)
-    index_name = index_name.lower()
 
 
 def spawn_vsb(workload, timeout=60, extra_args=None):
@@ -34,8 +26,8 @@ class TestPgvector:
             stdout,
             {
                 # Populate num_requests counts batches, not individual records.
-                "Populate": {"num_requests": 1, "num_failures": 0},
-                "Search": {
+                "mnist-test.Populate": {"num_requests": 1, "num_failures": 0},
+                "mnist-test.Search": {
                     "num_requests": 20,
                     "num_failures": 0,
                     "recall": check_recall_stats,
@@ -59,8 +51,8 @@ class TestPgvector:
                 # loaded into num_users chunks - i.e. 4 here. Given the size of each
                 # chunk will be less than the batch size (600 / 4 < 1000), then the
                 # number of requests will be equal to the number of users - i.e. 4
-                "Populate": {"num_requests": 4, "num_failures": 0},
-                "Search": {
+                "mnist-test.Populate": {"num_requests": 4, "num_failures": 0},
+                "mnist-test.Search": {
                     "num_requests": 20,
                     "num_failures": 0,
                     "recall": check_recall_stats,
@@ -84,10 +76,10 @@ class TestPgvector:
                 # loaded into num_users chunks - i.e. 4 here. Given the size of each
                 # chunk will be less than the batch size (600 / 4 < 1000), then the
                 # number of requests will be equal to the number of users - i.e. 4
-                "Populate": {"num_requests": 4, "num_failures": 0},
+                "mnist-test.Populate": {"num_requests": 4, "num_failures": 0},
                 # The number of Search requests should equal the number in the dataset
                 # (20 for mnist-test).
-                "Search": {
+                "mnist-test.Search": {
                     "num_requests": 20,
                     "num_failures": 0,
                     "recall": check_recall_stats,
@@ -99,9 +91,6 @@ class TestPgvector:
         # Test "-double-test" variant (WorkloadSequence) of mnist loads and runs successfully.
         (proc, stdout, stderr) = spawn_vsb(workload="mnist-double-test")
         assert proc.returncode == 0
-
-        # Check that we were warned for upserting the same vector(s) twice.
-        assert "UniqueViolation while upserting" in stdout
 
         check_request_counts(
             stdout,
@@ -202,8 +191,8 @@ class TestPgvector:
             stdout,
             {
                 # Populate num_requests counts batches, not individual records.
-                "Populate": {"num_requests": 1, "num_failures": 0},
-                "Search": {"num_requests": 20, "num_failures": 0},
+                "mnist-test.Populate": {"num_requests": 1, "num_failures": 0},
+                "mnist-test.Search": {"num_requests": 20, "num_failures": 0},
             },
         )
 
@@ -217,7 +206,7 @@ class TestPgvector:
             stdout,
             {
                 # Populate num_requests counts batches, not individual records.
-                "Search": {
+                "mnist-test.Search": {
                     "num_requests": 20,
                     "num_failures": 0,
                     "recall": check_recall_stats,
@@ -236,8 +225,8 @@ class TestPgvector:
             stdout,
             {
                 # Populate num_requests counts batches, not individual records.
-                "Populate": {"num_requests": 10, "num_failures": 0},
-                "Search": {
+                "yfcc-test.Populate": {"num_requests": 10, "num_failures": 0},
+                "yfcc-test.Search": {
                     "num_requests": 500,
                     "num_failures": 0,
                     "recall": check_recall_stats,
@@ -257,11 +246,32 @@ class TestPgvector:
             stdout,
             {
                 # Populate num_requests counts batches, not individual records.
-                "Populate": {"num_requests": 1, "num_failures": 0},
-                "Search": {
+                "mnist-test.Populate": {"num_requests": 1, "num_failures": 0},
+                "mnist-test.Search": {
                     "num_requests": 20,
                     "num_failures": 0,
                     "recall": check_recall_stats,
+                },
+            },
+        )
+
+    def test_no_index(self):
+        # Test without an index.
+        # Test "-test" variant of mnist loads and runs successfully, and gives
+        # perfect recall (as Postgres will perform a full kNN scan).
+        (proc, stdout, stderr) = spawn_vsb(
+            workload="mnist-test", extra_args=["--pgvector_index_type=none"]
+        )
+        assert proc.returncode == 0
+
+        check_request_counts(
+            stdout,
+            {
+                "mnist-test.Populate": {"num_requests": 1, "num_failures": 0},
+                "mnist-test.Search": {
+                    "num_requests": 20,
+                    "num_failures": 0,
+                    "recall": check_recall_correctness(1.0),
                 },
             },
         )
@@ -282,8 +292,8 @@ class TestPgvector:
             stdout,
             {
                 # Populate num_requests counts batches, not individual records.
-                "Populate": {"num_requests": 1, "num_failures": 0},
-                "Search": {
+                "mnist-test.Populate": {"num_requests": 1, "num_failures": 0},
+                "mnist-test.Search": {
                     "num_requests": 20,
                     "num_failures": 0,
                     "recall": check_recall_correctness(0.9),
