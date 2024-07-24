@@ -106,12 +106,19 @@ class VectorWorkloadSequence(ABC):
         """
         raise NotImplementedError
 
-    @abstractmethod
     def __getitem__(self, index: int) -> VectorWorkload:
         """
         Return the workload at the specified index.
+
+        A default implementation is provided assuming
+        that the workloads are stored in a list named
+        `workloads` on the class.
         """
-        raise NotImplementedError
+        if not hasattr(self, "workloads"):
+            raise NotImplementedError
+        if index < 0 or index >= len(self.workloads):
+            raise IndexError
+        return self.workloads[index]
 
     def record_count_upto(self, index: int) -> int:
         """

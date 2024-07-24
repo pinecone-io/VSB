@@ -7,6 +7,7 @@ import pandas
 import numpy as np
 import pyarrow
 
+from vsb import logger
 from ..base import VectorWorkload
 from ..dataset import Dataset
 from ...vsb_types import SearchRequest, RecordList, Record, DistanceMetric, Vector
@@ -28,12 +29,17 @@ class ParquetWorkload(VectorWorkload, ABC):
         cache_dir: str,
         limit: int = 0,
         query_limit: int = 0,
+        load_on_init: bool = True,
     ):
         super().__init__(name)
         self.dataset = Dataset(dataset_name, cache_dir=cache_dir, limit=limit)
 
-        self.dataset.setup_queries(query_limit=query_limit)
-        self.queries = self.dataset.queries
+        if load_on_init:
+            self.dataset.setup_queries(query_limit=query_limit)
+            self.queries = self.dataset.queries
+        else:
+            self.queries = None
+            self.query_limit = query_limit
 
     def get_sample_record(self) -> Record:
         iter = self.get_record_batch_iter(1, 0, 1)
@@ -67,6 +73,14 @@ class ParquetWorkload(VectorWorkload, ABC):
     def get_query_iter(
         self, num_users: int, user_id: int
     ) -> Iterator[tuple[str, SearchRequest]]:
+        if self.queries is None:
+            logger.warning(
+                f"Had to lazy load queries for {self.name} workload - "
+                f"load_on_init is intended for MasterRunners to skip loading,"
+                f"this shouldn't happen."
+            )
+            self.dataset.setup_queries(query_limit=self.query_limit)
+            self.queries = self.dataset.queries
         # Calculate start / end for this query chunk, then split the table
         # and create an iterator over it.
         quotient, remainder = divmod(len(self.queries), num_users)

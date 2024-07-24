@@ -19,8 +19,8 @@ class MnistBase(ParquetWorkload, ABC):
 
 
 class Mnist(MnistBase):
-    def __init__(self, name: str, cache_dir: str):
-        super().__init__(name, "mnist", cache_dir=cache_dir)
+    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True):
+        super().__init__(name, "mnist", cache_dir=cache_dir, load_on_init=load_on_init)
 
     @staticmethod
     def record_count() -> int:
@@ -35,7 +35,7 @@ class MnistTest(ParquetSubsetWorkload, MnistBase):
     """Reduced, "test" variant of mnist; with 1% of the full dataset (600
     passages and 20 queries)."""
 
-    def __init__(self, name: str, cache_dir: str):
+    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True):
         super().__init__(name, "mnist", cache_dir=cache_dir, limit=600, query_limit=20)
 
     @staticmethod
@@ -52,7 +52,7 @@ class MnistSecondTest(ParquetSubsetWorkload, MnistBase):
     passages and 20 queries). IDs are appended with a prefix to avoid
     conflicts with the first test."""
 
-    def __init__(self, name: str, cache_dir: str):
+    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True):
         super().__init__(name, "mnist", cache_dir=cache_dir, limit=600, query_limit=20)
 
     @staticmethod
@@ -77,8 +77,10 @@ class MnistCheese(MnistBase):
     """A subset of mnist with only the records that do not exist in
     the top-k neighbors of any query."""
 
-    def __init__(self, name: str, cache_dir: str):
-        super().__init__(name, "mnist-cheese", cache_dir=cache_dir)
+    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True):
+        super().__init__(
+            name, "mnist-cheese", cache_dir=cache_dir, load_on_init=load_on_init
+        )
 
     @staticmethod
     def record_count() -> int:
@@ -93,8 +95,10 @@ class MnistHoles(MnistBase):
     """A subset of mnist with only the records that exist in
     the top-k neighbors of any query."""
 
-    def __init__(self, name: str, cache_dir: str):
-        super().__init__(name, "mnist-holes", cache_dir=cache_dir)
+    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True):
+        super().__init__(
+            name, "mnist-holes", cache_dir=cache_dir, load_on_init=load_on_init
+        )
 
     @staticmethod
     def record_count() -> int:
@@ -109,10 +113,10 @@ class MnistSplit(VectorWorkloadSequence):
     """Drift sequence for mnist that loads cheese values,
     builds index, loads holes, and queries."""
 
-    def __init__(self, name: str, cache_dir: str):
+    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True):
         self._name = name
-        self.cheese = MnistCheese("cheese", cache_dir)
-        self.holes = MnistHoles("holes", cache_dir)
+        self.cheese = MnistCheese("cheese", cache_dir, load_on_init)
+        self.holes = MnistHoles("holes", cache_dir, load_on_init)
         self.workloads = [self.cheese, self.holes]
 
     @property
@@ -123,17 +127,13 @@ class MnistSplit(VectorWorkloadSequence):
     def workload_count() -> int:
         return 2
 
-    def __getitem__(self, index: int) -> VectorWorkload:
-        if index < 0 or index >= len(self.workloads):
-            raise IndexError
-        return self.workloads[index]
-
 
 class MnistDoubleTest(VectorWorkloadSequence):
     """Reduced variant of mnist that reruns the test workload twice.
     Primarily used for testing multi-iteration workloads."""
 
-    def __init__(self, name: str, cache_dir: str):
+    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True):
+        # load_on_init is ignored; ParquetSubsetWorkload does not support it
         self._name = name
         self.test1 = MnistTest("test1", cache_dir)
         self.test2 = MnistSecondTest("test2", cache_dir)
@@ -146,8 +146,3 @@ class MnistDoubleTest(VectorWorkloadSequence):
     @staticmethod
     def workload_count() -> int:
         return 2
-
-    def __getitem__(self, index: int) -> VectorWorkload:
-        if index < 0 or index >= len(self.workloads):
-            raise IndexError
-        return self.workloads[index]

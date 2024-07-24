@@ -54,9 +54,18 @@ def setup_environment(environment, **_kwargs):
     logger.debug(f"on_locust_init(): runner={type(environment.runner)}")
 
     # Load the WorkloadSequence
-    environment.workload_sequence = build_workload_sequence(
-        options.workload, cache_dir=options.cache_dir
-    )
+    if isinstance(environment.runner, MasterRunner):
+        # In distributed mode, the master does not need to load workload
+        # data, as it does not run users. It only accesses static
+        # methods on the workload classes.
+        environment.workload_sequence = build_workload_sequence(
+            options.workload, cache_dir=options.cache_dir, load_on_init=False
+        )
+
+    else:
+        environment.workload_sequence = build_workload_sequence(
+            options.workload, cache_dir=options.cache_dir
+        )
 
     # Reset distributors for new Populate -> Run iteration
     phases = ["setup", "populate", "run"]

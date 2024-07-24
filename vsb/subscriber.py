@@ -10,11 +10,12 @@ _results: dict[int, AsyncResult] = {}
 
 class Subscriber:
     """A class that allows a Worker to pull a shared value managed by the Master.
-    
+
     This has a very similar API and implementation to the locust_plugins.Distributor
     class, but only updates state when prompted by the Master. Workers can pull
     from the same subscriber however many times they want.
     """
+
     def __init__(self, environment: Environment, initial, name="subscriber"):
         """Register subscriber method handlers and set the initial value."""
         self.value = initial
