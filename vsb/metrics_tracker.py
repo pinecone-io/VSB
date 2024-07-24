@@ -259,11 +259,11 @@ def get_metrics_stats_summary(stats: RequestStats) -> rich.table.Table:
                     row = [
                         request,
                         metric.capitalize(),
+                        f"{value.get_min_value() / HDR_SCALE_FACTOR:.2f}",
                         *[
                             f"{value.get_value_at_percentile(p * 100) / HDR_SCALE_FACTOR:.2f}"
                             for p in REPORT_PERCENTILES
                         ],
-                        f"{value.get_min_value() / HDR_SCALE_FACTOR:.2f}",
                         f"{value.get_max_value() / HDR_SCALE_FACTOR:.2f}",
                         f"{value.get_mean_value() / HDR_SCALE_FACTOR:.2f}",
                     ]
