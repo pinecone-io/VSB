@@ -30,8 +30,7 @@ import rich.console
 import rich.box
 
 # Calculated custom metrics for each performed operation.
-# Nested dict, where top-level is the dataset name (for distinguishing multiple-
-# dataset workloads), then the request_type (Populate, Search, ...), under
+# Nested dict, where top-level is the request_type (Populate, Search, ...), under
 # that there is an instance of HdrHistogram or a plain int for each metric name (
 # recall, ...)
 calculated_metrics: dict[str, dict[str, HdrHistogram | int]] = {}

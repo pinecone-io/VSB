@@ -5,8 +5,6 @@ import rich.console
 import rich.progress
 import rich.live
 
-import gevent.event
-
 logger = logging.getLogger("vsb")
 """Logger for VSB. Messages will be written to the log file and console."""
 

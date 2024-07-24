@@ -46,13 +46,6 @@ def on_locust_init_cmd_line_parser(parser):
     add_vsb_cmdline_args(parser, include_locust_args=False)
 
 
-@events.init.add_listener
-def on_locust_init(environment, **_kwargs):
-    """Hook into the locust init event to setup the VSB environment.
-    This is called once per run for each process.
-    """
-
-
 def setup_environment(environment, **_kwargs):
     env = environment
     options = env.parsed_options

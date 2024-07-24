@@ -26,8 +26,8 @@ class TestPgvector:
             stdout,
             {
                 # Populate num_requests counts batches, not individual records.
-                "mnist-test.Populate": {"num_requests": 1, "num_failures": 0},
-                "mnist-test.Search": {
+                "Populate": {"num_requests": 1, "num_failures": 0},
+                "Search": {
                     "num_requests": 20,
                     "num_failures": 0,
                     "recall": check_recall_stats,
@@ -51,8 +51,8 @@ class TestPgvector:
                 # loaded into num_users chunks - i.e. 4 here. Given the size of each
                 # chunk will be less than the batch size (600 / 4 < 1000), then the
                 # number of requests will be equal to the number of users - i.e. 4
-                "mnist-test.Populate": {"num_requests": 4, "num_failures": 0},
-                "mnist-test.Search": {
+                "Populate": {"num_requests": 4, "num_failures": 0},
+                "Search": {
                     "num_requests": 20,
                     "num_failures": 0,
                     "recall": check_recall_stats,
@@ -76,10 +76,10 @@ class TestPgvector:
                 # loaded into num_users chunks - i.e. 4 here. Given the size of each
                 # chunk will be less than the batch size (600 / 4 < 1000), then the
                 # number of requests will be equal to the number of users - i.e. 4
-                "mnist-test.Populate": {"num_requests": 4, "num_failures": 0},
+                "Populate": {"num_requests": 4, "num_failures": 0},
                 # The number of Search requests should equal the number in the dataset
                 # (20 for mnist-test).
-                "mnist-test.Search": {
+                "Search": {
                     "num_requests": 20,
                     "num_failures": 0,
                     "recall": check_recall_stats,
@@ -191,8 +191,8 @@ class TestPgvector:
             stdout,
             {
                 # Populate num_requests counts batches, not individual records.
-                "mnist-test.Populate": {"num_requests": 1, "num_failures": 0},
-                "mnist-test.Search": {"num_requests": 20, "num_failures": 0},
+                "Populate": {"num_requests": 1, "num_failures": 0},
+                "Search": {"num_requests": 20, "num_failures": 0},
             },
         )
 
@@ -206,7 +206,7 @@ class TestPgvector:
             stdout,
             {
                 # Populate num_requests counts batches, not individual records.
-                "mnist-test.Search": {
+                "Search": {
                     "num_requests": 20,
                     "num_failures": 0,
                     "recall": check_recall_stats,
@@ -225,8 +225,8 @@ class TestPgvector:
             stdout,
             {
                 # Populate num_requests counts batches, not individual records.
-                "yfcc-test.Populate": {"num_requests": 10, "num_failures": 0},
-                "yfcc-test.Search": {
+                "Populate": {"num_requests": 10, "num_failures": 0},
+                "Search": {
                     "num_requests": 500,
                     "num_failures": 0,
                     "recall": check_recall_stats,
@@ -246,8 +246,8 @@ class TestPgvector:
             stdout,
             {
                 # Populate num_requests counts batches, not individual records.
-                "mnist-test.Populate": {"num_requests": 1, "num_failures": 0},
-                "mnist-test.Search": {
+                "Populate": {"num_requests": 1, "num_failures": 0},
+                "Search": {
                     "num_requests": 20,
                     "num_failures": 0,
                     "recall": check_recall_stats,
@@ -267,8 +267,8 @@ class TestPgvector:
         check_request_counts(
             stdout,
             {
-                "mnist-test.Populate": {"num_requests": 1, "num_failures": 0},
-                "mnist-test.Search": {
+                "Populate": {"num_requests": 1, "num_failures": 0},
+                "Search": {
                     "num_requests": 20,
                     "num_failures": 0,
                     "recall": check_recall_correctness(1.0),
@@ -292,8 +292,8 @@ class TestPgvector:
             stdout,
             {
                 # Populate num_requests counts batches, not individual records.
-                "mnist-test.Populate": {"num_requests": 1, "num_failures": 0},
-                "mnist-test.Search": {
+                "Populate": {"num_requests": 1, "num_failures": 0},
+                "Search": {
                     "num_requests": 20,
                     "num_failures": 0,
                     "recall": check_recall_correctness(0.9),

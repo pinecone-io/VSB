@@ -122,8 +122,9 @@ class PopulateUser(User):
                 stop = time.perf_counter()
 
                 elapsed_ms = (stop - start) * 1000.0
+                req_type = f"{self.workload.name}.Populate" if self.environment.workload_sequence.workload_count() > 1 else "Populate"
                 self.environment.events.request.fire(
-                    request_type=f"{self.workload.name}.Populate",
+                    request_type=req_type,
                     name=self.workload.name,
                     response_time=elapsed_ms,
                     response_length=0,
@@ -227,8 +228,9 @@ class RunUser(User):
             elapsed_ms = (stop - start) * 1000.0
             calc_metrics = metrics.calculate_metrics(request, results)
 
+            req_type = f"{self.workload.name}.Search" if self.environment.workload_sequence.workload_count() > 1 else "Search"
             self.environment.events.request.fire(
-                request_type=f"{self.workload.name}.Search",
+                request_type=req_type,
                 name=self.workload.name,
                 response_time=elapsed_ms,
                 response_length=0,
@@ -349,17 +351,19 @@ class LoadShape(LoadTestShape):
             vsb.progress.stop()
             vsb.progress = None
         if hasattr(self.runner.environment, "workload_sequence"):
-            # We have to use the previous iteration for the ending phase, for
-            # all workloads except the first one.
-            if self.runner.environment.iteration > 0:
+            # We have to use the previous iteration for repeated Populate phases. 
+            # This is because the current iteration has already been updated, from
+            # iter1.Run -> iter2.TransitionFromSetup. This would try to end 
+            # iter2.Run instead, which is not what we want.
+            if self.runner.environment.iteration > 0 and self.phase == LoadShape.Phase.Run:
                 iteration = self.runner.environment.iteration - 1
             else:
-                iteration = 0
+                iteration = self.runner.environment.iteration
             workload = self.runner.environment.workload_sequence[iteration]
             # Setup phase is a special case, as it doesn't have a workload
             phase_display_name = (
                 f"{workload.name}-{self.phase.name}"
-                if self.phase != LoadShape.Phase.Setup
+                if self.phase != LoadShape.Phase.Setup and self.runner.environment.workload_sequence.workload_count() > 1
                 else self.phase.name
             )
         else:
@@ -371,7 +375,7 @@ class LoadShape(LoadTestShape):
             workload = self.runner.environment.workload_sequence[
                 self.runner.environment.iteration
             ]
-            phase_display_name = f"{workload.name}-{self.phase.name}"
+            phase_display_name = f"{workload.name}-{self.phase.name}" if self.runner.environment.workload_sequence.workload_count() > 1 else self.phase.name
         else:
             phase_display_name = self.phase.name
         if self.phase in tracked_phases:
@@ -487,12 +491,13 @@ class LoadShape(LoadTestShape):
                 env = self.runner.environment
                 workload = env.workload_sequence[env.iteration]
 
+                req_type = f"{workload.name}.Populate" if env.workload_sequence.workload_count() > 1 else "Populate"
                 completed = vsb.metrics_tracker.calculated_metrics.get(
-                    f"{workload.name}.Populate", {}
+                    req_type, {}
                 ).get("records", 0)
 
                 stats: locust.stats.StatsEntry = env.stats.get(
-                    workload.name, f"{workload.name}.Populate"
+                    workload.name, req_type
                 )
                 duration = time.time() - stats.start_time
                 rps_str = "  Records/sec: [magenta]{:.1f}".format(completed / duration)
@@ -513,8 +518,9 @@ class LoadShape(LoadTestShape):
                 # we need to expand this to include them.
                 env = self.runner.environment
                 workload = env.workload_sequence[env.iteration]
+                req_type = f"{workload.name}.Search" if env.workload_sequence.workload_count() > 1 else "Search"
                 stats: locust.stats.StatsEntry = env.stats.get(
-                    workload.name, f"{workload.name}.Search"
+                    workload.name, req_type
                 )
 
                 # Display current (last 10s) values for some significant metrics
@@ -529,7 +535,7 @@ class LoadShape(LoadTestShape):
 
                 def get_recall_pct(p):
                     recall = vsb.metrics_tracker.get_metric_percentile(
-                        f"{workload.name}.Search", "recall", p
+                        req_type, "recall", p
                     )
                     return f"{recall:.2f}" if recall else "..."
 
