@@ -132,8 +132,8 @@ VSB currently supports the following workloads:
 
 There are also smaller test workloads available for most workloads, such as
 `mnist-test` and `nq768-test`. These are designed for basic sanity checking of a test
-environment. However, they may not have correct ground-truth nearest neighbors so
-should not be used for evaluating recall.
+environment. They recalculate the expected results in memory each time they are run,
+so load times may be long for larger tests like `cohere768-test`.
 
 ## Usage
 
@@ -359,3 +359,21 @@ operation of it, then implement the [`VectorWorkload`](vsb/workloads/base.py) ba
    [`vsb/workloads/__init__.py`](vsb/workloads/__init__.py) and updating `get_class()`.
 
 You can now run this workload by specifying `--workload=my-workload`.
+
+#### Workload Sequences
+
+VSB also supports running a sequence of workloads in succession. This is useful for
+more complex experiments that may require multiple iterations of upserting and querying
+data. Implement each workload as above, and wrap the ordered sequence of
+workloads in a subclass of [`VectorWorkloadSequence`](vsb/workloads/base.py).
+
+1. **Implement a WorkloadSequence class** in this module that inherits from
+   [`base.VectorWorkloadSequence`](vsb/workloads/base.py) and
+   implements the required methods and properties:
+    * `__init__()` - Whatever initialisation is needed for the sequence. If you need to
+      pass parameters to each workload, you can do so here. Assign a list[VectorWorkload]
+      to `self.workloads` to take advantage of the default `__getitem__` implementation.
+    * `workload_count()` - Returns the number of workloads in the sequence.
+    * `__getitem__()` - (optional with `self.workloads`) Returns the workload at the given index.
+2. **Register the workload with VSB** by adding an entry to the `WorkloadSequence` enum in
+   [`vsb/workloads/__init__.py`](vsb/workloads/__init__.py) and updating `get_class()`.
