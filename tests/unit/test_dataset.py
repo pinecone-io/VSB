@@ -22,10 +22,17 @@ class TestDataset:
         # chunk sizes are uneven.
         num_chunks = 7
         total = 0
+        min_chunk_length = sys.maxsize
+        max_chunk_length = 0
         for chunk_id in range(num_chunks):
             iter = dataset.get_batch_iterator(num_chunks, chunk_id, 100)
             chunk_total = sum([len(batch) for batch in iter])
             total += chunk_total
+            # Splitting a single parquet file into multiple chunks should yield
+            # similar sized chunks.
+            min_chunk_length = min(min_chunk_length, chunk_total)
+            max_chunk_length = max(max_chunk_length, chunk_total)
+        assert max_chunk_length - min_chunk_length <= 1
         assert total == 60000
 
     def test_get_batch_iter_limit(self):

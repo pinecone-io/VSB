@@ -104,10 +104,21 @@ class Dataset:
         self._download_dataset_files()
         pq_files = list((self.cache / self.name).glob("passages/*.parquet"))
 
-        if self.limit:
+        # If there are less files than num_chunks, there's no point in
+        # file-based partitioning (leads to users with no data).
+        if self.limit or len(pq_files) < num_chunks:
+            if len(pq_files) < num_chunks and chunk_id == 0:
+                logger.warning(
+                    f"Requested users ({num_chunks}) is greater than number of parquet files ({len(pq_files)}) - "
+                    f"will partition based on rows instead of files, load times will be significantly slower."
+                )
             dset = ds.dataset(pq_files)
             columns = self._get_set_of_passages_columns_to_read(dset)
-            first_n = dset.head(self.limit, columns=columns)
+            if self.limit:
+                first_n = dset.head(self.limit, columns=columns)
+            else:
+                first_n = dset.to_table(columns=columns)
+                self.limit = first_n.num_rows
 
             # Calculate start / end for this chunk, then split the table
             # and create an iterator over it.

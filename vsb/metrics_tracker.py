@@ -140,9 +140,6 @@ def on_report_to_master(client_id, data: dict()):
     from the local worker to the dict that is being sent, and then we clear
     the local metrics in the worker.
     """
-    logger.debug(
-        f"metrics.on_report_to_master(): calculated_metrics:{calculated_metrics}"
-    )
     serialized = {}
     for req_type, metrics in calculated_metrics.items():
         # Serialise each HdrHistogram to base64 string, then add to data to be sent to
@@ -253,7 +250,7 @@ def get_metrics_stats_summary(stats: RequestStats) -> rich.table.Table:
             table.add_row(*row)
         request = key[1]
         # Also include any custom metrics for this request type.
-        if custom := calculated_metrics.get(request, None):
+        if custom := calculated_metrics.get(r.name, dict()).get(request, None):
             for metric, value in custom.items():
                 if isinstance(value, HdrHistogram):
                     row = [

@@ -25,7 +25,7 @@ def uuid() -> str:
     return id.lower()
 
 
-def parse_stats_to_json(stdout: str) -> list(dict()):
+def parse_stats_to_json(stdout: str) -> list[dict]:
     """
     Parse stdout from VSB to locate the ststs.json path, then parse that file
     into a list of JSON dictionaries, one for each worker which reported stats.
@@ -63,7 +63,7 @@ def check_recall_correctness(p95_threshold: int):
     )
 
 
-def check_request_counts(stdout, expected: dict()) -> None:
+def check_request_counts(stdout, expected: dict) -> None:
     """Given stdout in JSON format from vsb and a dict of expected elements
     to find in stdout, check all expected fields are present, asserting on
     any mismatches.

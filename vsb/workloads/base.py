@@ -87,3 +87,59 @@ class VectorWorkload(ABC):
         :param user_id: The ID of the user requesting the iterator.
         """
         raise NotImplementedError
+
+
+class VectorWorkloadSequence(ABC):
+    @abstractmethod
+    def __init__(self, name: str, **kwargs):
+        self._name = name
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @staticmethod
+    @abstractmethod
+    def workload_count() -> int:
+        """
+        The number of workloads in the sequence.
+        """
+        raise NotImplementedError
+
+    def __getitem__(self, index: int) -> VectorWorkload:
+        """
+        Return the workload at the specified index.
+
+        A default implementation is provided assuming
+        that the workloads are stored in a list named
+        `workloads` on the class.
+        """
+        if not hasattr(self, "workloads"):
+            raise NotImplementedError
+        if index < 0 or index >= len(self.workloads):
+            raise IndexError
+        return self.workloads[index]
+
+    def record_count_upto(self, index: int) -> int:
+        """
+        Return the total number of records in the sequencedf
+        up to and including the specified index's workload.
+        """
+        if index >= self.workload_count():
+            raise IndexError
+        return sum(self[index].record_count() for index in range(index + 1))
+
+
+class SingleVectorWorkloadSequence(VectorWorkloadSequence):
+    def __init__(self, name: str, workload: VectorWorkload):
+        super().__init__(name)
+        self.workload = workload
+
+    @staticmethod
+    def workload_count() -> int:
+        return 1
+
+    def __getitem__(self, index: int) -> VectorWorkload:
+        if index != 0:
+            raise IndexError
+        return self.workload

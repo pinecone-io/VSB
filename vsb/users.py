@@ -3,7 +3,7 @@ import traceback
 from enum import Enum, auto
 
 import rich.progress
-from locust import User, task, LoadTestShape, constant_throughput
+from locust import User, task, LoadTestShape, constant_throughput, runners
 from locust.exception import ResponseError, StopUser
 import locust.stats
 
@@ -18,6 +18,10 @@ from vsb import logger
 # Dict of Distributors - objects which distribute test data across all
 # VSB Users, potentially across multiple processes.
 distributors = {}
+
+# Dict of Subscribers - objects which subscribe workers to shared
+# data controlled by the master, across multiple processes.
+subscribers = {}
 
 
 class SetupUser(User):
@@ -47,8 +51,6 @@ class SetupUser(User):
                     {
                         "user": 0,
                         "phase": "setup",
-                        "record_count": self.environment.workload.record_count(),
-                        "request_count": self.environment.workload.request_count(),
                     },
                 )
                 self.state = self.State.Done
@@ -71,16 +73,23 @@ class PopulateUser(User):
 
     def __init__(self, environment):
         super().__init__(environment)
+        iteration = subscribers["iteration"]()
+        logger.debug(f"PopulateUser.__init__() iteration:{iteration}")
         # Assign a globally unique (potentially across multiple locust processes)
         # user_id, to use for selecting which subset of the workload this User
         # will operate on.
-        self.user_id = next(distributors["user_id.populate"])
-        logger.debug(f"Initialising PopulateUser id:{self.user_id}")
+        self.user_id = next(distributors[f"user_id.populate.{iteration}"])
         self.users_total = environment.parsed_options.num_users or 1
         self.database: DB = environment.database
-        self.workload: VectorWorkload = environment.workload
+        self.workload: VectorWorkload = environment.workload_sequence[iteration]
+        self.record_count: int = environment.workload_sequence.record_count_upto(
+            iteration
+        )
         self.state = PopulateUser.State.Active
         self.load_iter = None
+        logger.debug(
+            f"PopulateUser.__init__() id:{self.user_id} workload:{self.workload.name}"
+        )
 
     @task
     def request(self):
@@ -113,8 +122,13 @@ class PopulateUser(User):
                 stop = time.perf_counter()
 
                 elapsed_ms = (stop - start) * 1000.0
+                req_type = (
+                    f"{self.workload.name}.Populate"
+                    if self.environment.workload_sequence.workload_count() > 1
+                    else "Populate"
+                )
                 self.environment.events.request.fire(
-                    request_type="Populate",
+                    request_type=req_type,
                     name=self.workload.name,
                     response_time=elapsed_ms,
                     response_length=0,
@@ -137,7 +151,7 @@ class PopulateUser(User):
             # First user only performs finalization (don't want
             # to call repeatedly if >1 user).
             logger.debug("PopulateUser finalizing population...")
-            self.database.finalize_population(self.workload.record_count())
+            self.database.finalize_population(self.record_count)
         self.environment.runner.send_message(
             "update_progress", {"user": self.user_id, "phase": "populate"}
         )
@@ -156,13 +170,14 @@ class RunUser(User):
 
     def __init__(self, environment):
         super().__init__(environment)
+        iteration = subscribers["iteration"]()
         # Assign a globally unique (potentially across multiple locust processes)
         # user_id, to use for selecting which subset of the workload this User
         # will operate on.
-        self.user_id = next(distributors["user_id.run"])
+        self.user_id = next(distributors[f"user_id.run.{iteration}"])
         self.users_total = environment.parsed_options.num_users
         self.database = environment.database
-        self.workload = environment.workload
+        self.workload = environment.workload_sequence[iteration]
         self.state = RunUser.State.Active
         opts = environment.parsed_options
         self.target_throughput = opts.requests_per_sec / float(opts.num_users)
@@ -217,8 +232,13 @@ class RunUser(User):
             elapsed_ms = (stop - start) * 1000.0
             calc_metrics = metrics.calculate_metrics(request, results)
 
+            req_type = (
+                f"{self.workload.name}.Search"
+                if self.environment.workload_sequence.workload_count() > 1
+                else "Search"
+            )
             self.environment.events.request.fire(
-                request_type="Search",
+                request_type=req_type,
                 name=self.workload.name,
                 response_time=elapsed_ms,
                 response_length=0,
@@ -263,6 +283,7 @@ class LoadShape(LoadTestShape):
         super().__init__()
         self.phase = LoadShape.Phase.Init
         self.record_count: int = None
+        self.request_count: int = None
         self.progress_task_id: rich.progress.TaskID = None
         self.num_users = 0
         self.skip_populate = False
@@ -337,11 +358,44 @@ class LoadShape(LoadTestShape):
             )
             vsb.progress.stop()
             vsb.progress = None
+        if hasattr(self.runner.environment, "workload_sequence"):
+            # We have to use the previous iteration for repeated Populate phases.
+            # This is because the current iteration has already been updated, from
+            # iter1.Run -> iter2.TransitionFromSetup. This would try to end
+            # iter2.Run instead, which is not what we want.
+            if (
+                self.runner.environment.iteration > 0
+                and self.phase == LoadShape.Phase.Run
+            ):
+                iteration = self.runner.environment.iteration - 1
+            else:
+                iteration = self.runner.environment.iteration
+            workload = self.runner.environment.workload_sequence[iteration]
+            # Setup phase is a special case, as it doesn't have a workload
+            phase_display_name = (
+                f"{workload.name}-{self.phase.name}"
+                if self.phase != LoadShape.Phase.Setup
+                and self.runner.environment.workload_sequence.workload_count() > 1
+                else self.phase.name
+            )
+        else:
+            phase_display_name = self.phase.name
         if self.phase in tracked_phases:
-            metrics_tracker.record_phase_end(self.phase.name)
+            metrics_tracker.record_phase_end(phase_display_name)
         self.phase = new
+        if hasattr(self.runner.environment, "workload_sequence"):
+            workload = self.runner.environment.workload_sequence[
+                self.runner.environment.iteration
+            ]
+            phase_display_name = (
+                f"{workload.name}-{self.phase.name}"
+                if self.runner.environment.workload_sequence.workload_count() > 1
+                else self.phase.name
+            )
+        else:
+            phase_display_name = self.phase.name
         if self.phase in tracked_phases:
-            metrics_tracker.record_phase_start(self.phase.name)
+            metrics_tracker.record_phase_start(phase_display_name)
             # Started a new phase - create a progress object for it (which will
             # display progress bars for each task on screen)
             vsb.progress = vsb.logging.make_progressbar()
@@ -358,8 +412,12 @@ class LoadShape(LoadTestShape):
         match self.phase:
             case LoadShape.Phase.Setup:
                 assert msg.data["phase"] == "setup"
-                self.record_count = msg.data["record_count"]
-                self.request_count = msg.data["request_count"]
+                self.record_count = (
+                    self.runner.environment.workload_sequence.record_count_upto(0)
+                )
+                self.request_count = self.runner.environment.workload_sequence[
+                    0
+                ].request_count()
                 logger.debug(
                     f"VSBLoadShape.update_progress() - SetupUser completed with "
                     f"record_count={self.record_count}, request_count="
@@ -377,6 +435,8 @@ class LoadShape(LoadTestShape):
                         f"{num_completed} Populate users completed - "
                         f"moving to Run phase"
                     )
+                    # Reset completed_users for next Populate -> Run iteration
+                    self.completed_users["populate"] = set()
                     self._transition_phase(LoadShape.Phase.TransitionToRun)
                 else:
                     logger.debug(
@@ -395,10 +455,40 @@ class LoadShape(LoadTestShape):
                 if num_completed == self.runner.environment.parsed_options.num_users:
                     logger.debug(
                         f"VSBLoadShape.update_progress() - all "
-                        f"{num_completed} Run users completed Run phase - "
-                        f"finishing benchmark"
+                        f"{num_completed} Run users completed Run phase"
                     )
-                    self._transition_phase(LoadShape.Phase.Done)
+                    if (
+                        self.runner.environment.iteration
+                        < self.runner.environment.workload_sequence.workload_count() - 1
+                    ):
+                        logger.debug(
+                            f"VSBLoadShape.update_progress() - "
+                            f"switching to next workload in sequence"
+                        )
+                        self.runner.environment.iteration += 1
+                        subscribers["iteration"].update(
+                            self.runner.environment.iteration
+                        )
+                        self.record_count = (
+                            self.runner.environment.workload_sequence.record_count_upto(
+                                self.runner.environment.iteration
+                            )
+                        )
+                        self.request_count = self.runner.environment.workload_sequence[
+                            self.runner.environment.iteration
+                        ].request_count()
+                        # Reset completed_users for next iteration
+                        self.completed_users["run"] = set()
+                        self._transition_phase(
+                            LoadShape.Phase.TransitionFromSetup
+                        )  # Use TransitionFromSetup to scale down and switch back to Populate
+                    else:
+                        # No more workloads in WorkloadSequence.
+                        logger.debug(
+                            f"VSBLoadShape.update_progress() - "
+                            f"no more workloads to run - finishing benchmark"
+                        )
+                        self._transition_phase(LoadShape.Phase.Done)
             case LoadShape.Phase.Done:
 
                 logger.error(
@@ -413,19 +503,31 @@ class LoadShape(LoadTestShape):
                     self.progress_task_id, total=1, completed=1 if mark_completed else 0
                 )
             case LoadShape.Phase.Populate:
-                completed = vsb.metrics_tracker.calculated_metrics.get(
-                    "Populate", {}
-                ).get("records", 0)
 
                 env = self.runner.environment
-                stats: locust.stats.StatsEntry = env.stats.get(
-                    env.parsed_options.workload, "Populate"
+                workload = env.workload_sequence[env.iteration]
+
+                req_type = (
+                    f"{workload.name}.Populate"
+                    if env.workload_sequence.workload_count() > 1
+                    else "Populate"
                 )
+                completed = vsb.metrics_tracker.calculated_metrics.get(
+                    req_type, {}
+                ).get("records", 0)
+
+                stats: locust.stats.StatsEntry = env.stats.get(workload.name, req_type)
                 duration = time.time() - stats.start_time
                 rps_str = "  Records/sec: [magenta]{:.1f}".format(completed / duration)
+                previous_record_count = (
+                    (env.workload_sequence.record_count_upto(env.iteration - 1))
+                    if env.iteration > 0
+                    else 0
+                )
                 vsb.progress.update(
                     self.progress_task_id,
-                    completed=completed,
+                    completed=completed
+                    + previous_record_count,  # Add records from previous workloads
                     total=self.record_count,
                     extra_info=rps_str,
                 )
@@ -433,9 +535,13 @@ class LoadShape(LoadTestShape):
                 # TODO: When we add additional request types other than Search,
                 # we need to expand this to include them.
                 env = self.runner.environment
-                stats: locust.StatsEntry = env.stats.get(
-                    env.parsed_options.workload, "Search"
+                workload = env.workload_sequence[env.iteration]
+                req_type = (
+                    f"{workload.name}.Search"
+                    if env.workload_sequence.workload_count() > 1
+                    else "Search"
                 )
+                stats: locust.stats.StatsEntry = env.stats.get(workload.name, req_type)
 
                 # Display current (last 10s) values for some significant metrics
                 # in the progress_details row.
@@ -449,7 +555,7 @@ class LoadShape(LoadTestShape):
 
                 def get_recall_pct(p):
                     recall = vsb.metrics_tracker.get_metric_percentile(
-                        "Search", "recall", p
+                        req_type, "recall", p
                     )
                     return f"{recall:.2f}" if recall else "..."
 

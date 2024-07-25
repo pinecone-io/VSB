@@ -4,7 +4,7 @@ Cohere-768 dataset - 10M records from en wikipedia, embedded using Cohere
 """
 
 from abc import ABC
-
+from vsb.workloads.base import VectorWorkload, VectorWorkloadSequence
 from ..parquet_workload.parquet_workload import ParquetWorkload, ParquetSubsetWorkload
 from ...vsb_types import DistanceMetric
 
@@ -20,8 +20,10 @@ class CohereBase(ParquetWorkload, ABC):
 
 
 class Cohere768(CohereBase):
-    def __init__(self, name: str, cache_dir: str):
-        super().__init__(name, "cohere-768", cache_dir=cache_dir)
+    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True):
+        super().__init__(
+            name, "cohere-768", cache_dir=cache_dir, load_on_init=load_on_init
+        )
 
     @staticmethod
     def record_count() -> int:
@@ -36,7 +38,7 @@ class Cohere768Test(ParquetSubsetWorkload, CohereBase):
     """Reduced, "test" variant of cohere-768; with ~0.1% of the full dataset (100,000
     passages and 100 queries)."""
 
-    def __init__(self, name: str, cache_dir: str):
+    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True):
         super().__init__(
             name,
             "cohere-768",
@@ -52,3 +54,58 @@ class Cohere768Test(ParquetSubsetWorkload, CohereBase):
     @staticmethod
     def request_count() -> int:
         return 100
+
+
+class Cohere768Cheese(CohereBase):
+    """A subset of mnist with only the records that do not exist in
+    the top-k neighbors of any query."""
+
+    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True):
+        super().__init__(
+            name, "cohere-768-cheese", cache_dir=cache_dir, load_on_init=load_on_init
+        )
+
+    @staticmethod
+    def record_count() -> int:
+        return 6_379_955
+
+    @staticmethod
+    def request_count() -> int:
+        return 0
+
+
+class Cohere768Holes(CohereBase):
+    """A subset of cohere-768 with only the records that exist in
+    the top-k neighbors of any query."""
+
+    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True):
+        super().__init__(
+            name, "cohere-768-holes", cache_dir=cache_dir, load_on_init=load_on_init
+        )
+
+    @staticmethod
+    def record_count() -> int:
+        return 3_620_045
+
+    @staticmethod
+    def request_count() -> int:
+        return 1_000
+
+
+class Cohere768Split(VectorWorkloadSequence):
+    """Drift sequence for cohere-768 that loads cheese values,
+    builds index, loads holes, and queries."""
+
+    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True):
+        self._name = name
+        self.cheese = Cohere768Cheese("cheese", cache_dir, load_on_init)
+        self.holes = Cohere768Holes("holes", cache_dir, load_on_init)
+        self.workloads = [self.cheese, self.holes]
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @staticmethod
+    def workload_count() -> int:
+        return 2
