@@ -32,7 +32,7 @@ import locust.stats
 # Note: These are _not_ unused, they are required to register our User
 # and custom LoadShape classes with locust.
 import users
-from users import SetupUser, PopulateUser, RunUser, LoadShape
+from users import SetupUser, PopulateUser, FinalizeUser, RunUser, LoadShape
 
 # Display stats of benchmark so far to console very 5 seconds.
 locust.stats.CONSOLE_STATS_INTERVAL_SEC = 5
@@ -51,7 +51,7 @@ def setup_environment(environment, **_kwargs):
     options = env.parsed_options
     num_users = options.num_users or 1
 
-    logger.debug(f"on_locust_init(): runner={type(environment.runner)}")
+    logger.debug(f"setup_environment(): runner={type(environment.runner)}")
 
     # Load the WorkloadSequence
     if isinstance(environment.runner, MasterRunner):

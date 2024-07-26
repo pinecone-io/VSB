@@ -250,7 +250,7 @@ def get_metrics_stats_summary(stats: RequestStats) -> rich.table.Table:
             table.add_row(*row)
         request = key[1]
         # Also include any custom metrics for this request type.
-        if custom := calculated_metrics.get(r.name, dict()).get(request, None):
+        if custom := calculated_metrics.get(request, None):
             for metric, value in custom.items():
                 if isinstance(value, HdrHistogram):
                     row = [

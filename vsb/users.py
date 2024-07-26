@@ -68,7 +68,6 @@ class PopulateUser(User):
 
     class State(Enum):
         Active = auto()
-        Finalize = auto()
         Done = auto()
 
     def __init__(self, environment):
@@ -82,9 +81,6 @@ class PopulateUser(User):
         self.users_total = environment.parsed_options.num_users or 1
         self.database: DB = environment.database
         self.workload: VectorWorkload = environment.workload_sequence[iteration]
-        self.record_count: int = environment.workload_sequence.record_count_upto(
-            iteration
-        )
         self.state = PopulateUser.State.Active
         self.load_iter = None
         logger.debug(
@@ -96,8 +92,6 @@ class PopulateUser(User):
         match self.state:
             case PopulateUser.State.Active:
                 self.do_load()
-            case PopulateUser.State.Finalize:
-                self.do_finalize()
             case PopulateUser.State.Done:
                 # Nothing more to do, but sleep briefly here to prevent
                 # us busy-looping in this state.
@@ -136,26 +130,61 @@ class PopulateUser(User):
                 )
             except StopIteration:
                 logger.debug(f"User id:{self.user_id} completed Populate phase")
-                self.state = PopulateUser.State.Finalize
+                self.environment.runner.send_message(
+                    "update_progress", {"user": self.user_id, "phase": "populate"}
+                )
+                self.state = PopulateUser.State.Done
         except Exception as e:
             traceback.print_exception(e)
             self.environment.runner.quit()
             raise StopUser
+
+
+class FinalizeUser(User):
+    """
+    Represents a single user (aka client) finalizing the population phase of a workload
+    into a particular Vector Search database.
+    """
+
+    class State(Enum):
+        Active = auto()
+        Done = auto()
+
+    def __init__(self, environment):
+        super().__init__(environment)
+        iteration = subscribers["iteration"]()
+        logger.debug(f"FinalizeUser.__init__() iteration:{iteration}")
+        # Assign a globally unique (potentially across multiple locust processes)
+        # user_id, to use for selecting which subset of the workload this User
+        # will operate on.
+        self.user_id = 0
+        self.database = environment.database
+        self.record_count: int = environment.workload_sequence.record_count_upto(
+            iteration
+        )
+        self.state = FinalizeUser.State.Active
+
+    @task
+    def request(self):
+        match self.state:
+            case FinalizeUser.State.Active:
+                self.do_finalize()
+            case FinalizeUser.State.Done:
+                # Nothing more to do, but sleep briefly here to prevent
+                # us busy-looping in this state.
+                time.sleep(0.1)
 
     def do_finalize(self):
         """Perform any database-specific finalization of the populate phase
         (e.g. wait for index building to be complete) before PopulateUser
         declares complete.
         """
-        if self.user_id == 0:
-            # First user only performs finalization (don't want
-            # to call repeatedly if >1 user).
-            logger.debug("PopulateUser finalizing population...")
-            self.database.finalize_population(self.record_count)
+        logger.debug("FinalizeUser finalizing population...")
+        self.database.finalize_population(self.record_count)
         self.environment.runner.send_message(
-            "update_progress", {"user": self.user_id, "phase": "populate"}
+            "update_progress", {"user": self.user_id, "phase": "finalize"}
         )
-        self.state = PopulateUser.State.Done
+        self.state = FinalizeUser.State.Done
 
 
 class RunUser(User):
@@ -272,8 +301,13 @@ class LoadShape(LoadTestShape):
         Populate = auto()
         """Upsert records and build indexes (either during data load or when all
          records have been upserted)."""
+        TransitionToFinalize = auto()
+        """Wait for all Populate Users to complete before advancing to Finalize phase"""
+        Finalize = auto()
+        """Perform any finalization tasks (building index, etc.) after all records 
+        have been loaded."""
         TransitionToRun = auto()
-        """Wait for all Populate Users to complete before advancing to Run phase"""
+        """Wait for all Finalize Users to complete before advancing to Run phase"""
         Run = auto()
         """Issue requests (queries) to the database and recording the results."""
         Done = auto()
@@ -325,9 +359,19 @@ class LoadShape(LoadTestShape):
             case LoadShape.Phase.Populate:
                 self._update_progress_bar()
                 return self.num_users, self.num_users, [PopulateUser]
+            case LoadShape.Phase.TransitionToFinalize:
+                if self.get_current_user_count() == 0:
+                    # stopped all previous Populate Users, can switch to Finalize
+                    # phase now
+                    self._transition_phase(LoadShape.Phase.Finalize)
+                    return self.tick()
+                return 0, self.num_users, []
+            case LoadShape.Phase.Finalize:
+                self._update_progress_bar()
+                return 1, 1, [FinalizeUser]
             case LoadShape.Phase.TransitionToRun:
                 if self.get_current_user_count() == 0:
-                    # stopped all previous Populate Users, can switch to Run
+                    # stopped all previous Finalize Users, can switch to Run
                     # phase now
                     self._transition_phase(LoadShape.Phase.Run)
                     return self.tick()
@@ -349,6 +393,7 @@ class LoadShape(LoadTestShape):
         tracked_phases = [
             LoadShape.Phase.Setup,
             LoadShape.Phase.Populate,
+            LoadShape.Phase.Finalize,
             LoadShape.Phase.Run,
         ]
         if vsb.progress is not None:
@@ -425,6 +470,11 @@ class LoadShape(LoadTestShape):
                     f"moving to TransitionFromSetup phase"
                 )
                 self._transition_phase(LoadShape.Phase.TransitionFromSetup)
+            case LoadShape.Phase.TransitionFromSetup:
+                logger.error(
+                    f"VSBLoadShape.update_progress() - Unexpected progress update in "
+                    f"TransitionFromSetup phase!"
+                )
             case LoadShape.Phase.Populate:
                 assert msg.data["phase"] == "populate"
                 self.completed_users["populate"].add(msg.data["user"])
@@ -437,12 +487,23 @@ class LoadShape(LoadTestShape):
                     )
                     # Reset completed_users for next Populate -> Run iteration
                     self.completed_users["populate"] = set()
-                    self._transition_phase(LoadShape.Phase.TransitionToRun)
+                    self._transition_phase(LoadShape.Phase.TransitionToFinalize)
                 else:
                     logger.debug(
                         f"VSBLoadShape.update_progress() - users have now "
                         f"completed: {self.completed_users['populate']}"
                     )
+            case LoadShape.Phase.TransitionToFinalize:
+                logger.error(
+                    f"VSBLoadShape.update_progress() - Unexpected progress update in "
+                    f"TransitionToFinalize phase!"
+                )
+            case LoadShape.Phase.Finalize:
+                assert msg.data["phase"] == "finalize"
+                logger.debug(
+                    f"VSBLoadShape.update_progress() - completed Finalize phase"
+                )
+                self._transition_phase(LoadShape.Phase.TransitionToRun)
             case LoadShape.Phase.TransitionToRun:
                 logger.error(
                     f"VSBLoadShape.update_progress() - Unexpected progress update in "
@@ -530,6 +591,10 @@ class LoadShape(LoadTestShape):
                     + previous_record_count,  # Add records from previous workloads
                     total=self.record_count,
                     extra_info=rps_str,
+                )
+            case LoadShape.Phase.Finalize:
+                vsb.progress.update(
+                    self.progress_task_id, completed=1 if mark_completed else 0
                 )
             case LoadShape.Phase.Run:
                 # TODO: When we add additional request types other than Search,
