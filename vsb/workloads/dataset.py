@@ -11,6 +11,7 @@ import pyarrow.dataset as ds
 from pyarrow.parquet import ParquetDataset, ParquetFile
 
 import vsb
+from vsb.locker import Locker
 from vsb import logger
 from vsb.logging import ProgressIOWrapper
 
@@ -166,63 +167,64 @@ class Dataset:
         )
 
     def _download_dataset_files(self):
-        self.cache.mkdir(parents=True, exist_ok=True)
-        logger.debug(
-            f"Checking for existence of dataset '{self.name}' in dataset cache '{self.cache}'"
-        )
-        client = Client.create_anonymous_client()
-        bucket: Bucket = client.bucket(Dataset.gcs_bucket)
-        blobs = [b for b in bucket.list_blobs(prefix=self.name + "/")]
-        # Ignore directories (blobs ending in '/') as we don't explicilty need them
-        # (non-empty directories will have their files downloaded
-        # anyway).
-        blobs = [b for b in blobs if not b.name.endswith("/")]
-        logger.debug(
-            f"Dataset consists of {len(blobs)} files" f":{[b.name for b in blobs]}"
-        )
+        with Locker(self.cache / ".lock"):
+            self.cache.mkdir(parents=True, exist_ok=True)
+            logger.debug(
+                f"Checking for existence of dataset '{self.name}' in dataset cache '{self.cache}'"
+            )
+            client = Client.create_anonymous_client()
+            bucket: Bucket = client.bucket(Dataset.gcs_bucket)
+            blobs = [b for b in bucket.list_blobs(prefix=self.name + "/")]
+            # Ignore directories (blobs ending in '/') as we don't explicilty need them
+            # (non-empty directories will have their files downloaded
+            # anyway).
+            blobs = [b for b in blobs if not b.name.endswith("/")]
+            logger.debug(
+                f"Dataset consists of {len(blobs)} files" f":{[b.name for b in blobs]}"
+            )
 
-        def should_download(blob):
-            path = self.cache / blob.name
-            if not path.exists():
-                return True
-            # File exists - check size, assume same size is same file.
-            # (Ideally would check hash (md5), but using hashlib.md5() to
-            # calculate the local MD5 does not match remove; maybe due to
-            # transmission as compressed file?
-            local_size = path.stat().st_size
-            remote_size = blob.size
-            return local_size != remote_size
+            def should_download(blob):
+                path = self.cache / blob.name
+                if not path.exists():
+                    return True
+                # File exists - check size, assume same size is same file.
+                # (Ideally would check hash (md5), but using hashlib.md5() to
+                # calculate the local MD5 does not match remove; maybe due to
+                # transmission as compressed file?
+                local_size = path.stat().st_size
+                remote_size = blob.size
+                return local_size != remote_size
 
-        to_download = [b for b in filter(lambda b: should_download(b), blobs)]
-        if not to_download:
-            return
+            to_download = [b for b in filter(lambda b: should_download(b), blobs)]
+            if not to_download:
+                return
 
-        logger.debug(
-            f"Parquet dataset: downloading {len(to_download)} files belonging to "
-            f"dataset '{self.name}'"
-        )
-        with vsb.logging.progress_task(
-            "  Downloading dataset files",
-            "  ✔ Dataset download complete",
-            total=len(to_download),
-        ) as download_task:
-            for blob in to_download:
-                logger.debug(
-                    f"Dataset file '{blob.name}' not found in cache - will be downloaded"
-                )
-                dest_path = self.cache / blob.name
-                dest_path.parent.mkdir(parents=True, exist_ok=True)
-                blob.download_to_file(
-                    ProgressIOWrapper(
-                        dest=dest_path,
-                        progress=vsb.progress,
-                        total=blob.size,
-                        scale=1024 * 1024,
-                        indent=2,
+            logger.debug(
+                f"Parquet dataset: downloading {len(to_download)} files belonging to "
+                f"dataset '{self.name}'"
+            )
+            with vsb.logging.progress_task(
+                "  Downloading dataset files",
+                "  ✔ Dataset download complete",
+                total=len(to_download),
+            ) as download_task:
+                for blob in to_download:
+                    logger.debug(
+                        f"Dataset file '{blob.name}' not found in cache - will be downloaded"
                     )
-                )
-                if vsb.progress:
-                    vsb.progress.update(download_task, advance=1)
+                    dest_path = self.cache / blob.name
+                    dest_path.parent.mkdir(parents=True, exist_ok=True)
+                    blob.download_to_file(
+                        ProgressIOWrapper(
+                            dest=dest_path,
+                            progress=vsb.progress,
+                            total=blob.size,
+                            scale=1024 * 1024,
+                            indent=2,
+                        )
+                    )
+                    if vsb.progress:
+                        vsb.progress.update(download_task, advance=1)
 
     def _load_parquet_dataset(self, kind, limit=0):
         parquet_files = [f for f in (self.cache / self.name).glob(kind + "/*.parquet")]
