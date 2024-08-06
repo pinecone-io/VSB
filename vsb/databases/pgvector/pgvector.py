@@ -46,7 +46,7 @@ class PgvectorNamespace(Namespace):
                 self.warned_no_metadata = True
                 logger.warning(
                     f"You're using a {self.index_type} index type, "
-                    f"but this data doesn't seem to have metadata. "
+                    f"but this workload doesn't seem to have metadata. "
                     f"Are you sure this is correct?"
                 )
 
@@ -210,53 +210,26 @@ class PgvectorDB(DB):
             f"  ✔ pgvector index ({self.index_type}) created",
             total=None,
         ):
-            match self.index_type:
-                case "hnsw":
-                    sql = (
-                        f"CREATE INDEX IF NOT EXISTS {self.table}_embedding_idx ON "
-                        f"{self.table} USING hnsw (embedding "
-                        f"{PgvectorDB._get_distance_func(self.metric)})"
-                    )
-                    self.conn.execute(sql)
-                case "ivfflat":
-                    sql = (
-                        f"CREATE INDEX IF NOT EXISTS {self.table}_embedding_idx ON "
-                        f"{self.table} USING ivfflat (embedding "
-                        f"{PgvectorDB._get_distance_func(self.metric)}) WITH (lists = {self.ivfflat_lists})"
-                    )
-                    self.conn.execute(sql)
-                case "gin":
-                    sql = (
-                        f"CREATE INDEX IF NOT EXISTS {self.table}_metadata_idx ON "
-                        f"{self.table} USING gin (metadata)"
-                    )
-                    self.conn.execute(sql)
-                case "hnsw+gin":
-                    sql = (
-                        f"CREATE INDEX IF NOT EXISTS {self.table}_embedding_idx ON "
-                        f"{self.table} USING hnsw (embedding "
-                        f"{PgvectorDB._get_distance_func(self.metric)})"
-                    )
-                    self.conn.execute(sql)
-                    sql = (
-                        f"CREATE INDEX IF NOT EXISTS {self.table}_metadata_idx ON "
-                        f"{self.table} USING gin (metadata)"
-                    )
-                    self.conn.execute(sql)
-                case "ivfflat+gin":
-                    sql = (
-                        f"CREATE INDEX IF NOT EXISTS {self.table}_embedding_idx ON "
-                        f"{self.table} USING ivfflat (embedding "
-                        f"{PgvectorDB._get_distance_func(self.metric)}) WITH (lists = {self.ivfflat_lists})"
-                    )
-                    self.conn.execute(sql)
-                    sql = (
-                        f"CREATE INDEX IF NOT EXISTS {self.table}_metadata_idx ON "
-                        f"{self.table} USING gin (metadata)"
-                    )
-                    self.conn.execute(sql)
-                case _:
-                    raise ValueError(f"Unsupported index type: {self.index_type}")
+            if "hnsw" in self.index_type:
+                sql = (
+                    f"CREATE INDEX IF NOT EXISTS {self.table}_embedding_idx ON "
+                    f"{self.table} USING hnsw (embedding "
+                    f"{PgvectorDB._get_distance_func(self.metric)})"
+                )
+                self.conn.execute(sql)
+            if "ivfflat" in self.index_type:
+                sql = (
+                    f"CREATE INDEX IF NOT EXISTS {self.table}_embedding_idx ON "
+                    f"{self.table} USING ivfflat (embedding "
+                    f"{PgvectorDB._get_distance_func(self.metric)}) WITH (lists = {self.ivfflat_lists})"
+                )
+                self.conn.execute(sql)
+            if "gin" in self.index_type:
+                sql = (
+                    f"CREATE INDEX IF NOT EXISTS {self.table}_metadata_idx ON "
+                    f"{self.table} USING gin (metadata)"
+                )
+                self.conn.execute(sql)
 
     @staticmethod
     def _get_distance_func(metric: DistanceMetric) -> str:
