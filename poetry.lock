@@ -1109,13 +1109,13 @@ i18n = ["Babel (>=2.7)"]
 
 [[package]]
 name = "locust"
-version = "2.29.1"
+version = "2.31.1"
 description = "Developer-friendly load testing framework"
 optional = false
 python-versions = ">=3.9"
 files = [
-    {file = "locust-2.29.1-py3-none-any.whl", hash = "sha256:8b15daab44cdf50eef1860a32bb30969423e3795247115e5a37446da3240c6d6"},
-    {file = "locust-2.29.1.tar.gz", hash = "sha256:2e0628a59e2689a50cb4735a9a43709e30f2da7ed276c15d877c5325507f44b1"},
+    {file = "locust-2.31.1-py3-none-any.whl", hash = "sha256:20756509939004e95c622ac3042886edab38b736f00534cc03ce2774064e7f71"},
+    {file = "locust-2.31.1.tar.gz", hash = "sha256:d26b7333cdef80645f3978d8ff9aabab4d53e41ed82cc8490212aa68e8498fdd"},
 ]
 
 [package.dependencies]
@@ -1127,11 +1127,11 @@ gevent = ">=22.10.2"
 geventhttpclient = ">=2.3.1"
 msgpack = ">=1.0.0"
 psutil = ">=5.9.1"
-pywin32 = {version = "*", markers = "platform_system == \"Windows\""}
+pywin32 = {version = "*", markers = "sys_platform == \"win32\""}
 pyzmq = ">=25.0.0"
 requests = [
-    {version = ">=2.26.0", markers = "python_version <= \"3.11\""},
-    {version = ">=2.32.2", markers = "python_version > \"3.11\""},
+    {version = ">=2.26.0", markers = "python_full_version <= \"3.11.0\""},
+    {version = ">=2.32.2", markers = "python_full_version > \"3.11.0\""},
 ]
 Werkzeug = ">=2.0.0"
 
@@ -2568,4 +2568,4 @@ testing = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "cf2cd2ad116f33a9d471b39bbdd62532c2a8d28970bbc9583c6ba7bc18509e1b"
+content-hash = "ac610c7bcb5ab8de27298ff89c0335e21c757b0d5c49db23f038745edec436d2"
