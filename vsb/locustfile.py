@@ -73,7 +73,11 @@ def setup_listeners(environment, **_kwargs):
         # loading is not gevent-friendly) and locust's master / worker heartbeat
         # thinks the worker has gone missing and can terminate it.
         pool = gevent.get_hub().threadpool
-        gl = pool.apply_async(setup_environment, kwds={"environment": environment})
+        gl = pool.apply_async(
+            setup_environment,
+            kwds={"environment": environment},
+            callback=setup_worker_database,
+        )
         gl.link_exception(
             lambda gl: logger.error(
                 f"{type(environment.runner)}: setup_environment() failed: {gl.exception}"
@@ -139,26 +143,14 @@ def setup_environment(environment, **_kwargs):
         environment, environment.iteration, "iteration"
     )
 
-    # Workers need to notify the master that they have finished setting up
-    if isinstance(environment.runner, WorkerRunner):
-        environment.runner.send_message(
-            "setup_done", {"user_id": environment.runner.client_id}
-        )
     logger.debug(f"setup_environment() finished: runner={type(environment.runner)}")
+    return environment
 
 
-# Note that this listener is guaranteed to finish before Users are spawned, but not
-# before LoadShape is initialized and potentially goes through Init; be careful
-# of accessing env.iteration or other environment attributes set up in
-# setup_environment() before this event listener finishes.
-@events.test_start.add_listener
-def setup_worker_dataset(environment, **_kwargs):
+def setup_worker_database(environment, **_kwargs):
     # happens only once in headless runs, but can happen multiple times in web ui-runs
 
-    logger.debug(f"setup_worker_dataset() start: runner={type(environment.runner)}")
-    if not isinstance(environment.runner, LocalRunner):
-        # Wait for setup_environment() threads to finish before proceeding
-        gevent.get_hub().threadpool.join()
+    logger.debug(f"setup_worker_database() start: runner={type(environment.runner)}")
 
     # We need to initialize the Database here, and not in setup_environment()'s
     # background thread: monkey-patching grpc in the background thread will not
@@ -188,7 +180,13 @@ def setup_worker_dataset(environment, **_kwargs):
         )
         log.unhandled_greenlet_exception = True
         environment.runner.quit()
-    logger.debug(f"setup_worker_dataset() finished: runner={type(environment.runner)}")
+
+    # Workers need to notify the master that they have finished setting up
+    if isinstance(environment.runner, WorkerRunner):
+        environment.runner.send_message(
+            "setup_done", {"user_id": environment.runner.client_id}
+        )
+    logger.debug(f"setup_worker_database() finished: runner={type(environment.runner)}")
 
 
 @events.quit.add_listener
