@@ -51,10 +51,7 @@ jobs:
 
     - name: Set up Docker Compose
       run: |
-        docker-compose -f docker/pgvector/docker-compose.yml up -d
-      env:
-        COMPOSE_DOCKER_CLI_BUILD: 1
-        DOCKER_BUILDKIT: 1
+        docker compose -f docker/pgvector/docker-compose.yml up -d
     - name: Test with pytest
       run: |
         poetry run pytest --durations=10
@@ -67,4 +64,4 @@ jobs:
     - name: Shut down Docker Compose
       if: always()
       run: |
-        docker-compose -f docker/pgvector/docker-compose.yml down
+        docker compose -f docker/pgvector/docker-compose.yml down
