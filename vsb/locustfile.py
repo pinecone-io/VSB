@@ -190,6 +190,9 @@ def setup_worker_database(environment, **_kwargs):
         environment.runner.send_message(
             "setup_done", {"user_id": environment.runner.client_id}
         )
+    # Set this process-wide flag so we can check in test_start if we
+    # attempted to setup the environment + database.
+    environment.setup_done = True
     logger.debug(f"setup_worker_database() finished: runner={type(environment.runner)}")
 
 
@@ -199,6 +202,10 @@ def check_environment_setup(environment, **_kwargs):
     # handler don't crash the locust process, leading to tests hanging. We must
     # check the environment is correctly setup in test_start and throw/quit if
     # not. See https://github.com/locustio/locust/issues/2057.
+
+    while not hasattr(environment, "setup_done"):
+        gevent.sleep(0.1)
+
     if not hasattr(environment, "workload_sequence"):
         logger.error(
             "Environment not correctly setup, workload_sequence not initialized."
