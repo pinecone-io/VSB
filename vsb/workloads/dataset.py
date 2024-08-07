@@ -227,6 +227,9 @@ class Dataset:
                     )
                     if vsb.progress:
                         vsb.progress.update(download_task, advance=1)
+            # Clear the progress bar now we're done.
+            vsb.progress.stop()
+            vsb.progress = None
 
     def _load_parquet_dataset(self, kind, limit=0):
         parquet_files = [f for f in (self.cache / self.name).glob(kind + "/*.parquet")]

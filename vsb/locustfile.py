@@ -63,33 +63,28 @@ def setup_listeners(environment, **_kwargs):
     # to setup their environment before starting the test. Since this may take
     # a few minutes (from downloading a large dataset), we need to rely on the
     # event loop to keep the master responsive to heartbeats.
-    if isinstance(environment.runner, MasterRunner):
+    if not isinstance(environment.runner, WorkerRunner):
         environment.setup_completed_workers = set()
         environment.runner.register_message("setup_done", master_receive_setup_update)
 
-    if not isinstance(environment.runner, LocalRunner):
-        # We need to perform this work in a background thread (not in the current
-        # gevent greenlet) as otherwise we block the current greenlet (pandas data
-        # loading is not gevent-friendly) and locust's master / worker heartbeat
-        # thinks the worker has gone missing and can terminate it.
-        pool = gevent.get_hub().threadpool
-        gl = pool.apply_async(
-            setup_environment,
-            kwds={"environment": environment},
-            callback=setup_worker_database,
+    # We need to perform this work in a background thread (not in the current
+    # gevent greenlet) as otherwise we block the current greenlet (pandas data
+    # loading is not gevent-friendly) and locust's master / worker heartbeat
+    # thinks the worker has gone missing and can terminate it.
+    pool = gevent.get_hub().threadpool
+    gl = pool.apply_async(
+        setup_environment,
+        kwds={"environment": environment},
+        callback=setup_worker_database,
+    )
+
+    def on_exception(gl):
+        logger.error(
+            f"{type(environment.runner)}: setup_environment() failed, quitting: {gl.exception}"
         )
+        environment.runner.quit()
 
-        def on_exception(gl):
-            logger.error(
-                f"{type(environment.runner)}: setup_environment() failed, quitting: {gl.exception}"
-            )
-            environment.runner.quit()
-
-        gl.link_exception(on_exception)
-    else:
-        # In local mode, we can run setup_environment() in the current greenlet
-        setup_environment(environment)
-        setup_worker_database(environment)
+    gl.link_exception(on_exception)
 
 
 def setup_environment(environment, **_kwargs):
@@ -186,7 +181,7 @@ def setup_worker_database(environment, **_kwargs):
         environment.runner.quit()
 
     # Workers need to notify the master that they have finished setting up
-    if isinstance(environment.runner, WorkerRunner):
+    if not isinstance(environment.runner, MasterRunner):
         environment.runner.send_message(
             "setup_done", {"user_id": environment.runner.client_id}
         )
@@ -206,7 +201,7 @@ def check_environment_setup(environment, **_kwargs):
     # Spawn a greenlet to check if the environment is correctly setup.
     def check_environment_setup_async(environment):
         while not hasattr(environment, "setup_done"):
-            gevent.sleep(1)
+            gevent.sleep(0.01)
         logger.debug(
             f"check_environment_setup_async(): setup_done={environment.setup_done}"
         )

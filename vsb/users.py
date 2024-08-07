@@ -345,15 +345,13 @@ class LoadShape(LoadTestShape):
                 self.num_users = parsed_opts.num_users
                 self.skip_populate = parsed_opts.skip_populate
                 # manually change phase because _transition_phase depends on environment
-                # that might not be set up yet
+                # attributes like workload_sequence that might not be set up yet
                 logger.debug(f"switching to WaitingForWorkers phase")
                 self.phase = LoadShape.Phase.WaitingForWorkers
                 return self.tick()
             case LoadShape.Phase.WaitingForWorkers:
-                # If we're running in distributed mode, we need to wait for all workers
                 if (
-                    not isinstance(self.runner, runners.MasterRunner)
-                    or len(self.runner.environment.setup_completed_workers)
+                    len(self.runner.environment.setup_completed_workers)
                     == self.runner.environment.parsed_options.expect_workers
                 ):
                     # All workers have completed process-wide setup, so we can start
