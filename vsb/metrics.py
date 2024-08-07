@@ -22,7 +22,7 @@ class Recall(Metric):
 
     @staticmethod
     def name():
-        return "recall"
+        return "Recall"
 
     @staticmethod
     def measure(request: SearchRequest, results: list[str]) -> float:
@@ -59,14 +59,19 @@ class AveragePrecision(Metric):
                 return 1.0
             # If we expect [] and receive vectors, the result is (fully) incorrect.
             return 0.0
-        relevant = set(expected)
-        num_true_positives = 0
+        if not actual:
+            # If we expect vectors and receive [], the result is (fully) incorrect.
+            return 0.0
+        relevant = set()
+        so_far = set()
         precision = 0
         for i, result in enumerate(actual):
-            if result in relevant:
-                num_true_positives += 1
+            so_far.add(result)
+            if i < len(expected):
+                relevant.add(expected[i])
+            num_true_positives = len(so_far & relevant)
             precision += num_true_positives / (i + 1)
-        return precision / len(expected)
+        return precision / len(actual)
 
 
 class ReciprocalRank(Metric):

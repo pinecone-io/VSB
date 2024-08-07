@@ -30,7 +30,7 @@ class TestPgvector:
                 "Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": check_recall_stats,
+                    "Recall": check_recall_stats,
                 },
             },
         )
@@ -55,7 +55,7 @@ class TestPgvector:
                 "Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": check_recall_stats,
+                    "Recall": check_recall_stats,
                 },
             },
         )
@@ -82,7 +82,7 @@ class TestPgvector:
                 "Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": check_recall_stats,
+                    "Recall": check_recall_stats,
                 },
             },
         )
@@ -101,13 +101,13 @@ class TestPgvector:
                 "test1.Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": check_recall_stats,
+                    "Recall": check_recall_stats,
                 },
                 "test2.Populate": {"num_requests": 1, "num_failures": 0},
                 "test2.Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": check_recall_stats,
+                    "Recall": check_recall_stats,
                 },
             },
         )
@@ -134,13 +134,13 @@ class TestPgvector:
                 "test1.Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": check_recall_stats,
+                    "Recall": check_recall_stats,
                 },
                 "test2.Populate": {"num_requests": 4, "num_failures": 0},
                 "test2.Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": check_recall_stats,
+                    "Recall": check_recall_stats,
                 },
             },
         )
@@ -167,13 +167,13 @@ class TestPgvector:
                 "test1.Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": check_recall_stats,
+                    "Recall": check_recall_stats,
                 },
                 "test2.Populate": {"num_requests": 4, "num_failures": 0},
                 "test2.Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": check_recall_stats,
+                    "Recall": check_recall_stats,
                 },
             },
         )
@@ -209,7 +209,7 @@ class TestPgvector:
                 "Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": check_recall_stats,
+                    "Recall": check_recall_stats,
                 },
             },
         )
@@ -229,7 +229,7 @@ class TestPgvector:
                 "Search": {
                     "num_requests": 500,
                     "num_failures": 0,
-                    "recall": check_recall_stats,
+                    "Recall": check_recall_stats,
                 },
             },
         )
@@ -250,7 +250,7 @@ class TestPgvector:
                 "Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": check_recall_stats,
+                    "Recall": check_recall_stats,
                 },
             },
         )
@@ -271,7 +271,7 @@ class TestPgvector:
                 "Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": check_recall_correctness(1.0),
+                    "Recall": check_recall_correctness(1.0),
                 },
             },
         )
@@ -291,7 +291,7 @@ class TestPgvector:
                 "Search": {
                     "num_requests": 500,
                     "num_failures": 0,
-                    "recall": check_recall_stats,
+                    "Recall": check_recall_stats,
                 },
             },
         )
@@ -311,7 +311,7 @@ class TestPgvector:
                 "Search": {
                     "num_requests": 500,
                     "num_failures": 0,
-                    "recall": check_recall_stats,
+                    "Recall": check_recall_stats,
                 },
             },
         )
@@ -331,7 +331,7 @@ class TestPgvector:
                 "Search": {
                     "num_requests": 500,
                     "num_failures": 0,
-                    "recall": check_recall_stats,
+                    "Recall": check_recall_stats,
                 },
             },
         )
@@ -356,7 +356,7 @@ class TestPgvector:
                 "Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": check_recall_correctness(0.9),
+                    "Recall": check_recall_correctness(0.9),
                 },
             },
         )

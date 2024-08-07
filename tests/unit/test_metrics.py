@@ -1,5 +1,6 @@
 from vsb.metrics import Recall, AveragePrecision, ReciprocalRank
 from vsb.vsb_types import SearchRequest
+from math import isclose
 
 
 def test_recall_equal():
@@ -32,28 +33,58 @@ def test_recall_more_neighbors_than_topk():
     assert Recall.measure(request, ["2"]) == 0.0
 
 
-def test_average_precision_equal():
-    # Test AveragePrecision() for equal length actual and expected lists.
+def test_average_precision():
+    # Test AveragePrecision() for actual and expected lists.
     assert AveragePrecision._calculate([], []) == 1.0
     assert AveragePrecision._calculate(["1"], ["1"]) == 1.0
     assert AveragePrecision._calculate(["0"], ["1"]) == 0.0
     assert AveragePrecision._calculate(["1", "3"], ["1", "2"]) == 0.75
     assert AveragePrecision._calculate(["3", "1"], ["1", "2"]) == 0.25
-    assert AveragePrecision._calculate(["1", "2"], ["2", "1"]) == 1.0
-    assert (
-        AveragePrecision._calculate(["2", "3", "4", "5"], ["1", "2", "3", "4"])
-        == 0.9375
+    assert AveragePrecision._calculate(["1", "2"], ["2", "1"]) == 0.5
+    assert isclose(
+        AveragePrecision._calculate(["2", "3", "4", "5"], ["1", "2", "3", "4"]),
+        0.479166,
+        abs_tol=0.001,
     )
 
-
-def test_average_precision_actual_fewer_expected():
-    # Test AveragePrecision() when actual matches is fewer than expected - i.e.
-    # query returned less than requested top_k.
-    assert AveragePrecision._calculate([], ["1"]) == 0.0
-    assert AveragePrecision._calculate(["1"], ["1", "2"]) == 0.5
-    assert AveragePrecision._calculate(["3"], ["1", "2"]) == 0.0
-    assert AveragePrecision._calculate(["1"], ["1", "2", "3", "4"]) == 0.25
-    assert AveragePrecision._calculate(["1", "2"], ["1", "2", "3", "4"]) == 0.5
+    expected = ["a", "b", "c", "d", "e", "f"]
+    request = SearchRequest(values=[], top_k=1, neighbors=expected)
+    assert AveragePrecision.measure(request, ["a"]) == 1.0
+    assert AveragePrecision._calculate(["a", "b"], expected) == 1.0
+    assert AveragePrecision._calculate(["z"], expected) == 0.0
+    assert AveragePrecision._calculate(expected, expected) == 1.0
+    assert isclose(
+        AveragePrecision._calculate(["a", "x"], expected), 0.75, abs_tol=0.001
+    )
+    assert isclose(
+        AveragePrecision._calculate(["a", "c"], expected), 0.75, abs_tol=0.001
+    )
+    assert isclose(
+        AveragePrecision._calculate(["b", "a", "c"], expected), 0.666, abs_tol=0.001
+    )
+    assert isclose(
+        AveragePrecision._calculate(["c", "b", "a"], expected), 0.5, abs_tol=0.001
+    )
+    assert isclose(
+        AveragePrecision._calculate(["a", "d", "c", "b"], expected),
+        0.79166,
+        abs_tol=0.001,
+    )
+    assert isclose(
+        AveragePrecision._calculate(["a", "b", "c", "f", "e", "d"], expected),
+        0.925,
+        abs_tol=0.001,
+    )
+    assert isclose(
+        AveragePrecision._calculate(["f", "e", "d", "c", "b", "a"], expected),
+        0.3833,
+        abs_tol=0.001,
+    )
+    assert isclose(
+        AveragePrecision._calculate(["a", "z", "b", "d", "f", "x"], expected),
+        0.6972,
+        abs_tol=0.001,
+    )
 
 
 def test_average_precision_more_neighbors_than_topk():
