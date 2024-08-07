@@ -86,6 +86,7 @@ def setup_listeners(environment, **_kwargs):
     else:
         # In local mode, we can run setup_environment() in the current greenlet
         setup_environment(environment)
+        setup_worker_database(environment)
 
 
 def setup_environment(environment, **_kwargs):
