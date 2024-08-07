@@ -10,8 +10,9 @@ from pinecone.grpc import PineconeGRPC
 import pyarrow.dataset as ds
 from pyarrow.parquet import ParquetDataset, ParquetFile
 
+from filelock import FileLock
+
 import vsb
-from vsb.locker import Locker
 from vsb import logger
 from vsb.logging import ProgressIOWrapper
 
@@ -167,7 +168,7 @@ class Dataset:
         )
 
     def _download_dataset_files(self):
-        with Locker(self.cache / ".lock"):
+        with FileLock(self.cache / ".lock"):
             self.cache.mkdir(parents=True, exist_ok=True)
             logger.debug(
                 f"Checking for existence of dataset '{self.name}' in dataset cache '{self.cache}'"
@@ -203,6 +204,7 @@ class Dataset:
                 f"Parquet dataset: downloading {len(to_download)} files belonging to "
                 f"dataset '{self.name}'"
             )
+            vsb.progress = vsb.logging.make_progressbar()
             with vsb.logging.progress_task(
                 "  Downloading dataset files",
                 "  ✔ Dataset download complete",

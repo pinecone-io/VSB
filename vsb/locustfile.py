@@ -203,17 +203,30 @@ def check_environment_setup(environment, **_kwargs):
     # check the environment is correctly setup in test_start and throw/quit if
     # not. See https://github.com/locustio/locust/issues/2057.
 
-    while not hasattr(environment, "setup_done"):
-        gevent.sleep(0.1)
-
-    if not hasattr(environment, "workload_sequence"):
-        logger.error(
-            "Environment not correctly setup, workload_sequence not initialized."
+    # Spawn a greenlet to check if the environment is correctly setup.
+    def check_environment_setup_async(environment):
+        while not hasattr(environment, "setup_done"):
+            gevent.sleep(1)
+        logger.debug(
+            f"check_environment_setup_async(): setup_done={environment.setup_done}"
         )
-        environment.runner.quit()
-    if not hasattr(environment, "database"):
-        logger.error("Environment not correctly setup, database not initialized.")
-        environment.runner.quit()
+        if not hasattr(environment, "workload_sequence"):
+            logger.error(
+                "Environment not correctly setup, workload_sequence not initialized."
+            )
+            environment.runner.quit()
+        if not hasattr(environment, "database"):
+            logger.error("Environment not correctly setup, database not initialized.")
+            environment.runner.quit()
+
+    # We have to spawn a greenlet to check the environment setup, as we can't
+    # block the current greenlet (which is currently blocked running test_start) as
+    # it will prevent the worker from receiving heartbeat responses from the master.
+    gevent.spawn(check_environment_setup_async, environment)
+
+    # We don't have to join this greenlet, as we only rely on it to fail if the
+    # environment is not correctly setup. Our Users will only be spawned after
+    # the setup_done events are received from all workers.
 
 
 @events.quit.add_listener
