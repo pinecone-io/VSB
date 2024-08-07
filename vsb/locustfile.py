@@ -78,11 +78,14 @@ def setup_listeners(environment, **_kwargs):
             kwds={"environment": environment},
             callback=setup_worker_database,
         )
-        gl.link_exception(
-            lambda gl: logger.error(
-                f"{type(environment.runner)}: setup_environment() failed: {gl.exception}"
+
+        def on_exception(gl):
+            logger.error(
+                f"{type(environment.runner)}: setup_environment() failed, quitting: {gl.exception}"
             )
-        )
+            environment.runner.quit()
+
+        gl.link_exception(on_exception)
     else:
         # In local mode, we can run setup_environment() in the current greenlet
         setup_environment(environment)
@@ -188,6 +191,22 @@ def setup_worker_database(environment, **_kwargs):
             "setup_done", {"user_id": environment.runner.client_id}
         )
     logger.debug(f"setup_worker_database() finished: runner={type(environment.runner)}")
+
+
+@events.test_start.add_listener
+def check_environment_setup(environment, **_kwargs):
+    # Unfortunately due to a bug in locust, exceptions thrown in the init event
+    # handler don't crash the locust process, leading to tests hanging. We must
+    # check the environment is correctly setup in test_start and throw/quit if
+    # not. See https://github.com/locustio/locust/issues/2057.
+    if not hasattr(environment, "workload_sequence"):
+        logger.error(
+            "Environment not correctly setup, workload_sequence not initialized."
+        )
+        environment.runner.quit()
+    if not hasattr(environment, "database"):
+        logger.error("Environment not correctly setup, database not initialized.")
+        environment.runner.quit()
 
 
 @events.quit.add_listener
