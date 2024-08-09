@@ -700,13 +700,13 @@ grpc = ["grpcio (>=1.38.0,<2.0dev)", "grpcio-status (>=1.38.0,<2.0.dev0)"]
 
 [[package]]
 name = "google-cloud-storage"
-version = "2.18.0"
+version = "2.18.2"
 description = "Google Cloud Storage API client library"
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "google_cloud_storage-2.18.0-py2.py3-none-any.whl", hash = "sha256:e8e1a9577952143c3fca8163005ecfadd2d70ec080fa158a8b305000e2c22fbb"},
-    {file = "google_cloud_storage-2.18.0.tar.gz", hash = "sha256:0aa3f7c57f3632f81b455d91558d2b27ada96eee2de3aaa17f689db1470d9578"},
+    {file = "google_cloud_storage-2.18.2-py2.py3-none-any.whl", hash = "sha256:97a4d45c368b7d401ed48c4fdfe86e1e1cb96401c9e199e419d289e2c0370166"},
+    {file = "google_cloud_storage-2.18.2.tar.gz", hash = "sha256:aaf7acd70cdad9f274d29332673fcab98708d0e1f4dceb5a5356aaef06af4d99"},
 ]
 
 [package.dependencies]
@@ -714,7 +714,7 @@ google-api-core = ">=2.15.0,<3.0.0dev"
 google-auth = ">=2.26.1,<3.0dev"
 google-cloud-core = ">=2.3.0,<3.0dev"
 google-crc32c = ">=1.0,<2.0dev"
-google-resumable-media = ">=2.6.0"
+google-resumable-media = ">=2.7.2"
 requests = ">=2.18.0,<3.0.0dev"
 
 [package.extras]
@@ -803,13 +803,13 @@ testing = ["pytest"]
 
 [[package]]
 name = "google-resumable-media"
-version = "2.7.0"
+version = "2.7.2"
 description = "Utilities for Google Media Downloads and Resumable Uploads"
 optional = false
-python-versions = ">= 3.7"
+python-versions = ">=3.7"
 files = [
-    {file = "google-resumable-media-2.7.0.tar.gz", hash = "sha256:5f18f5fa9836f4b083162064a1c2c98c17239bfda9ca50ad970ccf905f3e625b"},
-    {file = "google_resumable_media-2.7.0-py2.py3-none-any.whl", hash = "sha256:79543cfe433b63fd81c0844b7803aba1bb8950b47bedf7d980c38fa123937e08"},
+    {file = "google_resumable_media-2.7.2-py2.py3-none-any.whl", hash = "sha256:3ce7551e9fe6d99e9a126101d2536612bb73486721951e9562fee0f90c6ababa"},
+    {file = "google_resumable_media-2.7.2.tar.gz", hash = "sha256:5280aed4629f2b60b847b0d42f9857fd4935c11af266744df33d8074cae92fe0"},
 ]
 
 [package.dependencies]
@@ -2568,4 +2568,4 @@ testing = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "cf2cd2ad116f33a9d471b39bbdd62532c2a8d28970bbc9583c6ba7bc18509e1b"
+content-hash = "b455c05e684204fcc140475038107f5a8d18c2f1e7f239767ccca3d10f39f3bb"
