@@ -33,10 +33,23 @@ class PgvectorNamespace(Namespace):
         self.index_type = index_type
         self.search_candidates = search_candidates
         self.ivfflat_lists = ivfflat_lists
+        self.warned_no_metadata = False
 
     def upsert_batch(self, batch: RecordList):
         # pgvector / psycopg expects a list of tuples.
         data = [(rec.id, np.array(rec.values), Jsonb(rec.metadata)) for rec in batch]
+
+        # Warn the user once if they're using a GIN index on a
+        # dataset that doesn't have metadata.
+        if not self.warned_no_metadata:
+            if all([rec.metadata is None for rec in batch]):
+                self.warned_no_metadata = True
+                logger.warning(
+                    f"You're using a {self.index_type} index type, "
+                    f"but this workload doesn't seem to have metadata. "
+                    f"Are you sure this is correct?"
+                )
+
         upsert_query = (
             "INSERT INTO " + self.table + " (id, embedding, metadata) "
             "VALUES (%s, %s, %s)"
@@ -46,14 +59,18 @@ class PgvectorNamespace(Namespace):
 
     def search(self, request: SearchRequest) -> list[str]:
         match self.index_type:
-            case "hnsw":
+            case "hnsw" | "hnsw+gin":
                 # For HNSW, we use a default of 2 * top_k for ef_search. See https://github.com/pgvector/pgvector.
                 setup_search_statement = f"SET hnsw.ef_search = {(2 * request.top_k) if self.search_candidates == 0 else self.search_candidates}"
-            case "ivfflat":
+            case "ivfflat" | "ivfflat+gin":
                 # For IVFFLAT, we use a default of sqrt(lists) for probes. See https://github.com/pgvector/pgvector.
                 setup_search_statement = f"SET ivfflat.probes = {math.isqrt(self.ivfflat_lists) if self.search_candidates == 0 else self.search_candidates}"
-            case "none":
+            case "gin" | "none":
                 setup_search_statement = None
+            case _:
+                raise ValueError(
+                    "Unsupported pgvector index type {}".format(self.index_type)
+                )
         if setup_search_statement:
             self.conn.execute(setup_search_statement)
         match self.metric:
@@ -87,11 +104,9 @@ class PgvectorDB(DB):
     ):
         self.index_type = config["pgvector_index_type"]
         match self.index_type:
-            case "none":
+            case "hnsw" | "hnsw+gin" | "gin" | "none":
                 self.ivfflat_lists = None
-            case "hnsw":
-                self.ivfflat_lists = None
-            case "ivfflat":
+            case "ivfflat" | "ivfflat+gin":
                 self.ivfflat_lists = config["pgvector_ivfflat_lists"]
                 if self.ivfflat_lists == 0:
                     # Automatically calculate number of lists as per
@@ -104,7 +119,6 @@ class PgvectorDB(DB):
                         "PgvectorDB: automatically calculated IVFFlat lists="
                         f"{self.ivfflat_lists}"
                     ),
-
             case _:
                 raise ValueError(
                     "Unsupported pgvector index type {}".format(self.index_type)
@@ -196,15 +210,26 @@ class PgvectorDB(DB):
             f"  ✔ pgvector index ({self.index_type}) created",
             total=None,
         ):
-            sql = (
-                f"CREATE INDEX IF NOT EXISTS {self.table}_embedding_idx ON "
-                f"{self.table} USING {self.index_type} (embedding "
-                f"{PgvectorDB._get_distance_func(self.metric)})"
-            )
-            match self.index_type:
-                case "ivfflat":
-                    sql += f" WITH (lists = {self.ivfflat_lists})"
-            self.conn.execute(sql)
+            if "hnsw" in self.index_type:
+                sql = (
+                    f"CREATE INDEX IF NOT EXISTS {self.table}_embedding_idx ON "
+                    f"{self.table} USING hnsw (embedding "
+                    f"{PgvectorDB._get_distance_func(self.metric)})"
+                )
+                self.conn.execute(sql)
+            if "ivfflat" in self.index_type:
+                sql = (
+                    f"CREATE INDEX IF NOT EXISTS {self.table}_embedding_idx ON "
+                    f"{self.table} USING ivfflat (embedding "
+                    f"{PgvectorDB._get_distance_func(self.metric)}) WITH (lists = {self.ivfflat_lists})"
+                )
+                self.conn.execute(sql)
+            if "gin" in self.index_type:
+                sql = (
+                    f"CREATE INDEX IF NOT EXISTS {self.table}_metadata_idx ON "
+                    f"{self.table} USING gin (metadata)"
+                )
+                self.conn.execute(sql)
 
     @staticmethod
     def _get_distance_func(metric: DistanceMetric) -> str:

@@ -30,7 +30,7 @@ class TestPgvector:
                 "Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": check_recall_stats,
+                    "Recall": check_recall_stats,
                 },
             },
         )
@@ -55,7 +55,7 @@ class TestPgvector:
                 "Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": check_recall_stats,
+                    "Recall": check_recall_stats,
                 },
             },
         )
@@ -82,7 +82,7 @@ class TestPgvector:
                 "Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": check_recall_stats,
+                    "Recall": check_recall_stats,
                 },
             },
         )
@@ -101,13 +101,13 @@ class TestPgvector:
                 "test1.Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": check_recall_stats,
+                    "Recall": check_recall_stats,
                 },
                 "test2.Populate": {"num_requests": 1, "num_failures": 0},
                 "test2.Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": check_recall_stats,
+                    "Recall": check_recall_stats,
                 },
             },
         )
@@ -134,13 +134,13 @@ class TestPgvector:
                 "test1.Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": check_recall_stats,
+                    "Recall": check_recall_stats,
                 },
                 "test2.Populate": {"num_requests": 4, "num_failures": 0},
                 "test2.Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": check_recall_stats,
+                    "Recall": check_recall_stats,
                 },
             },
         )
@@ -167,13 +167,13 @@ class TestPgvector:
                 "test1.Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": check_recall_stats,
+                    "Recall": check_recall_stats,
                 },
                 "test2.Populate": {"num_requests": 4, "num_failures": 0},
                 "test2.Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": check_recall_stats,
+                    "Recall": check_recall_stats,
                 },
             },
         )
@@ -209,7 +209,7 @@ class TestPgvector:
                 "Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": check_recall_stats,
+                    "Recall": check_recall_stats,
                 },
             },
         )
@@ -229,7 +229,7 @@ class TestPgvector:
                 "Search": {
                     "num_requests": 500,
                     "num_failures": 0,
-                    "recall": check_recall_stats,
+                    "Recall": check_recall_stats,
                 },
             },
         )
@@ -250,7 +250,7 @@ class TestPgvector:
                 "Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": check_recall_stats,
+                    "Recall": check_recall_stats,
                 },
             },
         )
@@ -271,7 +271,67 @@ class TestPgvector:
                 "Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": check_recall_correctness(1.0),
+                    "Recall": check_recall_correctness(1.0),
+                },
+            },
+        )
+
+    def test_gin(self):
+        # Test GIN only index type on "yfcc-test".
+        (proc, stdout, stderr) = spawn_vsb(
+            workload="yfcc-test", extra_args=["--pgvector_index_type=gin"]
+        )
+        assert proc.returncode == 0
+
+        check_request_counts(
+            stdout,
+            {
+                # Populate num_requests counts batches, not individual records.
+                "Populate": {"num_requests": 10, "num_failures": 0},
+                "Search": {
+                    "num_requests": 500,
+                    "num_failures": 0,
+                    "Recall": check_recall_stats,
+                },
+            },
+        )
+
+    def test_ivfflatgin(self):
+        # Test IVFFlat + GIN index type on "yfcc-test".
+        (proc, stdout, stderr) = spawn_vsb(
+            workload="yfcc-test", extra_args=["--pgvector_index_type=ivfflat+gin"]
+        )
+        assert proc.returncode == 0
+
+        check_request_counts(
+            stdout,
+            {
+                # Populate num_requests counts batches, not individual records.
+                "Populate": {"num_requests": 10, "num_failures": 0},
+                "Search": {
+                    "num_requests": 500,
+                    "num_failures": 0,
+                    "Recall": check_recall_stats,
+                },
+            },
+        )
+
+    def test_hnswgin(self):
+        # Test HNSW + GIN index type on "yfcc-test".
+        (proc, stdout, stderr) = spawn_vsb(
+            workload="yfcc-test", extra_args=["--pgvector_index_type=hnsw+gin"]
+        )
+        assert proc.returncode == 0
+
+        check_request_counts(
+            stdout,
+            {
+                # Populate num_requests counts batches, not individual records.
+                "Populate": {"num_requests": 10, "num_failures": 0},
+                "Search": {
+                    "num_requests": 500,
+                    "num_failures": 0,
+                    "Recall": check_recall_stats,
                 },
             },
         )
@@ -296,7 +356,7 @@ class TestPgvector:
                 "Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": check_recall_correctness(0.9),
+                    "Recall": check_recall_correctness(0.9),
                 },
             },
         )
