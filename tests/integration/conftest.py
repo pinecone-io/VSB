@@ -85,7 +85,7 @@ def check_request_counts(stdout, expected: dict) -> None:
     checking what the individual values are):
 
         {
-            "Search": { "recall": lambda x: len(x) == 20, }
+            "Search": { "Recall": lambda x: len(x) == 20, }
         }
     """
     stats = parse_stats_to_json(stdout)

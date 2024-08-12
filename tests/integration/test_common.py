@@ -12,7 +12,6 @@ from test_pinecone import (
 )
 
 
-# We need to make spawn_vsb_pinecone a fixture so it can capture pinecone-specific fixtures
 def spawn_vsb_pinecone(
     workload,
     pinecone_api_key,
@@ -54,6 +53,10 @@ def spawn_vsb_pgvector(workload, timeout=60, extra_args=None, **kwargs):
 @pytest.mark.parametrize("spawn_vsb", [spawn_vsb_pgvector, spawn_vsb_pinecone])
 class TestCommon:
 
+    # Unfortunately pytest won't let us selectively parametrize with fixtures, so
+    # we have to pass in all platform-specific fixtures to our parametrized
+    # spawn_vsb functions.
+
     def test_mnist_single(
         self, spawn_vsb, pinecone_api_key, pinecone_index_mnist, pinecone_index_yfcc
     ):
@@ -74,7 +77,7 @@ class TestCommon:
                 "Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": check_recall_stats,
+                    "Recall": check_recall_stats,
                 },
             },
         )
@@ -104,7 +107,7 @@ class TestCommon:
                 "Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": check_recall_stats,
+                    "Recall": check_recall_stats,
                 },
             },
         )
@@ -136,7 +139,7 @@ class TestCommon:
                 "Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": check_recall_stats,
+                    "Recall": check_recall_stats,
                 },
             },
         )
@@ -162,13 +165,13 @@ class TestCommon:
                 "test1.Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": check_recall_stats,
+                    "Recall": check_recall_stats,
                 },
                 "test2.Populate": {"num_requests": 1, "num_failures": 0},
                 "test2.Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": check_recall_stats,
+                    "Recall": check_recall_stats,
                 },
             },
         )
@@ -200,13 +203,13 @@ class TestCommon:
                 "test1.Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": check_recall_stats,
+                    "Recall": check_recall_stats,
                 },
                 "test2.Populate": {"num_requests": 4, "num_failures": 0},
                 "test2.Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": check_recall_stats,
+                    "Recall": check_recall_stats,
                 },
             },
         )
@@ -238,13 +241,13 @@ class TestCommon:
                 "test1.Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": check_recall_stats,
+                    "Recall": check_recall_stats,
                 },
                 "test2.Populate": {"num_requests": 4, "num_failures": 0},
                 "test2.Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": check_recall_stats,
+                    "Recall": check_recall_stats,
                 },
             },
         )
@@ -289,7 +292,7 @@ class TestCommon:
                 "Search": {
                     "num_requests": 20,
                     "num_failures": 0,
-                    "recall": check_recall_stats,
+                    "Recall": check_recall_stats,
                 },
             },
         )
@@ -314,7 +317,7 @@ class TestCommon:
                 "Search": {
                     "num_requests": 500,
                     "num_failures": 0,
-                    "recall": check_recall_stats,
+                    "Recall": check_recall_stats,
                 },
             },
         )
