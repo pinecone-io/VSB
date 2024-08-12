@@ -83,6 +83,34 @@ def spawn_vsb(
     return spawn_vsb_inner("pinecone", workload, timeout, args, extra_env)
 
 
+# used in test_common
+def spawn_vsb_pinecone(
+    workload,
+    pinecone_api_key,
+    pinecone_index_mnist,
+    pinecone_index_yfcc,
+    timeout=60,
+    extra_args=None,
+    **kwargs,
+):
+    """Spawn an instance of pinecone vsb with the given arguments, returning the proc object,
+    its stdout and stderr.
+    """
+    args = []
+    match workload:
+        case "mnist-test" | "mnist-double-test":
+            args += ["--pinecone_index_name", pinecone_index_mnist]
+        case "yfcc-test":
+            args += ["--pinecone_index_name", pinecone_index_yfcc]
+        case _:
+            raise ValueError(f"Specify an index name fixture for: {workload}")
+    if extra_args:
+        args += extra_args
+    extra_env = {}
+    extra_env.update({"VSB__PINECONE_API_KEY": pinecone_api_key})
+    return spawn_vsb_inner("pinecone", workload, timeout, args, extra_env)
+
+
 class TestPinecone:
 
     def test_required_args(self, pinecone_api_key, pinecone_index_mnist):

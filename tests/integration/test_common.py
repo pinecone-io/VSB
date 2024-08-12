@@ -1,4 +1,17 @@
-import os
+"""
+Common tests that should succeed on all databases.
+
+To add a new database to the test suite, you should implement the following:
+
+- Test[Database] class with database-specific tests in spawn_vsb_[database].py
+- spawn_vsb_[database] function that takes a superset of the arguments of spawn_vsb_*
+    - spawn_vsb_[database](workload, index_name, database_specific_arg, **kwargs)
+    - should return a (proc, stdout, stderr) tuple with spawn_vsb_inner
+- Add the spawn_vsb_[database] function to the parametrize list of TestCommon
+- If you added database-specific arguments, add them to each spawn_vsb call in
+    the test cases below.
+"""
+
 import pytest
 from conftest import (
     check_request_counts,
@@ -9,52 +22,16 @@ from test_pinecone import (
     pinecone_api_key,
     pinecone_index_mnist,
     pinecone_index_yfcc,
+    spawn_vsb_pinecone,
 )
-
-
-def spawn_vsb_pinecone(
-    workload,
-    pinecone_api_key,
-    pinecone_index_mnist,
-    pinecone_index_yfcc,
-    timeout=60,
-    extra_args=None,
-    **kwargs,
-):
-    """Spawn an instance of pinecone vsb with the given arguments, returning the proc object,
-    its stdout and stderr.
-    """
-    args = []
-    match workload:
-        case "mnist-test" | "mnist-double-test":
-            args += ["--pinecone_index_name", pinecone_index_mnist]
-        case "yfcc-test":
-            args += ["--pinecone_index_name", pinecone_index_yfcc]
-        case _:
-            raise ValueError(f"Specify an index name fixture for: {workload}")
-    if extra_args:
-        args += extra_args
-    extra_env = {}
-    extra_env.update({"VSB__PINECONE_API_KEY": pinecone_api_key})
-    return spawn_vsb_inner("pinecone", workload, timeout, args, extra_env)
-
-
-def spawn_vsb_pgvector(workload, timeout=60, extra_args=None, **kwargs):
-    """Spawn an instance of pgvector vsb with the given arguments, returning the proc object,
-    its stdout and stderr.
-    """
-    extra_env = {
-        "VSB__PGVECTOR_USERNAME": "postgres",
-        "VSB__PGVECTOR_PASSWORD": "postgres",
-    }
-    return spawn_vsb_inner("pgvector", workload, timeout, extra_args, extra_env)
+from test_pgvector import spawn_vsb_pgvector
 
 
 @pytest.mark.parametrize("spawn_vsb", [spawn_vsb_pgvector, spawn_vsb_pinecone])
 class TestCommon:
 
     # Unfortunately pytest won't let us selectively parametrize with fixtures, so
-    # we have to pass in all platform-specific fixtures to our parametrized
+    # we have to pass in all database-specific fixtures to our parametrized
     # spawn_vsb functions.
 
     def test_mnist_single(
