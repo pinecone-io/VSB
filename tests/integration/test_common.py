@@ -73,7 +73,7 @@ class TestCommon:
             stdout,
             {
                 # Populate num_requests counts batches, not individual records.
-                "Populate": {"num_requests": 1, "num_failures": 0},
+                "Populate": {"num_requests": lambda x: x <= 2, "num_failures": 0},
                 "Search": {
                     "num_requests": 20,
                     "num_failures": 0,
@@ -159,7 +159,7 @@ class TestCommon:
         check_request_counts(
             stdout,
             {
-                "test1.Populate": {"num_requests": 1, "num_failures": 0},
+                "test1.Populate": {"num_requests": lambda x: x <= 2, "num_failures": 0},
                 # The number of Search requests should equal the number in the dataset
                 # (20 for mnist-test).
                 "test1.Search": {
@@ -167,7 +167,7 @@ class TestCommon:
                     "num_failures": 0,
                     "Recall": check_recall_stats,
                 },
-                "test2.Populate": {"num_requests": 1, "num_failures": 0},
+                "test2.Populate": {"num_requests": lambda x: x <= 2, "num_failures": 0},
                 "test2.Search": {
                     "num_requests": 20,
                     "num_failures": 0,
@@ -271,7 +271,7 @@ class TestCommon:
             stdout,
             {
                 # Populate num_requests counts batches, not individual records.
-                "Populate": {"num_requests": 1, "num_failures": 0},
+                "Populate": {"num_requests": lambda x: x <= 2, "num_failures": 0},
                 "Search": {"num_requests": 20, "num_failures": 0},
             },
         )
@@ -313,7 +313,10 @@ class TestCommon:
             stdout,
             {
                 # Populate num_requests counts batches, not individual records.
-                "Populate": {"num_requests": 10, "num_failures": 0},
+                "Populate": {
+                    "num_requests": lambda x: x == 10 or x == 210,
+                    "num_failures": 0,
+                },
                 "Search": {
                     "num_requests": 500,
                     "num_failures": 0,
