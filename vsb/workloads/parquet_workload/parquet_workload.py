@@ -198,13 +198,12 @@ class ParquetSubsetWorkload(ParquetWorkload, ABC):
 
         # Function to find top k nearest neighbors for a single query
         def get_top_k_nearest(query_vector, top_k, q_filter):
-            distances = calculate_distances(query_vector, embeddings)
 
             # Filter by metadata tags if provided (e.g. yfcc)
             if q_filter is not None:
                 filters = FilterUtil.to_set(q_filter)
 
-                def filt(metadata: dict):
+                def filt(metadata: dict | None):
                     if metadata is not None:
                         assert "tags" in metadata  # We only support yfcc tags for now.
                         return filters <= set(metadata["tags"])
@@ -217,7 +216,9 @@ class ParquetSubsetWorkload(ParquetWorkload, ABC):
                 filtered_indices = range(len(records))
 
             # Get the distances of the filtered indices
-            filtered_distances = distances[filtered_indices]
+            filtered_distances = calculate_distances(
+                query_vector, embeddings[filtered_indices]
+            )
 
             # Get the indices of the top_k smallest distances
             top_k_filtered_indices = np.argsort(filtered_distances)[:top_k]
@@ -227,7 +228,7 @@ class ParquetSubsetWorkload(ParquetWorkload, ABC):
                 filtered_indices[i] for i in top_k_filtered_indices
             ]
 
-            return records.iloc[top_k_original_indices]["id"].tolist()
+            return records["id"].iloc[top_k_original_indices].tolist()
 
         # Apply the function to each query
         return queries.apply(
