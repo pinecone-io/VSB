@@ -17,15 +17,20 @@ class Workload(Enum):
     YFCCTest = "yfcc-test"
     Cohere768 = "cohere768"
     Cohere768Test = "cohere768-test"
+    Synthetic = "synthetic"
 
     def build(self, **kwargs) -> VectorWorkload:
         """Construct an instance of VectorWorkload based on the value of the enum."""
         cls = self._get_class()
-        return cls(self.value, **kwargs)
+        return cls(name=self.value, **kwargs)
 
     def _get_class(self) -> type[VectorWorkload]:
         """Return the VectorWorkload class to use, based on the value of the enum"""
         match self:
+            case Workload.Synthetic:
+                from .synthetic_workload.synthetic_workload import SyntheticWorkload
+
+                return SyntheticWorkload
             case Workload.Mnist:
                 from .mnist.mnist import Mnist
 

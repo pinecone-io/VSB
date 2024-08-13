@@ -6,6 +6,7 @@ import json
 from pinecone import ServerlessSpec
 from vsb.databases import Database
 from vsb.workloads import Workload, WorkloadSequence
+from vsb.vsb_types import DistanceMetric
 from vsb import default_cache_dir
 
 
@@ -19,6 +20,10 @@ class WorkloadHelpAction(argparse.Action):
             table.add_column("Distance Metric", justify="center")
             table.add_column("Query Count", justify="right", style="red")
             for workload in Workload:
+                if workload == Workload.Synthetic:
+                    # Don't describe synthetic workload, static methods are not available
+                    table.add_row("synthetic", "?", "?", "?", "?")
+                    continue
                 table.add_row(*tuple(str(x) for x in workload.describe()))
             console = rich.console.Console()
             console.print(table)
@@ -118,6 +123,46 @@ def add_vsb_cmdline_args(
             help="Number of VSB subprocesses to fork and generate load from. Default "
             "is to run in a single process",
         )
+
+    synthetic_group = parser.add_argument_group(
+        "Options specific to synthetic workloads"
+    )
+    synthetic_group.add_argument(
+        "--synthetic_record_count",
+        type=int,
+        default=10000,
+        help="Number of records to generate for the synthetic workload. Default is %(default)s",
+    )
+    synthetic_group.add_argument(
+        "--synthetic_query_count",
+        type=int,
+        default=1000,
+        help="Number of queries to generate for the synthetic workload. Default is %(default)s",
+    )
+    synthetic_group.add_argument(
+        "--synthetic_dimensions",
+        type=int,
+        default=192,
+        help="Number of dimensions for the synthetic workload. Default is %(default)s",
+    )
+    synthetic_group.add_argument(
+        "--synthetic_metric",
+        type=str,
+        default="cosine",
+        choices=tuple(e.value for e in DistanceMetric),
+        help="Distance metric to use for the synthetic workload. Default is %(default)s",
+    )
+    synthetic_group.add_argument(
+        "--synthetic_top_k",
+        type=int,
+        default=10,
+        help="Top-k value to use for the synthetic workload. Default is %(default)s",
+    )
+    synthetic_group.add_argument(
+        "--synthetic_seed",
+        type=int,
+        help="Seed to use for the synthetic workload. If not specified, a random seed will be generated.",
+    )
 
     pinecone_group = parser.add_argument_group("Options specific to pinecone database")
     pinecone_group.add_argument(
@@ -255,4 +300,38 @@ def validate_parsed_args(
                     "'pinecone'" + formatter.format_help(),
                 )
         case "pgvector":
+            pass
+        case _:
+            pass
+    match args.workload:
+        case "synthetic":
+            required = (
+                "synthetic_record_count",
+                "synthetic_query_count",
+                "synthetic_dimensions",
+                "synthetic_metric",
+                "synthetic_top_k",
+            )
+            missing = list()
+            for name in required:
+                if not getattr(args, name):
+                    missing.append(name)
+            if missing:
+                formatter = configargparse.HelpFormatter(".")
+                formatter.start_section("")
+                formatter.add_text("")
+                for name in missing:
+                    formatter.add_argument(get_action(parser, name))
+                formatter.end_section()
+                formatter.add_text(
+                    "Please ensure all missing arguments are specified " "and re-run."
+                )
+                # Needed to ensure env var names are included in the actions'
+                # help messages.
+                parser.format_help()
+                parser.error(
+                    "The following arguments must be specified when --workload is "
+                    "'synthetic'" + formatter.format_help(),
+                )
+        case _:
             pass

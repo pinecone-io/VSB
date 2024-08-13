@@ -20,6 +20,7 @@ from vsb.workloads import (
     build_workload_sequence,
     VectorWorkloadSequence,
 )
+from vsb.vsb_types import DistanceMetric
 from vsb import console, logger
 from locust import events, log
 from locust.runners import WorkerRunner, MasterRunner
@@ -53,18 +54,34 @@ def setup_environment(environment, **_kwargs):
 
     logger.debug(f"setup_environment(): runner={type(environment.runner)}")
 
+    synthetic_options = (
+        {
+            "record_count": options.synthetic_record_count,
+            "query_count": options.synthetic_query_count,
+            "dimensions": options.synthetic_dimensions,
+            "metric": DistanceMetric(options.synthetic_metric),
+            "top_k": options.synthetic_top_k,
+            "seed": options.synthetic_seed,
+        }
+        if options.workload == "synthetic"
+        else {}
+    )
+
     # Load the WorkloadSequence
     if isinstance(environment.runner, MasterRunner):
         # In distributed mode, the master does not need to load workload
         # data, as it does not run users. It only accesses static
         # methods on the workload classes.
         environment.workload_sequence = build_workload_sequence(
-            options.workload, cache_dir=options.cache_dir, load_on_init=False
+            options.workload,
+            cache_dir=options.cache_dir,
+            **synthetic_options,
+            load_on_init=False,
         )
 
     else:
         environment.workload_sequence = build_workload_sequence(
-            options.workload, cache_dir=options.cache_dir
+            options.workload, cache_dir=options.cache_dir, **synthetic_options
         )
 
     # Reset distributors for new Populate -> Run iteration
