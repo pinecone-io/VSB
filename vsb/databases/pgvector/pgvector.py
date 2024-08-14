@@ -41,7 +41,7 @@ class PgvectorNamespace(Namespace):
 
         # Warn the user once if they're using a GIN index on a
         # dataset that doesn't have metadata.
-        if not self.warned_no_metadata:
+        if not self.warned_no_metadata and "gin" in self.index_type:
             if all([rec.metadata is None for rec in batch]):
                 self.warned_no_metadata = True
                 logger.warning(
