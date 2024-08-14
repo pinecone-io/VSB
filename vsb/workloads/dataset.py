@@ -6,7 +6,6 @@ from google.cloud.storage import Bucket, Client, transfer_manager
 import json
 import pandas
 import pathlib
-from pinecone.grpc import PineconeGRPC
 import pyarrow.dataset as ds
 from pyarrow.parquet import ParquetDataset, ParquetFile
 
@@ -15,6 +14,8 @@ from filelock import FileLock
 import vsb
 from vsb import logger
 from vsb.logging import ProgressIOWrapper
+
+import gevent.monkey
 
 
 class Dataset:
@@ -168,6 +169,20 @@ class Dataset:
         )
 
     def _download_dataset_files(self):
+        # Unpatch all gevent monkeypatched modules; we use google cloud
+        # python libraries which will try to call stuff like socket and
+        # wait, and if they're monkeypatched, they'll fail with a LoopExit
+        # because the OS thread it runs in has no hub.
+
+        # https://github.com/gevent/gevent/issues/1350#issuecomment-478630812
+
+        # Note that this does mean that this function will block in a non-
+        # gevent-friendly way. Ensure that it's called in a threadpool, or
+        # you may get heartbeat failures in distributed mode.
+        import threading
+        from importlib import reload
+
+        reload(threading)
         with FileLock(self.cache / ".lock"):
             self.cache.mkdir(parents=True, exist_ok=True)
             logger.debug(
@@ -175,6 +190,9 @@ class Dataset:
             )
             client = Client.create_anonymous_client()
             bucket: Bucket = client.bucket(Dataset.gcs_bucket)
+            logger.debug(
+                f"_download_dataset_files(): threading={gevent.monkey.is_module_patched('threading')}"
+            )
             blobs = [b for b in bucket.list_blobs(prefix=self.name + "/")]
             # Ignore directories (blobs ending in '/') as we don't explicilty need them
             # (non-empty directories will have their files downloaded
@@ -230,6 +248,8 @@ class Dataset:
             # Clear the progress bar now we're done.
             vsb.progress.stop()
             vsb.progress = None
+        # Re-apply gevent monkeypatching.
+        gevent.monkey.patch_all()
 
     def _load_parquet_dataset(self, kind, limit=0):
         parquet_files = [f for f in (self.cache / self.name).glob(kind + "/*.parquet")]
