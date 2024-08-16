@@ -62,8 +62,10 @@ def setup_environment(environment, **_kwargs):
             "metric": DistanceMetric(options.synthetic_metric),
             "top_k": options.synthetic_top_k,
             "seed": options.synthetic_seed,
+            "steps": options.synthetic_steps,
+            "no_aggregate_stats": options.synthetic_no_aggregate_stats,
         }
-        if options.workload == "synthetic"
+        if options.workload == "synthetic" or options.workload == "synthetic-runbook"
         else {}
     )
 

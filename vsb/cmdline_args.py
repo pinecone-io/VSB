@@ -163,6 +163,17 @@ def add_vsb_cmdline_args(
         type=int,
         help="Seed to use for the synthetic workload. If not specified, a random seed will be generated.",
     )
+    synthetic_group.add_argument(
+        "--synthetic_steps",
+        type=int,
+        default=10,
+        help="Number of steps to use for the synthetic workload. Default is %(default)s",
+    )
+    synthetic_group.add_argument(
+        "--synthetic_no_aggregate_stats",
+        action="store_true",
+        help="Aggregate statistics for the synthetic workload. Default is %(default)s",
+    )
 
     pinecone_group = parser.add_argument_group("Options specific to pinecone database")
     pinecone_group.add_argument(

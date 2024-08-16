@@ -8,93 +8,23 @@ import numpy as np
 import pyarrow
 
 from vsb import logger
-from ..base import VectorWorkload
+from ..base import VectorWorkload, VectorWorkloadSequence
 from ..parquet_workload.parquet_workload import ParquetSubsetWorkload
 from ...vsb_types import SearchRequest, RecordList, Record, DistanceMetric, Vector
 from ...databases.pgvector.filter_util import FilterUtil
 
 
-class SyntheticWorkload(VectorWorkload, ABC):
-    """A static workload which is implemented by reading records and query from
-    two sets of parquet files.
-    The initial records for the workload are loaded from one set of parquet
-    files, then the run phase of the workload consists of queries loaded
-    from a second set of parquet files.
-    """
+class InMemoryWorkload(VectorWorkload, ABC):
+    """A workload that stores records and queries in memory."""
 
     def __init__(
         self,
         name: str,
-        cache_dir: str,
-        record_count: int,
-        query_count: int,
-        dimensions: int,
-        metric: DistanceMetric,
-        top_k: int,
-        seed: int = None,
-        load_on_init: bool = True,
     ):
+        # Set up records and queries in a subclass constructor.
         super().__init__(name)
-        self._record_count = record_count
-        self._query_count = query_count
-        self._dimensions = dimensions
-        self._metric = metric
-        self._top_k = top_k
-        if seed:
-            self.rng = np.random.default_rng(np.random.SeedSequence(seed))
-        else:
-            ss = np.random.SeedSequence()
-            self.seed = ss.entropy  # 128-bit integer, easy enough to copy
-            self.rng = np.random.default_rng(ss)
-
-        if load_on_init:
-            self.setup_records()
-            self.setup_queries()
-        else:
-            self.records = None
-            self.queries = None
-
-    def setup_records(self):
-        # Pseudo-randomly generate the full RecordList of records
-        # If dot product or cosine, generate each dimension as [0, 1]
-        # If euclidean, use [0, 255]
-        # TODO: Add custom distribution support (normal, hypergeo, zipfian, etc.)
-        self.records = pandas.DataFrame(
-            {
-                "id": np.arange(self._record_count).astype(str),
-                "values": [
-                    (
-                        self.rng.uniform(size=self._dimensions)
-                        if self._metric != DistanceMetric.Euclidean
-                        else self.rng.uniform(0, 256, self._dimensions)
-                    )
-                    for _ in range(self._record_count)
-                ],
-            }
-        )
-
-    def setup_queries(self):
-        # Pseudo-randomly generate the full RecordList of queries
-        # Query will be generated with the same distribution as records
-        self.queries = pandas.DataFrame(
-            {
-                "values": [
-                    (
-                        self.rng.uniform(size=self._dimensions)
-                        if self._metric != DistanceMetric.Euclidean
-                        else self.rng.uniform(0, 256, self._dimensions)
-                    )
-                    for _ in range(self._query_count)
-                ],
-                "top_k": np.full(self._query_count, self._top_k),
-                # TODO: Add metadata support
-            }
-        )
-
-        # Recalculate ground truth neighbors for each query
-        self.queries["neighbors"] = ParquetSubsetWorkload.recalculate_neighbors(
-            self.records, self.queries, self._metric
-        )
+        self.records = None
+        self.queries = None
 
     def get_sample_record(self) -> Record:
         return Record(**self.records.head(1).to_dict("records")[0])
@@ -185,3 +115,241 @@ class SyntheticWorkload(VectorWorkload, ABC):
 
     def request_count(self) -> int:
         return self._query_count
+
+
+class SyntheticWorkload(InMemoryWorkload, ABC):
+    """A static workload which is implemented by reading records and query from
+    two sets of parquet files.
+    The initial records for the workload are loaded from one set of parquet
+    files, then the run phase of the workload consists of queries loaded
+    from a second set of parquet files.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        cache_dir: str,
+        record_count: int,
+        query_count: int,
+        dimensions: int,
+        metric: DistanceMetric,
+        top_k: int,
+        seed: int = None,
+        load_on_init: bool = True,
+        **kwargs,
+    ):
+        super().__init__(name)
+        self._record_count = record_count
+        self._query_count = query_count
+        self._dimensions = dimensions
+        self._metric = metric
+        self._top_k = top_k
+        if seed:
+            self.rng = np.random.default_rng(np.random.SeedSequence(seed))
+        else:
+            ss = np.random.SeedSequence()
+            self.seed = ss.entropy  # 128-bit integer, easy enough to copy
+            self.rng = np.random.default_rng(ss)
+
+        if load_on_init:
+            self.setup_records()
+            self.setup_queries()
+        else:
+            self.records = None
+            self.queries = None
+
+    def setup_records(self):
+        # Pseudo-randomly generate the full RecordList of records
+        # If dot product or cosine, generate each dimension as [0, 1]
+        # If euclidean, use [0, 255]
+        # TODO: Add custom distribution support (normal, hypergeo, zipfian, etc.)
+        self.records = pandas.DataFrame(
+            {
+                "id": np.arange(self._record_count).astype(str),
+                "values": [
+                    (
+                        self.rng.uniform(size=self._dimensions)
+                        if self._metric != DistanceMetric.Euclidean
+                        else self.rng.uniform(0, 256, self._dimensions)
+                    )
+                    for _ in range(self._record_count)
+                ],
+            }
+        )
+
+    def setup_queries(self):
+        # Pseudo-randomly generate the full RecordList of queries
+        # Query will be generated with the same distribution as records
+        self.queries = pandas.DataFrame(
+            {
+                "values": [
+                    (
+                        self.rng.uniform(size=self._dimensions)
+                        if self._metric != DistanceMetric.Euclidean
+                        else self.rng.uniform(0, 256, self._dimensions)
+                    )
+                    for _ in range(self._query_count)
+                ],
+                "top_k": np.full(self._query_count, self._top_k),
+                # TODO: Add metadata support
+            }
+        )
+
+        # Recalculate ground truth neighbors for each query
+        self.queries["neighbors"] = ParquetSubsetWorkload.recalculate_neighbors(
+            self.records, self.queries, self._metric
+        )
+
+
+class SyntheticRunbook(VectorWorkloadSequence, ABC):
+    """A synthetic workload sequence that simulates a series of "steps" of
+    various operations (upsert, search, delete?) on a database over time.
+    """
+
+    class Step(VectorWorkload, ABC):
+        def __init__(self, name: str):
+            self._name = name
+
+        @property
+        def name(self) -> str:
+            return self._name
+
+    def __init__(
+        self,
+        name: str,
+        cache_dir: str,
+        record_count: int,
+        query_count: int,
+        dimensions: int,
+        metric: DistanceMetric,
+        top_k: int,
+        steps: int,
+        no_aggregate_stats: bool,
+        seed: int = None,
+        load_on_init: bool = True,
+        **kwargs,
+    ):
+        super().__init__(name)
+        self._record_count = record_count
+        self._query_count = query_count
+        self._dimensions = dimensions
+        self._metric = metric
+        self._top_k = top_k
+        self._steps = steps
+        self._no_aggregate_stats = no_aggregate_stats
+        if seed:
+            self.rng = np.random.default_rng(np.random.SeedSequence(seed))
+        else:
+            ss = np.random.SeedSequence()
+            self.seed = ss.entropy
+            self.rng = np.random.default_rng(ss)
+
+        if load_on_init:
+            self.setup_records()
+            self.setup_queries()
+            self.setup_workloads()
+        else:
+            self.records = None
+            self.queries = None
+
+    def workload_count(self) -> int:
+        return self._steps
+
+    def setup_workloads(self):
+        assert self.records is not None
+        assert self.queries is not None
+        self.workloads = []
+        cumulative_records = pandas.DataFrame(columns=["id", "values"])
+        record_workload_chunks = np.array_split(self.records, self._steps)
+        query_workload_chunks = np.array_split(self.queries, self._steps)
+        for i in range(self._steps):
+            records = record_workload_chunks[i]
+            cumulative_records = pandas.concat([cumulative_records, records])
+            workload_name = (
+                f"{self.name}_step_{i+1}" if self._no_aggregate_stats else self.name
+            )
+            workload = CumulativeSubsetWorkload(
+                workload_name,
+                records,
+                query_workload_chunks[i],
+                cumulative_records,
+                self._dimensions,
+                self._metric,
+                self._top_k,
+            )
+            self.workloads.append(workload)
+        # clear memory
+        self.records = None
+        self.queries = None
+        return self.workloads
+
+    def setup_records(self):
+        # Pseudo-randomly generate the full RecordList of records
+        # If dot product or cosine, generate each dimension as [0, 1]
+        # If euclidean, use [0, 255]
+        # TODO: Add custom distribution support (normal, hypergeo, zipfian, etc.)
+        self.records = pandas.DataFrame(
+            {
+                "id": np.arange(self._record_count).astype(str),
+                "values": [
+                    (
+                        self.rng.uniform(size=self._dimensions)
+                        if self._metric != DistanceMetric.Euclidean
+                        else self.rng.uniform(0, 256, self._dimensions)
+                    )
+                    for _ in range(self._record_count)
+                ],
+            }
+        )
+
+    def setup_queries(self):
+        # Pseudo-randomly generate the full RecordList of queries
+        # Query will be generated with the same distribution as records
+        self.queries = pandas.DataFrame(
+            {
+                "values": [
+                    (
+                        self.rng.uniform(size=self._dimensions)
+                        if self._metric != DistanceMetric.Euclidean
+                        else self.rng.uniform(0, 256, self._dimensions)
+                    )
+                    for _ in range(self._query_count)
+                ],
+                "top_k": np.full(self._query_count, self._top_k),
+                # TODO: Add metadata support
+            }
+        )
+
+        # Recalculate ground truth neighbors for each query
+        self.queries["neighbors"] = ParquetSubsetWorkload.recalculate_neighbors(
+            self.records, self.queries, self._metric
+        )
+
+
+class CumulativeSubsetWorkload(InMemoryWorkload, ABC):
+    """A workload that takes in a set of records and queries alongside
+    a cumulative record set, and recalculates neighbors for each query
+    based on the cumulative record set.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        records: pandas.DataFrame,
+        queries: pandas.DataFrame,
+        cumulative_records: pandas.DataFrame,
+        dimensions: int,
+        metric: DistanceMetric,
+        top_k: int,
+    ):
+        super().__init__(name)
+        self._record_count = records.shape[0]
+        self._query_count = queries.shape[0]
+        self._dimensions = dimensions
+        self._metric = metric
+        self._top_k = top_k
+        self.records = records
+        self.queries = queries
+        self.queries["neighbors"] = ParquetSubsetWorkload.recalculate_neighbors(
+            cumulative_records, self.queries, self._metric
+        )
