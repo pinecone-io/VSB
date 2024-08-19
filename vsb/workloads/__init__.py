@@ -18,6 +18,7 @@ class Workload(Enum):
     Cohere768 = "cohere768"
     Cohere768Test = "cohere768-test"
     Synthetic = "synthetic"
+    SyntheticProportional = "synthetic-proportional"
 
     def build(self, **kwargs) -> VectorWorkload:
         """Construct an instance of VectorWorkload based on the value of the enum."""
@@ -31,6 +32,12 @@ class Workload(Enum):
                 from .synthetic_workload.synthetic_workload import SyntheticWorkload
 
                 return SyntheticWorkload
+            case Workload.SyntheticProportional:
+                from .synthetic_workload.synthetic_workload import (
+                    SyntheticProportionalWorkload,
+                )
+
+                return SyntheticProportionalWorkload
             case Workload.Mnist:
                 from .mnist.mnist import Mnist
 

@@ -92,6 +92,18 @@ class PgvectorNamespace(Namespace):
         matches = [r[0] for r in result]
         return matches
 
+    def delete_batch(self, request: list[str]):
+        delete_query = f"DELETE FROM {self.table} WHERE id = ANY(%s)"
+        self.conn.execute(delete_query, (request,))
+
+    def fetch_batch(self, request: list[str]) -> list[Record]:
+        select_query = (
+            f"SELECT id, embedding, metadata FROM {self.table} WHERE id = ANY(%s)"
+        )
+        result = self.conn.execute(select_query, (request,)).fetchall()
+        records = [Record(id=r[0], values=r[1], metadata=r[2]) for r in result]
+        return records
+
 
 class PgvectorDB(DB):
     def __init__(

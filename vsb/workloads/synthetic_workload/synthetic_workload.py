@@ -10,7 +10,17 @@ import pyarrow
 from vsb import logger
 from ..base import VectorWorkload, VectorWorkloadSequence
 from ..parquet_workload.parquet_workload import ParquetSubsetWorkload
-from ...vsb_types import SearchRequest, RecordList, Record, DistanceMetric, Vector
+from ...vsb_types import (
+    QueryRequest,
+    SearchRequest,
+    UpsertRequest,
+    FetchRequest,
+    DeleteRequest,
+    RecordList,
+    Record,
+    DistanceMetric,
+    Vector,
+)
 from ...databases.pgvector.filter_util import FilterUtil
 
 
@@ -65,7 +75,7 @@ class InMemoryWorkload(VectorWorkload, ABC):
         return dataframe_to_recordlist(user_chunk)
 
     def get_query_iter(
-        self, num_users: int, user_id: int
+        self, num_users: int, user_id: int, batch_size: int
     ) -> Iterator[tuple[str, SearchRequest]]:
         if self.queries is None:
             logger.warning(
@@ -118,12 +128,7 @@ class InMemoryWorkload(VectorWorkload, ABC):
 
 
 class SyntheticWorkload(InMemoryWorkload, ABC):
-    """A static workload which is implemented by reading records and query from
-    two sets of parquet files.
-    The initial records for the workload are loaded from one set of parquet
-    files, then the run phase of the workload consists of queries loaded
-    from a second set of parquet files.
-    """
+    """A workload in which records and queries are generated pseudo-randomly."""
 
     def __init__(
         self,
@@ -266,7 +271,10 @@ class SyntheticRunbook(VectorWorkloadSequence, ABC):
             records = record_workload_chunks[i]
             cumulative_records = pandas.concat([cumulative_records, records])
             workload_name = (
-                f"{self.name}_step_{i+1}" if self._no_aggregate_stats else self.name
+                # Add step number to workload name to make it unique if not aggregating stats
+                f"{self.name}_step_{i+1}"
+                if self._no_aggregate_stats
+                else self.name
             )
             workload = CumulativeSubsetWorkload(
                 workload_name,
@@ -353,3 +361,134 @@ class CumulativeSubsetWorkload(InMemoryWorkload, ABC):
         self.queries["neighbors"] = ParquetSubsetWorkload.recalculate_neighbors(
             cumulative_records, self.queries, self._metric
         )
+
+
+class SyntheticProportionalWorkload(InMemoryWorkload, ABC):
+    """A workload that populates an initial set of records,
+    then executes populate/search/delete/fetch operations
+    in a specified proportion."""
+
+    def __init__(
+        self,
+        name: str,
+        cache_dir: str,
+        record_count: int,
+        query_count: int,
+        dimensions: int,
+        metric: DistanceMetric,
+        top_k: int,
+        batch_size: int,
+        query_proportion: float,
+        upsert_proportion: float,
+        delete_proportion: float,
+        fetch_proportion: float,
+        seed: int = None,
+        load_on_init: bool = True,
+        **kwargs,
+    ):
+        super().__init__(name)
+        self._record_count = record_count
+        self._query_count = query_count
+        self._dimensions = dimensions
+        self._metric = metric
+        self._top_k = top_k
+        self._batch_size = batch_size
+        self._query_proportion = query_proportion
+        self._upsert_proportion = upsert_proportion
+        self._delete_proportion = delete_proportion
+        self._fetch_proportion = fetch_proportion
+        if seed:
+            self.rng = np.random.default_rng(np.random.SeedSequence(seed))
+        else:
+            ss = np.random.SeedSequence()
+            self.seed = ss.entropy
+            self.rng = np.random.default_rng(ss)
+
+        if load_on_init:
+            self.setup_records()
+        else:
+            self.records = None
+
+    def setup_records(self):
+        # Pseudo-randomly generate the full RecordList of records
+        # If dot product or cosine, generate each dimension as [0, 1]
+        # If euclidean, use [0, 255]
+        self.records = pandas.DataFrame(
+            {
+                "id": np.arange(self._record_count).astype(str),
+                "values": [
+                    (
+                        self.rng.uniform(size=self._dimensions)
+                        if self._metric != DistanceMetric.Euclidean
+                        else self.rng.uniform(0, 256, self._dimensions)
+                    )
+                    for _ in range(self._record_count)
+                ],
+            }
+        )
+
+    def get_query_iter(
+        self, num_users: int, user_id: int, batch_size: int
+    ) -> Iterator[tuple[str, QueryRequest]]:
+        user_n_queries = self._query_count // num_users + (
+            user_id < self._query_count % num_users
+        )
+        # User-unique upsert id range to avoid conflicts
+        upsert_index = self._record_count + user_id * (user_n_queries + 1)
+
+        def make_query_iter(num_queries, upsert_index):
+            # Generate queries in batches. These batches will be homogenous, but a
+            # single query iter may contain multiple types of queries.
+            for query_num in range(0, num_queries, self._batch_size):
+                # In case num_queries is not a multiple of batch_size
+                curr_batch_size = min(self._batch_size, num_queries - query_num)
+                upsert_batch_size = min(curr_batch_size, batch_size)
+                # Choose a random request type based on proportions, and
+                # do _batch_size requests of that type
+                req_type = self.rng.choice(
+                    ["search", "upsert", "delete", "fetch"],
+                    p=[
+                        self._query_proportion,
+                        self._upsert_proportion,
+                        self._delete_proportion,
+                        self._fetch_proportion,
+                    ],
+                )
+                match req_type:
+                    case "search":
+                        for _ in range(curr_batch_size):
+                            yield "", SearchRequest(
+                                values=self.rng.uniform(size=self._dimensions),
+                                top_k=self._top_k,
+                                neighbors=[],
+                            )
+                    case "upsert":
+                        for next_i in range(0, curr_batch_size, upsert_batch_size):
+                            # Yield in batches of max upsert_batch_size
+                            upsert_n = min(upsert_batch_size, curr_batch_size - next_i)
+                            yield "", UpsertRequest(
+                                records=RecordList(
+                                    root=[
+                                        Record(
+                                            id=str(i),
+                                            values=self.rng.uniform(
+                                                size=self._dimensions
+                                            ),
+                                        )
+                                        for i in range(
+                                            upsert_index, upsert_index + upsert_n
+                                        )
+                                    ]
+                                )
+                            )
+                            upsert_index += upsert_n
+                    case "delete":
+                        # TODO: figure out some way to keep track of ids
+                        # No-op for now
+                        yield "", DeleteRequest(ids=[])
+                    case "fetch":
+                        # TODO: figure out some way to keep track of ids
+                        # Can only fetch records that existed initially
+                        yield "", FetchRequest(ids=[])
+
+        return make_query_iter(user_n_queries, upsert_index)

@@ -11,7 +11,14 @@ import vsb
 import vsb.logging
 from vsb import metrics, metrics_tracker
 from vsb.databases import DB
-from vsb.vsb_types import RecordList, SearchRequest
+from vsb.vsb_types import (
+    RecordList,
+    SearchRequest,
+    UpsertRequest,
+    DeleteRequest,
+    FetchRequest,
+    QueryRequest,
+)
 from vsb.workloads import VectorWorkload
 from vsb import logger
 
@@ -234,14 +241,14 @@ class RunUser(User):
         return 0
 
     def do_run(self):
-        request: SearchRequest
         if not self.query_iter:
+            batch_size = self.database.get_batch_size(self.workload.get_sample_record())
             self.query_iter = self.workload.get_query_iter(
-                self.users_total, self.user_id
+                self.users_total, self.user_id, batch_size
             )
 
         tenant: str = None
-        request: SearchRequest = None
+        request: QueryRequest = None
         try:
             (tenant, request) = next(self.query_iter)
         except StopIteration:
@@ -254,17 +261,38 @@ class RunUser(User):
             return
         try:
             index = self.database.get_namespace(tenant)
-
             start = time.perf_counter()
-            results = index.search(request)
+            match request:
+                case SearchRequest():
+                    results = index.search(request)
+                case UpsertRequest():
+                    results = index.upsert_batch(request.records)
+                case FetchRequest():
+                    results = index.fetch_batch(request.ids)
+                case DeleteRequest():
+                    results = index.delete_batch(request.ids)
             stop = time.perf_counter()
             elapsed_ms = (stop - start) * 1000.0
-            calc_metrics = metrics.calculate_metrics(request, results)
+            match request:
+                case SearchRequest():
+                    calc_metrics = metrics.calculate_metrics(request, results)
+                    type_label = "Search"
+                case UpsertRequest():
+                    calc_metrics = {}
+                    type_label = "Upsert"
+                case FetchRequest():
+                    calc_metrics = {}
+                    type_label = "Fetch"
+                case DeleteRequest():
+                    calc_metrics = {}
+                    type_label = "Delete"
+                case _:
+                    raise ValueError(f"Unknown request type:{request}")
 
             req_type = (
-                f"{self.workload.name}.Search"
+                f"{self.workload.name}.{type_label}"
                 if self.environment.workload_sequence.workload_count() > 1
-                else "Search"
+                else type_label
             )
             self.environment.events.request.fire(
                 request_type=req_type,

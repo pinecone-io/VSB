@@ -45,6 +45,12 @@ class PineconeNamespace(Namespace):
         matches = [m["id"] for m in result["matches"]]
         return matches
 
+    def fetch_batch(self, request: list[str]) -> list[Record]:
+        return self.index.fetch(request).vectors.values
+
+    def delete_batch(self, request: list[str]):
+        self.index.delete(request)
+
 
 class PineconeDB(DB):
     def __init__(

@@ -71,7 +71,7 @@ class ParquetWorkload(VectorWorkload, ABC):
         return recordbatch_to_dataframe(batch_iter)
 
     def get_query_iter(
-        self, num_users: int, user_id: int
+        self, num_users: int, user_id: int, batch_size: int
     ) -> Iterator[tuple[str, SearchRequest]]:
         if self.queries is None:
             logger.warning(

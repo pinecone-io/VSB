@@ -23,6 +23,14 @@ class Namespace(ABC):
     def search(self, request: SearchRequest) -> list[str]:
         raise NotImplementedError
 
+    @abstractmethod
+    def fetch_batch(self, request: list[str]) -> list[Record]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def delete_batch(self, request: list[str]):
+        raise NotImplementedError
+
 
 class DB(ABC):
     """Abstract class which represents a vector database made up of one or more

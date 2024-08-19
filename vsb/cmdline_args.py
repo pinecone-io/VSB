@@ -131,32 +131,35 @@ def add_vsb_cmdline_args(
         "--synthetic_record_count",
         type=int,
         default=10000,
-        help="Number of records to generate for the synthetic workload. Default is %(default)s",
+        help="Number of records to generate for the synthetic workload. For synthetic proportional "
+        "workloads, this is the initial number of records before queries. Default is %(default)s.",
     )
     synthetic_group.add_argument(
         "--synthetic_query_count",
         type=int,
         default=1000,
-        help="Number of queries to generate for the synthetic workload. Default is %(default)s",
+        help="Number of queries to generate for the synthetic workload. For synthetic proportional "
+        "workloads, this is the number of queries (including upserts) to run after the initial "
+        "population. Default is %(default)s.",
     )
     synthetic_group.add_argument(
         "--synthetic_dimensions",
         type=int,
         default=192,
-        help="Number of dimensions for the synthetic workload. Default is %(default)s",
+        help="Number of dimensions for the synthetic workload. Default is %(default)s.",
     )
     synthetic_group.add_argument(
         "--synthetic_metric",
         type=str,
         default="cosine",
         choices=tuple(e.value for e in DistanceMetric),
-        help="Distance metric to use for the synthetic workload. Default is %(default)s",
+        help="Distance metric to use for the synthetic workload. Default is %(default)s.",
     )
     synthetic_group.add_argument(
         "--synthetic_top_k",
         type=int,
         default=10,
-        help="Top-k value to use for the synthetic workload. Default is %(default)s",
+        help="Top-k value to use for the synthetic workload. Default is %(default)s.",
     )
     synthetic_group.add_argument(
         "--synthetic_seed",
@@ -167,12 +170,43 @@ def add_vsb_cmdline_args(
         "--synthetic_steps",
         type=int,
         default=10,
-        help="Number of steps to use for the synthetic workload. Default is %(default)s",
+        help="Number of steps to use for the synthetic workload. Default is %(default)s.",
     )
     synthetic_group.add_argument(
         "--synthetic_no_aggregate_stats",
         action="store_true",
-        help="Aggregate statistics for the synthetic workload. Default is %(default)s",
+        help="Aggregate statistics for the synthetic workload. Default is %(default)s.",
+    )
+    synthetic_group.add_argument(
+        "--synthetic_upsert_proportion",
+        type=float,
+        default=0.5,
+        help="Proportion of upsert operations for synthetic proportional workloads. Default is %(default)s.",
+    )
+    synthetic_group.add_argument(
+        "--synthetic_query_proportion",
+        type=float,
+        default=0.5,
+        help="Proportion of query operations for synthetic proportional workloads. Default is %(default)s.",
+    )
+    synthetic_group.add_argument(
+        "--synthetic_delete_proportion",
+        type=float,
+        default=0,
+        help="Proportion of delete operations for synthetic proportional workloads. Default is %(default)s.",
+    )
+    synthetic_group.add_argument(
+        "--synthetic_fetch_proportion",
+        type=float,
+        default=0,
+        help="Proportion of fetch operations for synthetic proportional workloads. Default is %(default)s.",
+    )
+    synthetic_group.add_argument(
+        "--synthetic_batch_size",
+        type=int,
+        default=1,
+        help="For synthetic proportional workload requests, how many operations are scheduled per cycle."
+        " Default is %(default)s.",
     )
 
     pinecone_group = parser.add_argument_group("Options specific to pinecone database")
@@ -194,7 +228,7 @@ def add_vsb_cmdline_args(
         "--pinecone_index_spec",
         type=json_to_pinecone_spec,
         default={"serverless": {"cloud": "aws", "region": "us-east-1"}},
-        help="JSON spec of Pinecone index to create (if it does not exist). Default is %(default)s",
+        help="JSON spec of Pinecone index to create (if it does not exist). Default is %(default)s.",
     )
 
     pgvector_group = parser.add_argument_group("Options specific to pgvector database")
@@ -202,13 +236,13 @@ def add_vsb_cmdline_args(
         "--pgvector_host",
         type=str,
         default="localhost",
-        help="pgvector host to connect to. Default is %(default)s",
+        help="pgvector host to connect to. Default is %(default)s.",
     )
     pgvector_group.add_argument(
         "--pgvector_port",
         type=str,
         default="5432",
-        help="pgvector port to connect to. Default is %(default)s",
+        help="pgvector port to connect to. Default is %(default)s.",
     )
     pgvector_group.add_argument(
         "--pgvector_database",
@@ -219,14 +253,14 @@ def add_vsb_cmdline_args(
         "--pgvector_username",
         type=str,
         default="postgres",
-        help="Username to connect to pgvector index. Default is %(default)s",
+        help="Username to connect to pgvector index. Default is %(default)s.",
         env_var="VSB__PGVECTOR_USERNAME",
     )
     pgvector_group.add_argument(
         "--pgvector_password",
         type=str,
         default="postgres",
-        help="Password to connect to pgvector index. Default is %(default)s",
+        help="Password to connect to pgvector index. Default is %(default)s.",
         env_var="VSB__PGVECTOR_PASSWORD",
     )
     pgvector_group.add_argument(
@@ -236,7 +270,7 @@ def add_vsb_cmdline_args(
         default="hnsw",
         help="Index type to use for pgvector. Specifying 'none' will not create an "
         "ANN index, instead brute-force kNN search will be performed."
-        "Default is %(default)s",
+        "Default is %(default)s.",
     )
     pgvector_group.add_argument(
         "--pgvector_ivfflat_lists",
@@ -260,7 +294,7 @@ def add_vsb_cmdline_args(
             "Set the postgres 'maintenance_work_mem' parameter - the amount of memory "
             "to use for maintenance operations such as CREATE INDEX. This should be "
             "at least as large as the index size. Specify as a string with size "
-            "suffix (e.g. '2GB'). Default is %(default)s"
+            "suffix (e.g. '2GB'). Default is %(default)s."
         ),
     )
 

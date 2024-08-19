@@ -64,8 +64,13 @@ def setup_environment(environment, **_kwargs):
             "seed": options.synthetic_seed,
             "steps": options.synthetic_steps,
             "no_aggregate_stats": options.synthetic_no_aggregate_stats,
+            "upsert_proportion": options.synthetic_upsert_proportion,
+            "delete_proportion": options.synthetic_delete_proportion,
+            "query_proportion": options.synthetic_query_proportion,
+            "fetch_proportion": options.synthetic_fetch_proportion,
+            "batch_size": options.synthetic_batch_size,
         }
-        if options.workload == "synthetic" or options.workload == "synthetic-runbook"
+        if "synthetic" in options.workload
         else {}
     )
 
