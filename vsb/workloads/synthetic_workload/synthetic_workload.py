@@ -7,6 +7,8 @@ import pandas
 import numpy as np
 import pyarrow
 
+import itertools
+
 from vsb import logger
 from ..base import VectorWorkload, VectorWorkloadSequence
 from ..parquet_workload.parquet_workload import ParquetSubsetWorkload
@@ -433,10 +435,23 @@ class SyntheticProportionalWorkload(InMemoryWorkload, ABC):
         user_n_queries = self._query_count // num_users + (
             user_id < self._query_count % num_users
         )
+        user_n_records = self._record_count // num_users + (
+            user_id < self._record_count % num_users
+        )
         # User-unique upsert id range to avoid conflicts
         upsert_index = self._record_count + user_id * (user_n_queries + 1)
+        # User-unique delete/fetch id range to avoid conflicts
+        original_index_start = self._record_count // num_users * user_id + (
+            min(self._record_count % num_users, user_id)
+        )
+        original_index_end = original_index_start + user_n_records
+        # We maintain a range of available indexes for deletions.
+        # Upon upsert, we add to the end, and upon deletion, we pop from the front.
+        # Because ranges are lazy, we can support almost infinite ids, at the
+        # cost of picking ids by insertion order instead of randomly.
+        available_indexes = iter(range(original_index_start, original_index_end))
 
-        def make_query_iter(num_queries, upsert_index):
+        def make_query_iter(num_queries, upsert_index, available_indexes):
             # Generate queries in batches. These batches will be homogenous, but a
             # single query iter may contain multiple types of queries.
             for query_num in range(0, num_queries, self._batch_size):
@@ -481,14 +496,44 @@ class SyntheticProportionalWorkload(InMemoryWorkload, ABC):
                                     ]
                                 )
                             )
+                            # Update available_indexes for deletions
+                            available_indexes = itertools.chain(
+                                available_indexes,
+                                range(upsert_index, upsert_index + upsert_n),
+                            )
+                            # Update upsert_index for next batch
                             upsert_index += upsert_n
-                    case "delete":
-                        # TODO: figure out some way to keep track of ids
-                        # No-op for now
-                        yield "", DeleteRequest(ids=[])
-                    case "fetch":
-                        # TODO: figure out some way to keep track of ids
-                        # Can only fetch records that existed initially
-                        yield "", FetchRequest(ids=[])
 
-        return make_query_iter(user_n_queries, upsert_index)
+                    case "delete":
+                        # Delete an arbitrary subset of records
+                        delete_ids = []
+                        for _ in range(curr_batch_size):
+                            try:
+                                i = next(available_indexes)
+                            except StopIteration:
+                                break
+                            delete_ids.append(str(i))
+                        yield "", DeleteRequest(ids=delete_ids)
+                    case "fetch":
+                        # Fetch an arbitrary subset of records
+                        # Pop fetch_n indexes from available_indexes,
+                        # then replace them in available_indexes
+                        fetch_ids = []
+                        for _ in range(curr_batch_size):
+                            try:
+                                i = next(available_indexes)
+                            except StopIteration:
+                                break
+                            fetch_ids.append(str(i))
+
+                        yield "", FetchRequest(ids=fetch_ids)
+
+                        # Check if fetch_ids can be condensed back into a range
+                        if int(fetch_ids[-1]) - int(fetch_ids[0]) == len(fetch_ids) - 1:
+                            fetch_ids = range(int(fetch_ids[0]), int(fetch_ids[-1]) + 1)
+
+                        available_indexes = itertools.chain(
+                            fetch_ids, available_indexes
+                        )
+
+        return make_query_iter(user_n_queries, upsert_index, available_indexes)

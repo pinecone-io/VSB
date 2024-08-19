@@ -197,6 +197,9 @@ def get_stats_summary(stats: RequestStats, current=True) -> str:
 
     for key in sorted(stats.entries.keys()):
         r = stats.entries[key]
+        if r.num_requests == 0:
+            # Skip request types with no activity
+            continue
         table.add_row(
             r.method,
             str(r.num_requests),

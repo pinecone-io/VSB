@@ -23,7 +23,7 @@ from vsb.workloads import (
 from vsb.vsb_types import DistanceMetric
 from vsb import console, logger
 from locust import events, log
-from locust.runners import WorkerRunner, MasterRunner
+from locust.runners import WorkerRunner, MasterRunner, LocalRunner
 from locust_plugins.distributor import Distributor
 from vsb.subscriber import Subscriber
 from gevent.event import AsyncResult
@@ -45,6 +45,47 @@ def on_locust_init_cmd_line_parser(parser):
     can correctly parse them and make available to VSB code.
     """
     add_vsb_cmdline_args(parser, include_locust_args=False)
+
+
+def master_receive_setup_update(environment, msg, **_kwargs):
+    """Master receives the setup update from the worker and updates the
+    total number of users to be spawned.
+    """
+    logger.debug(
+        f"master_receive_setup_update(): user {msg.data['user_id']} completed env setup"
+    )
+    environment.setup_completed_workers.add(msg.data["user_id"])
+
+
+@events.init.add_listener
+def setup_listeners(environment, **_kwargs):
+    logger.debug(f"setup_listeners(): runner={type(environment.runner)}")
+    # In distributed mode, we need the MasterRunner to wait for all workers
+    # to setup their environment before starting the test. Since this may take
+    # a few minutes (from downloading a large dataset), we need to rely on the
+    # event loop to keep the master responsive to heartbeats.
+    if not isinstance(environment.runner, WorkerRunner):
+        environment.setup_completed_workers = set()
+        environment.runner.register_message("setup_done", master_receive_setup_update)
+
+    # We need to perform this work in a background thread (not in the current
+    # gevent greenlet) as otherwise we block the current greenlet (pandas data
+    # loading is not gevent-friendly) and locust's master / worker heartbeat
+    # thinks the worker has gone missing and can terminate it.
+    pool = gevent.get_hub().threadpool
+    gl = pool.apply_async(
+        setup_environment,
+        kwds={"environment": environment},
+        callback=setup_worker_database,
+    )
+
+    def on_exception(gl):
+        logger.error(
+            f"{type(environment.runner)}: setup_environment() failed, quitting: {gl.exception}"
+        )
+        environment.runner.quit()
+
+    gl.link_exception(on_exception)
 
 
 def setup_environment(environment, **_kwargs):
@@ -120,27 +161,24 @@ def setup_environment(environment, **_kwargs):
         f"metric={env.workload_sequence[0].metric()} "
     )
 
-
-# Note that this listener is guaranteed to finish before Users are spawned, but not
-# before LoadShape is initialized and potentially goes through Init; be careful
-# of accessing env.iteration_helper or other environment attributes set up in
-# setup_environment() before this event listener finishes.
-@events.test_start.add_listener
-def setup_worker_dataset(environment, **_kwargs):
-    # happens only once in headless runs, but can happen multiple times in web ui-runs
-    # in a distributed run, the master does not typically need any test data
-
     environment.iteration = 0
     users.subscribers["iteration"] = Subscriber(
         environment, environment.iteration, "iteration"
     )
 
-    # We need to perform this work in a background thread (not in the current
-    # gevent greenlet) as otherwise we block the current greenlet (pandas data
-    # loading is not gevent-friendly) and locust's master / worker heartbeat
-    # thinks the worker has gone missing and can terminate it.
-    pool = gevent.get_hub().threadpool
-    pool.apply(setup_environment, kwds={"environment": environment})
+    logger.debug(f"setup_environment() finished: runner={type(environment.runner)}")
+    return environment
+
+
+def setup_worker_database(environment, **_kwargs):
+    # happens only once in headless runs, but can happen multiple times in web ui-runs
+
+    logger.debug(f"setup_worker_database() start: runner={type(environment.runner)}")
+
+    # We need to initialize the Database here, and not in setup_environment()'s
+    # background thread: monkey-patching grpc in the background thread will not
+    # affect the main greenlet. Additionally, pgvector can't be initialized in
+    # child threads.
 
     try:
         options = environment.parsed_options
@@ -156,6 +194,7 @@ def setup_worker_dataset(environment, **_kwargs):
         # stop the User from running, e.g. because the database
         # connection failed.
         log.unhandled_greenlet_exception = True
+        logger.debug(f"setup_environment() stopping User: {traceback.format_exc()}")
         environment.runner.quit()
     except:
         logger.error(
@@ -164,6 +203,49 @@ def setup_worker_dataset(environment, **_kwargs):
         )
         log.unhandled_greenlet_exception = True
         environment.runner.quit()
+
+    # Workers need to notify the master that they have finished setting up
+    if not isinstance(environment.runner, MasterRunner):
+        environment.runner.send_message(
+            "setup_done", {"user_id": environment.runner.client_id}
+        )
+    # Set this process-wide flag so we can check in test_start if we
+    # attempted to setup the environment + database.
+    environment.setup_done = True
+    logger.debug(f"setup_worker_database() finished: runner={type(environment.runner)}")
+
+
+@events.test_start.add_listener
+def check_environment_setup(environment, **_kwargs):
+    # Unfortunately due to a bug in locust, exceptions thrown in the init event
+    # handler don't crash the locust process, leading to tests hanging. We must
+    # check the environment is correctly setup in test_start and throw/quit if
+    # not. See https://github.com/locustio/locust/issues/2057.
+
+    # Spawn a greenlet to check if the environment is correctly setup.
+    def check_environment_setup_async(environment):
+        while not hasattr(environment, "setup_done"):
+            gevent.sleep(0.01)
+        logger.debug(
+            f"check_environment_setup_async(): setup_done={environment.setup_done}"
+        )
+        if not hasattr(environment, "workload_sequence"):
+            logger.error(
+                "Environment not correctly setup, workload_sequence not initialized."
+            )
+            environment.runner.quit()
+        if not hasattr(environment, "database"):
+            logger.error("Environment not correctly setup, database not initialized.")
+            environment.runner.quit()
+
+    # We have to spawn a greenlet to check the environment setup, as we can't
+    # block the current greenlet (which is currently blocked running test_start) as
+    # it will prevent the worker from receiving heartbeat responses from the master.
+    gevent.spawn(check_environment_setup_async, environment)
+
+    # We don't have to join this greenlet, as we only rely on it to fail if the
+    # environment is not correctly setup. Our Users will only be spawned after
+    # the setup_done events are received from all workers.
 
 
 @events.quit.add_listener

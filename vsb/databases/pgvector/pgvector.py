@@ -41,7 +41,7 @@ class PgvectorNamespace(Namespace):
 
         # Warn the user once if they're using a GIN index on a
         # dataset that doesn't have metadata.
-        if not self.warned_no_metadata:
+        if not self.warned_no_metadata and "gin" in self.index_type:
             if all([rec.metadata is None for rec in batch]):
                 self.warned_no_metadata = True
                 logger.warning(
@@ -101,7 +101,7 @@ class PgvectorNamespace(Namespace):
             f"SELECT id, embedding, metadata FROM {self.table} WHERE id = ANY(%s)"
         )
         result = self.conn.execute(select_query, (request,)).fetchall()
-        records = [Record(id=r[0], values=r[1], metadata=r[2]) for r in result]
+        records = [Record(id=r[0], values=r[1], metadata=r[2] or {}) for r in result]
         return records
 
 

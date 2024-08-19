@@ -7,10 +7,13 @@ from locust import User, task, LoadTestShape, constant_throughput, runners
 from locust.exception import ResponseError, StopUser
 import locust.stats
 
+import gevent
+
 import vsb
 import vsb.logging
 from vsb import metrics, metrics_tracker
 from vsb.databases import DB
+import vsb.metrics_tracker
 from vsb.vsb_types import (
     RecordList,
     SearchRequest,
@@ -64,7 +67,7 @@ class SetupUser(User):
             case self.State.Done:
                 # Nothing more to do, but sleep briefly here to prevent
                 # us busy-looping in this state.
-                time.sleep(0.1)
+                gevent.sleep(0.1)
 
 
 class PopulateUser(User):
@@ -80,7 +83,6 @@ class PopulateUser(User):
     def __init__(self, environment):
         super().__init__(environment)
         iteration = subscribers["iteration"]()
-        logger.debug(f"PopulateUser.__init__() iteration:{iteration}")
         # Assign a globally unique (potentially across multiple locust processes)
         # user_id, to use for selecting which subset of the workload this User
         # will operate on.
@@ -91,7 +93,7 @@ class PopulateUser(User):
         self.state = PopulateUser.State.Active
         self.load_iter = None
         logger.debug(
-            f"PopulateUser.__init__() id:{self.user_id} workload:{self.workload.name}"
+            f"PopulateUser.__init__() id:{self.user_id} workload:{self.workload.name} iteration: {iteration} thread: {gevent.getcurrent()}"
         )
 
     @task
@@ -102,7 +104,7 @@ class PopulateUser(User):
             case PopulateUser.State.Done:
                 # Nothing more to do, but sleep briefly here to prevent
                 # us busy-looping in this state.
-                time.sleep(0.1)
+                gevent.sleep(0.1)
 
     def do_load(self):
         try:
@@ -179,7 +181,7 @@ class FinalizeUser(User):
             case FinalizeUser.State.Done:
                 # Nothing more to do, but sleep briefly here to prevent
                 # us busy-looping in this state.
-                time.sleep(0.1)
+                gevent.sleep(0.1)
 
     def do_finalize(self):
         """Perform any database-specific finalization of the populate phase
@@ -230,7 +232,7 @@ class RunUser(User):
             case RunUser.State.Done:
                 # Nothing more to do, but sleep briefly here to prevent
                 # us busy-looping in this state.
-                time.sleep(0.1)
+                gevent.sleep(0.1)
 
     def wait_time(self):
         """Method called by locust to control how long this task should wait between
@@ -277,15 +279,19 @@ class RunUser(User):
                 case SearchRequest():
                     calc_metrics = metrics.calculate_metrics(request, results)
                     type_label = "Search"
+                    reqs = None
                 case UpsertRequest():
                     calc_metrics = {}
                     type_label = "Upsert"
+                    reqs = len(request.records)
                 case FetchRequest():
                     calc_metrics = {}
                     type_label = "Fetch"
+                    reqs = len(request.ids)
                 case DeleteRequest():
                     calc_metrics = {}
                     type_label = "Delete"
+                    reqs = len(request.ids)
                 case _:
                     raise ValueError(f"Unknown request type:{request}")
 
@@ -300,6 +306,7 @@ class RunUser(User):
                 response_time=elapsed_ms,
                 response_length=0,
                 metrics=calc_metrics,
+                counters={"requests": reqs} if reqs else {},
             )
         except Exception as e:
             traceback.print_exception(e)
@@ -320,6 +327,8 @@ class LoadShape(LoadTestShape):
     class Phase(Enum):
         Init = auto()
         """Perform LoadShape initialization """
+        WaitingForWorkers = auto()
+        """Wait for all workers to complete process-wide setup before starting the benchmark"""
         Setup = auto()
         """Setup database, performing any necessary tasks before records are loaded
          (e.g. create tables / indexes, configure server)."""
@@ -359,6 +368,7 @@ class LoadShape(LoadTestShape):
         then it doesn't actually start any ClassB tasks. As such we need to
         first reduce task count to 0, then ramp back to N tasks of ClassB.
         """
+
         match self.phase:
             case LoadShape.Phase.Init:
                 # self.runner is not initialised until after __init__(), so we must
@@ -368,8 +378,23 @@ class LoadShape(LoadTestShape):
                 parsed_opts = self.runner.environment.parsed_options
                 self.num_users = parsed_opts.num_users
                 self.skip_populate = parsed_opts.skip_populate
-                self._transition_phase(LoadShape.Phase.Setup)
+                # manually change phase because _transition_phase depends on environment
+                # attributes like workload_sequence that might not be set up yet
+                logger.debug(f"switching to WaitingForWorkers phase")
+                self.phase = LoadShape.Phase.WaitingForWorkers
                 return self.tick()
+            case LoadShape.Phase.WaitingForWorkers:
+                if (
+                    len(self.runner.environment.setup_completed_workers)
+                    == self.runner.environment.parsed_options.expect_workers
+                ):
+                    # All workers have completed process-wide setup, so we can start
+                    logger.debug(
+                        f"All workers have completed setup - starting benchmark"
+                    )
+                    self._transition_phase(LoadShape.Phase.Setup)
+                    return self.tick()
+                return 0, self.num_users, []
             case LoadShape.Phase.Setup:
                 vsb.progress.update(self.progress_task_id, total=1)
                 return 1, 1, [SetupUser]
@@ -625,20 +650,32 @@ class LoadShape(LoadTestShape):
                     self.progress_task_id, completed=1 if mark_completed else 0
                 )
             case LoadShape.Phase.Run:
-                # TODO: When we add additional request types other than Search,
-                # we need to expand this to include them.
                 env = self.runner.environment
                 workload = env.workload_sequence[env.iteration]
-                req_type = (
-                    f"{workload.name}.Search"
-                    if env.workload_sequence.workload_count() > 1
-                    else "Search"
-                )
-                stats: locust.stats.StatsEntry = env.stats.get(workload.name, req_type)
+                cumulative_current_rps = 0
+                cumulative_num_requests = 0
+                for req_name in ["Search", "Upsert", "Fetch", "Delete"]:
+                    req_type = (
+                        f"{workload.name}.{req_name}"
+                        if env.workload_sequence.workload_count() > 1
+                        else req_name
+                    )
+                    stats: locust.stats.StatsEntry = env.stats.get(
+                        workload.name, req_type
+                    )
+                    cumulative_current_rps += stats.current_rps
+                    completed = (
+                        vsb.metrics_tracker.calculated_metrics.get(req_type, {}).get(
+                            "requests", 0
+                        )
+                        if req_name != "Search"
+                        else stats.num_requests
+                    )
+                    cumulative_num_requests += completed
 
                 # Display current (last 10s) values for some significant metrics
                 # in the progress_details row.
-                ops_str = f"{stats.current_rps:.1f} op/s"
+                ops_str = f"{cumulative_current_rps:.1f} op/s"
                 latency_str = ", ".join(
                     [
                         f"p{p}={stats.get_current_response_time_percentile(p/100.0) or '...'}ms"
@@ -647,6 +684,11 @@ class LoadShape(LoadTestShape):
                 )
 
                 def get_recall_pct(p):
+                    req_type = (
+                        f"{workload.name}.Search"
+                        if env.workload_sequence.workload_count() > 1
+                        else "Search"
+                    )
                     recall = vsb.metrics_tracker.get_metric_percentile(
                         req_type, "recall", p
                     )
@@ -665,7 +707,7 @@ class LoadShape(LoadTestShape):
 
                 vsb.progress.update(
                     self.progress_task_id,
-                    completed=stats.num_requests,
+                    completed=cumulative_num_requests,
                     total=self.request_count,
                     extra_info=metrics_str,
                 )
