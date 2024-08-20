@@ -208,6 +208,13 @@ def add_vsb_cmdline_args(
         help="For synthetic proportional workload requests, how many operations are scheduled per cycle."
         " Default is %(default)s.",
     )
+    synthetic_group.add_argument(
+        "--synthetic_query_distribution",
+        type=str,
+        default="zipfian",
+        choices=["uniform", "zipfian"],
+        help="Distribution of query/fetch IDs for synthetic proportional workloads. Default is %(default)s.",
+    )
 
     pinecone_group = parser.add_argument_group("Options specific to pinecone database")
     pinecone_group.add_argument(

@@ -110,6 +110,7 @@ def setup_environment(environment, **_kwargs):
             "query_proportion": options.synthetic_query_proportion,
             "fetch_proportion": options.synthetic_fetch_proportion,
             "batch_size": options.synthetic_batch_size,
+            "query_distribution": options.synthetic_query_distribution,
         }
         if "synthetic" in options.workload
         else {}

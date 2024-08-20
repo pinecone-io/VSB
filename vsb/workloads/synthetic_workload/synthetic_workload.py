@@ -456,6 +456,7 @@ class SyntheticProportionalWorkload(InMemoryWorkload, ABC):
         upsert_proportion: float,
         delete_proportion: float,
         fetch_proportion: float,
+        query_distribution: str,
         seed: int = None,
         load_on_init: bool = True,
         **kwargs,
@@ -471,6 +472,7 @@ class SyntheticProportionalWorkload(InMemoryWorkload, ABC):
         self._upsert_proportion = upsert_proportion
         self._delete_proportion = delete_proportion
         self._fetch_proportion = fetch_proportion
+        self._query_distribution = query_distribution
         if seed:
             self.rng = np.random.default_rng(np.random.SeedSequence(seed))
         else:
@@ -483,6 +485,33 @@ class SyntheticProportionalWorkload(InMemoryWorkload, ABC):
         else:
             self.records = None
 
+    def id_to_vec(self, id: int, version: int) -> Vector:
+        # Generate a pseudo-random vector based on the id, version, and seed
+        # Instead of storing vectors, we can store ids and lazy generate vectors.
+        # The same id/version pair will always generate the same vector.
+        seed_seq = np.random.SeedSequence([self.seed, id, version])
+        rng = np.random.default_rng(seed_seq)
+        match self._metric:
+            case DistanceMetric.Cosine | DistanceMetric.DotProduct:
+                return rng.uniform(size=self._dimensions)
+            case DistanceMetric.Euclidean:
+                return rng.uniform(0, 256, self._dimensions)
+
+    def query_distributor(self, num_available_indexes, samples) -> list[int]:
+        match self._query_distribution:
+            case "uniform":
+                return self.rng.choice(num_available_indexes, samples, replace=False)
+            case "zipfian":
+                query_idx = []
+                while len(query_idx) < samples:
+                    if (offset := self.rng.zipf(1.1)) < num_available_indexes:
+                        query_idx.append(offset)
+                return query_idx
+            case _:
+                raise ValueError(
+                    f"Unsupported query distribution: {self.query_distribution}"
+                )
+
     def setup_records(self):
         # Pseudo-randomly generate the full RecordList of records
         # If dot product or cosine, generate each dimension as [0, 1]
@@ -490,14 +519,7 @@ class SyntheticProportionalWorkload(InMemoryWorkload, ABC):
         self.records = pandas.DataFrame(
             {
                 "id": np.arange(self._record_count).astype(str),
-                "values": [
-                    (
-                        self.rng.uniform(size=self._dimensions)
-                        if self._metric != DistanceMetric.Euclidean
-                        else self.rng.uniform(0, 256, self._dimensions)
-                    )
-                    for _ in range(self._record_count)
-                ],
+                "values": [self.id_to_vec(id, 0) for id in range(self._record_count)],
             }
         )
 
@@ -517,11 +539,10 @@ class SyntheticProportionalWorkload(InMemoryWorkload, ABC):
             min(self._record_count % num_users, user_id)
         )
         original_index_end = original_index_start + user_n_records
-        # We maintain a range of available indexes for deletions.
-        # Upon upsert, we add to the end, and upon deletion, we pop from the front.
-        # Because ranges are lazy, we can support almost infinite ids, at the
-        # cost of picking ids by insertion order instead of randomly.
-        available_indexes = iter(range(original_index_start, original_index_end))
+        # We maintain a deque of available indexes for upserts, deletions, fetches,
+        # and searches. We delete from the front, and upsert to the back. Fetches
+        # and searches will be taken by specified distribution (zipfian, etc.)
+        available_indexes = list(range(original_index_start, original_index_end))
 
         def make_query_iter(num_queries, upsert_index, available_indexes):
             # Generate queries in batches. These batches will be homogenous, but a
@@ -532,20 +553,26 @@ class SyntheticProportionalWorkload(InMemoryWorkload, ABC):
                 upsert_batch_size = min(curr_batch_size, batch_size)
                 # Choose a random request type based on proportions, and
                 # do _batch_size requests of that type
+                p = [
+                    self._query_proportion,
+                    self._upsert_proportion,
+                    self._delete_proportion,
+                    self._fetch_proportion,
+                ]
+                # Normalize probabilities to sum to 1
+                p = [x / sum(p) for x in p]
                 req_type = self.rng.choice(
                     ["search", "upsert", "delete", "fetch"],
-                    p=[
-                        self._query_proportion,
-                        self._upsert_proportion,
-                        self._delete_proportion,
-                        self._fetch_proportion,
-                    ],
+                    p=p,
                 )
                 match req_type:
                     case "search":
                         for _ in range(curr_batch_size):
+                            idx = self.query_distributor(len(available_indexes), 1)[0]
+                            # TODO: change when we have versioning w/ updates
+                            vector = self.id_to_vec(available_indexes[idx], 0)
                             yield "", SearchRequest(
-                                values=self.rng.uniform(size=self._dimensions),
+                                values=vector,
                                 top_k=self._top_k,
                                 neighbors=[],
                             )
@@ -569,43 +596,25 @@ class SyntheticProportionalWorkload(InMemoryWorkload, ABC):
                                 )
                             )
                             # Update available_indexes for deletions
-                            available_indexes = itertools.chain(
-                                available_indexes,
-                                range(upsert_index, upsert_index + upsert_n),
+                            available_indexes.extend(
+                                range(upsert_index, upsert_index + upsert_n)
                             )
                             # Update upsert_index for next batch
                             upsert_index += upsert_n
 
                     case "delete":
                         # Delete an arbitrary subset of records
-                        delete_ids = []
-                        for _ in range(curr_batch_size):
-                            try:
-                                i = next(available_indexes)
-                            except StopIteration:
-                                break
-                            delete_ids.append(str(i))
+                        delete_ids = [
+                            str(i) for i in available_indexes[:curr_batch_size]
+                        ]
+                        available_indexes = available_indexes[curr_batch_size:]
                         yield "", DeleteRequest(ids=delete_ids)
                     case "fetch":
-                        # Fetch an arbitrary subset of records
-                        # Pop fetch_n indexes from available_indexes,
-                        # then replace them in available_indexes
-                        fetch_ids = []
-                        for _ in range(curr_batch_size):
-                            try:
-                                i = next(available_indexes)
-                            except StopIteration:
-                                break
-                            fetch_ids.append(str(i))
+                        idxs = self.query_distributor(
+                            len(available_indexes), curr_batch_size
+                        )
+                        fetch_ids = [str(available_indexes[i]) for i in idxs]
 
                         yield "", FetchRequest(ids=fetch_ids)
-
-                        # Check if fetch_ids can be condensed back into a range
-                        if int(fetch_ids[-1]) - int(fetch_ids[0]) == len(fetch_ids) - 1:
-                            fetch_ids = range(int(fetch_ids[0]), int(fetch_ids[-1]) + 1)
-
-                        available_indexes = itertools.chain(
-                            fetch_ids, available_indexes
-                        )
 
         return make_query_iter(user_n_queries, upsert_index, available_indexes)
