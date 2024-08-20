@@ -22,6 +22,7 @@ from test_pinecone import (
     pinecone_api_key,
     pinecone_index_mnist,
     pinecone_index_yfcc,
+    pinecone_index_synthetic,
     spawn_vsb_pinecone,
 )
 from test_pgvector import spawn_vsb_pgvector
@@ -35,13 +36,19 @@ class TestCommon:
     # spawn_vsb functions.
 
     def test_mnist_single(
-        self, spawn_vsb, pinecone_api_key, pinecone_index_mnist, pinecone_index_yfcc
+        self,
+        spawn_vsb,
+        pinecone_api_key,
+        pinecone_index_mnist,
+        pinecone_index_yfcc,
+        pinecone_index_synthetic,
     ):
         # Test "-test" variant of mnist loads and runs successfully.
         (proc, stdout, stderr) = spawn_vsb(
             pinecone_api_key=pinecone_api_key,
             pinecone_index_mnist=pinecone_index_mnist,
             pinecone_index_yfcc=pinecone_index_yfcc,
+            pinecone_index_synthetic=pinecone_index_synthetic,
             workload="mnist-test",
         )
         assert proc.returncode == 0
@@ -60,7 +67,12 @@ class TestCommon:
         )
 
     def test_mnist_concurrent(
-        self, spawn_vsb, pinecone_api_key, pinecone_index_mnist, pinecone_index_yfcc
+        self,
+        spawn_vsb,
+        pinecone_api_key,
+        pinecone_index_mnist,
+        pinecone_index_yfcc,
+        pinecone_index_synthetic,
     ):
         # Test "-test" variant of mnist loads and runs successfully with
         # concurrent users
@@ -68,6 +80,7 @@ class TestCommon:
             pinecone_api_key=pinecone_api_key,
             pinecone_index_mnist=pinecone_index_mnist,
             pinecone_index_yfcc=pinecone_index_yfcc,
+            pinecone_index_synthetic=pinecone_index_synthetic,
             workload="mnist-test",
             extra_args=["--users=4"],
         )
@@ -90,7 +103,12 @@ class TestCommon:
         )
 
     def test_mnist_multiprocess(
-        self, spawn_vsb, pinecone_api_key, pinecone_index_mnist, pinecone_index_yfcc
+        self,
+        spawn_vsb,
+        pinecone_api_key,
+        pinecone_index_mnist,
+        pinecone_index_yfcc,
+        pinecone_index_synthetic,
     ):
         # Test "-test" variant of mnist loads and runs successfully with
         # concurrent processes and users.
@@ -98,6 +116,7 @@ class TestCommon:
             pinecone_api_key=pinecone_api_key,
             pinecone_index_mnist=pinecone_index_mnist,
             pinecone_index_yfcc=pinecone_index_yfcc,
+            pinecone_index_synthetic=pinecone_index_synthetic,
             workload="mnist-test",
             extra_args=["--processes=2", "--users=4"],
         )
@@ -122,13 +141,19 @@ class TestCommon:
         )
 
     def test_mnist_double(
-        self, spawn_vsb, pinecone_api_key, pinecone_index_mnist, pinecone_index_yfcc
+        self,
+        spawn_vsb,
+        pinecone_api_key,
+        pinecone_index_mnist,
+        pinecone_index_yfcc,
+        pinecone_index_synthetic,
     ):
         # Test "-double-test" variant (WorkloadSequence) of mnist loads and runs successfully.
         (proc, stdout, stderr) = spawn_vsb(
             pinecone_api_key=pinecone_api_key,
             pinecone_index_mnist=pinecone_index_mnist,
             pinecone_index_yfcc=pinecone_index_yfcc,
+            pinecone_index_synthetic=pinecone_index_synthetic,
             workload="mnist-double-test",
         )
         assert proc.returncode == 0
@@ -154,7 +179,12 @@ class TestCommon:
         )
 
     def test_mnist_double_concurrent(
-        self, spawn_vsb, pinecone_api_key, pinecone_index_mnist, pinecone_index_yfcc
+        self,
+        spawn_vsb,
+        pinecone_api_key,
+        pinecone_index_mnist,
+        pinecone_index_yfcc,
+        pinecone_index_synthetic,
     ):
         # Test "-double-test" variant (WorkloadSequence) of mnist loads and runs successfully with
         # concurrent users, and with a request rate limit set.
@@ -162,6 +192,7 @@ class TestCommon:
             pinecone_api_key=pinecone_api_key,
             pinecone_index_mnist=pinecone_index_mnist,
             pinecone_index_yfcc=pinecone_index_yfcc,
+            pinecone_index_synthetic=pinecone_index_synthetic,
             workload="mnist-double-test",
             extra_args=["--users=4", "--requests_per_sec=40"],
         )
@@ -192,7 +223,12 @@ class TestCommon:
         )
 
     def test_mnist_double_multiprocess(
-        self, spawn_vsb, pinecone_api_key, pinecone_index_mnist, pinecone_index_yfcc
+        self,
+        spawn_vsb,
+        pinecone_api_key,
+        pinecone_index_mnist,
+        pinecone_index_yfcc,
+        pinecone_index_synthetic,
     ):
         # Test "-double-test" variant (WorkloadSequence) of mnist loads and runs successfully with
         # concurrent processes and users.
@@ -200,6 +236,7 @@ class TestCommon:
             pinecone_api_key=pinecone_api_key,
             pinecone_index_mnist=pinecone_index_mnist,
             pinecone_index_yfcc=pinecone_index_yfcc,
+            pinecone_index_synthetic=pinecone_index_synthetic,
             workload="mnist-double-test",
             extra_args=["--processes=4", "--users=4"],
         )
@@ -230,7 +267,12 @@ class TestCommon:
         )
 
     def test_mnist_skip_populate(
-        self, spawn_vsb, pinecone_api_key, pinecone_index_mnist, pinecone_index_yfcc
+        self,
+        spawn_vsb,
+        pinecone_api_key,
+        pinecone_index_mnist,
+        pinecone_index_yfcc,
+        pinecone_index_synthetic,
     ):
         # Test that skip_populate doesn't re-populate data.
 
@@ -240,6 +282,7 @@ class TestCommon:
             pinecone_api_key=pinecone_api_key,
             pinecone_index_mnist=pinecone_index_mnist,
             pinecone_index_yfcc=pinecone_index_yfcc,
+            pinecone_index_synthetic=pinecone_index_synthetic,
             workload="mnist-test",
             extra_args=["--pgvector_index_type=ivfflat"],
         )
@@ -258,6 +301,7 @@ class TestCommon:
             pinecone_api_key=pinecone_api_key,
             pinecone_index_mnist=pinecone_index_mnist,
             pinecone_index_yfcc=pinecone_index_yfcc,
+            pinecone_index_synthetic=pinecone_index_synthetic,
             workload="mnist-test",
             extra_args=["--pgvector_index_type=ivfflat", "--skip_populate"],
         )
@@ -275,13 +319,19 @@ class TestCommon:
         )
 
     def test_filtered(
-        self, spawn_vsb, pinecone_api_key, pinecone_index_mnist, pinecone_index_yfcc
+        self,
+        spawn_vsb,
+        pinecone_api_key,
+        pinecone_index_mnist,
+        pinecone_index_yfcc,
+        pinecone_index_synthetic,
     ):
         # Tests a workload with metadata and filtering (such as YFCC-test).
         (proc, stdout, stderr) = spawn_vsb(
             pinecone_api_key=pinecone_api_key,
             pinecone_index_mnist=pinecone_index_mnist,
             pinecone_index_yfcc=pinecone_index_yfcc,
+            pinecone_index_synthetic=pinecone_index_synthetic,
             workload="yfcc-test",
             extra_args=["--users=10"],
         )
@@ -298,6 +348,125 @@ class TestCommon:
                     "num_requests": 500,
                     "num_failures": 0,
                     "Recall": check_recall_stats,
+                },
+            },
+        )
+
+    def test_synthetic(
+        self,
+        spawn_vsb,
+        pinecone_api_key,
+        pinecone_index_mnist,
+        pinecone_index_yfcc,
+        pinecone_index_synthetic,
+    ):
+        (proc, stdout, stderr) = spawn_vsb(
+            pinecone_api_key=pinecone_api_key,
+            pinecone_index_mnist=pinecone_index_mnist,
+            pinecone_index_yfcc=pinecone_index_yfcc,
+            pinecone_index_synthetic=pinecone_index_synthetic,
+            workload="synthetic",
+            extra_args=["--users=10", "--processes=2"],
+        )
+        assert proc.returncode == 0
+
+        check_request_counts(
+            stdout,
+            {
+                "Populate": {"num_requests": 10, "num_failures": 0},
+                "Search": {
+                    "num_requests": 1000,
+                    "num_failures": 0,
+                    "Recall": check_recall_stats,
+                },
+            },
+        )
+
+    def test_synthetic_runbook(
+        self,
+        spawn_vsb,
+        pinecone_api_key,
+        pinecone_index_mnist,
+        pinecone_index_yfcc,
+        pinecone_index_synthetic,
+    ):
+        (proc, stdout, stderr) = spawn_vsb(
+            pinecone_api_key=pinecone_api_key,
+            pinecone_index_mnist=pinecone_index_mnist,
+            pinecone_index_yfcc=pinecone_index_yfcc,
+            pinecone_index_synthetic=pinecone_index_synthetic,
+            workload="synthetic-runbook",
+            extra_args=[
+                "--users=2",
+                "--processes=2",
+                "--synthetic_steps=2",
+                "--synthetic_record_count=1000",
+                "--synthetic_query_count=500",
+            ],
+        )
+        assert proc.returncode == 0
+
+        check_request_counts(
+            stdout,
+            {
+                "Populate": {"num_requests": lambda x: x <= 4, "num_failures": 0},
+                "Search": {
+                    "num_requests": 500,
+                    "num_failures": 0,
+                    "Recall": check_recall_stats,
+                },
+            },
+        )
+
+    def test_synthetic_proportional(
+        self,
+        spawn_vsb,
+        pinecone_api_key,
+        pinecone_index_mnist,
+        pinecone_index_yfcc,
+        pinecone_index_synthetic,
+    ):
+        (proc, stdout, stderr) = spawn_vsb(
+            pinecone_api_key=pinecone_api_key,
+            pinecone_index_mnist=pinecone_index_mnist,
+            pinecone_index_yfcc=pinecone_index_yfcc,
+            pinecone_index_synthetic=pinecone_index_synthetic,
+            workload="synthetic-proportional",
+            extra_args=[
+                "--users=4",
+                "--processes=2",
+                "--synthetic_record_count=1000",
+                "--synthetic_query_count=4000",
+                "--synthetic_query_proportion=0.25",
+                "--synthetic_fetch_proportion=0.25",
+                "--synthetic_delete_proportion=0.25",
+                "--synthetic_upsert_proportion=0.25",
+                "--batch_size=10",
+            ],
+        )
+        assert proc.returncode == 0
+
+        check_request_counts(
+            stdout,
+            {
+                "Populate": {"num_requests": lambda x: x <= 4, "num_failures": 0},
+                "Search": {
+                    "num_requests": lambda x: (x >= 900 and x <= 1100),
+                    "num_failures": 0,
+                },
+                # Fetch, Delete, and Upsert should happen in batches of 10
+                # 1000 records / 10 records per batch = ~100 batches
+                "Fetch": {
+                    "num_requests": lambda x: (x >= 80 and x <= 120),
+                    "num_failures": 0,
+                },
+                "Delete": {
+                    "num_requests": lambda x: (x >= 80 and x <= 120),
+                    "num_failures": 0,
+                },
+                "Upsert": {
+                    "num_requests": lambda x: (x >= 80 and x <= 120),
+                    "num_failures": 0,
                 },
             },
         )

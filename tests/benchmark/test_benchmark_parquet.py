@@ -47,7 +47,7 @@ def test_topk_recalc_mnist_euclidean(benchmark):
 
     # fmt: on
     def benchmark_query_generation():
-        query_iter = workload.get_query_iter(1, 0)
+        query_iter = workload.get_query_iter(1, 0, 0)
         for i, (tenant, query) in enumerate(query_iter):
             # Sanity check the correct number of neighbors, and
             # first and last nearest queries neighbors are correct.
@@ -79,7 +79,7 @@ def test_topk_recalc_yfcc_euclidean(benchmark):
 
     # fmt: on
     def benchmark_query_generation():
-        query_iter = workload.get_query_iter(1, 0)
+        query_iter = workload.get_query_iter(1, 0, 0)
         for i, (tenant, query) in enumerate(query_iter):
             # Sanity check the correct number of neighbors, and
             # first and last nearest queries neighbors are correct.
