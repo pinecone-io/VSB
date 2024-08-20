@@ -24,6 +24,9 @@ from vsb.vsb_types import (
 )
 from vsb.workloads import VectorWorkload
 from vsb import logger
+import vsb.workloads
+import vsb.workloads.synthetic_workload
+import vsb.workloads.synthetic_workload.synthetic_workload
 
 # Dict of Distributors - objects which distribute test data across all
 # VSB Users, potentially across multiple processes.
@@ -378,6 +381,7 @@ class LoadShape(LoadTestShape):
                 parsed_opts = self.runner.environment.parsed_options
                 self.num_users = parsed_opts.num_users
                 self.skip_populate = parsed_opts.skip_populate
+                self.no_aggregate_stats = parsed_opts.synthetic_no_aggregate_stats
                 # manually change phase because _transition_phase depends on environment
                 # attributes like workload_sequence that might not be set up yet
                 logger.debug(f"switching to WaitingForWorkers phase")
@@ -633,16 +637,32 @@ class LoadShape(LoadTestShape):
                 stats: locust.stats.StatsEntry = env.stats.get(workload.name, req_type)
                 duration = time.time() - stats.start_time
                 rps_str = "  Records/sec: [magenta]{:.1f}".format(completed / duration)
-                previous_record_count = (
-                    (env.workload_sequence.record_count_upto(env.iteration - 1))
-                    if env.iteration > 0
-                    else 0
-                )
+                # If --synthetic-no-aggregate-stats is set, then we need special
+                # handling to update the progress bar, since each workload in the
+                # sequence uses the same name.
+                if (
+                    isinstance(
+                        env.workload_sequence,
+                        vsb.workloads.synthetic_workload.synthetic_workload.SyntheticRunbook,
+                    )
+                    and not self.no_aggregate_stats
+                ):
+                    # All cumulative records are stored under stats[workload.name],
+                    # we don't need to sum up previous workloads.
+                    previous_record_count = 0
+                    total = env.workload_sequence.record_count()
+                else:
+                    previous_record_count = (
+                        (env.workload_sequence.record_count_upto(env.iteration - 1))
+                        if env.iteration > 0
+                        else 0
+                    )
+                    total = self.record_count
                 vsb.progress.update(
                     self.progress_task_id,
                     completed=completed
                     + previous_record_count,  # Add records from previous workloads
-                    total=self.record_count,
+                    total=total,
                     extra_info=rps_str,
                 )
             case LoadShape.Phase.Finalize:
@@ -705,9 +725,23 @@ class LoadShape(LoadTestShape):
                     + f"[magenta]recall: {recall_str}"
                 )
 
+                # If --synthetic-no-aggregate-stats is set, the cumulative request
+                # count is stored in the stats[workload.name] object. We just use
+                # the total request count for the entire runbook as the total,
+                # although it breaks convention with non-runbook workloads.
+                if (
+                    isinstance(
+                        env.workload_sequence,
+                        vsb.workloads.synthetic_workload.synthetic_workload.SyntheticRunbook,
+                    )
+                    and not self.no_aggregate_stats
+                ):
+                    total = env.workload_sequence.query_count()
+                else:
+                    total = self.request_count
                 vsb.progress.update(
                     self.progress_task_id,
                     completed=cumulative_num_requests,
-                    total=self.request_count,
+                    total=total,
                     extra_info=metrics_str,
                 )

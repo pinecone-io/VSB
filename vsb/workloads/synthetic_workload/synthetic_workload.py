@@ -213,13 +213,54 @@ class SyntheticRunbook(VectorWorkloadSequence, ABC):
     various operations (upsert, search, delete?) on a database over time.
     """
 
-    class Step(VectorWorkload, ABC):
-        def __init__(self, name: str):
+    class WorkloadSketch(VectorWorkload, ABC):
+        """Represents a workload's metadata without storing the actual records or queries.
+        Necessary to generate because workloads are lazy-loaded in the MasterRunner.
+        """
+
+        def __init__(
+            self,
+            name: str,
+            dimensions: int,
+            metric: DistanceMetric,
+            record_count: int,
+            query_count: int,
+        ):
             self._name = name
+            self._dimensions = dimensions
+            self._metric = metric
+            self._record_count = record_count
+            self._query_count = query_count
 
         @property
         def name(self) -> str:
             return self._name
+
+        def dimensions(self) -> int:
+            return self._dimensions
+
+        def metric(self) -> DistanceMetric:
+            return self._metric
+
+        def record_count(self) -> int:
+            return self._record_count
+
+        def request_count(self) -> int:
+            return self._query_count
+
+        def get_sample_record(self) -> Record:
+            # MasterRunner should never call this method.
+            raise NotImplementedError
+
+        def get_record_batch_iter(
+            self, num_users: int, user_id: int, batch_size: int
+        ) -> Iterator[tuple[str, RecordList]]:
+            raise NotImplementedError
+
+        def get_query_iter(
+            self, num_users: int, user_id: int, batch_size: int
+        ) -> Iterator[tuple[str, SearchRequest]]:
+            raise NotImplementedError
 
     def __init__(
         self,
@@ -258,9 +299,40 @@ class SyntheticRunbook(VectorWorkloadSequence, ABC):
         else:
             self.records = None
             self.queries = None
+            self.setup_workload_sketches()
 
     def workload_count(self) -> int:
         return self._steps
+
+    # Auxiliary methods for reporting purposes, not part of the VectorWorkloadSequence interface
+    def record_count(self) -> int:
+        return self._record_count
+
+    def query_count(self) -> int:
+        return self._query_count
+
+    def setup_workload_sketches(self):
+        self.workloads = []
+        for i in range(self._steps):
+            workload_name = (
+                f"{self.name}_step_{i+1}" if self._no_aggregate_stats else self.name
+            )
+            record_count = self._record_count // self._steps * (i + 1) + (
+                i < self._record_count % self._steps
+            )
+            query_count = self._query_count // self._steps * (i + 1) + (
+                i < self._query_count % self._steps
+            )
+            self.workloads.append(
+                self.WorkloadSketch(
+                    name=workload_name,
+                    dimensions=self._dimensions,
+                    metric=self._metric,
+                    record_count=record_count,
+                    query_count=query_count,
+                )
+            )
+        return self.workloads
 
     def setup_workloads(self):
         assert self.records is not None
