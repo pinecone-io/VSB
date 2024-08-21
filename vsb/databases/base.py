@@ -90,3 +90,13 @@ class DB(ABC):
         this should create the index(es).
         """
         pass
+
+    def skip_refinalize(self):
+        """
+        Returns True if the database does not need to be re-finalized after
+        population.
+
+        For databases with separate index building steps that would run during
+        finalize, we may want to skip trying to build an existing index.
+        """
+        pass

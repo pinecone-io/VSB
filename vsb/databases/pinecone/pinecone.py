@@ -151,3 +151,6 @@ class PineconeDB(DB):
                     )
                     break
                 time.sleep(1)
+
+    def skip_refinalize(self):
+        return False

@@ -427,7 +427,13 @@ class LoadShape(LoadTestShape):
                 if self.get_current_user_count() == 0:
                     # stopped all previous Populate Users, can switch to Finalize
                     # phase now
-                    self._transition_phase(LoadShape.Phase.Finalize)
+                    if (
+                        self.runner.environment.database.skip_refinalize()
+                        and self.runner.environment.iteration > 0
+                    ):
+                        self._transition_phase(LoadShape.Phase.Run)
+                    else:
+                        self._transition_phase(LoadShape.Phase.Finalize)
                     return self.tick()
                 return 0, self.num_users, []
             case LoadShape.Phase.Finalize:

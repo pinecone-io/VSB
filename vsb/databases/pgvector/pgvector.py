@@ -262,3 +262,8 @@ class PgvectorDB(DB):
             case DistanceMetric.DotProduct:
                 return "vector_ip_ops"
         raise ValueError("Invalid metric:{}".format(metric))
+
+    def skip_refinalize(self):
+        # pgvector's index will update on successive inserts,
+        # no need to try to build an existing index.
+        return True
