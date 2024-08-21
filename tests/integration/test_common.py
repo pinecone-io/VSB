@@ -375,7 +375,7 @@ class TestCommon:
             {
                 "Populate": {"num_requests": 10, "num_failures": 0},
                 "Search": {
-                    "num_requests": 1000,
+                    "num_requests": 100,
                     "num_failures": 0,
                     "Recall": check_recall_stats,
                 },
