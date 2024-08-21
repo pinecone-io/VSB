@@ -153,6 +153,8 @@ class SyntheticWorkload(InMemoryWorkload, ABC):
         dimensions: int,
         metric: DistanceMetric,
         top_k: int,
+        record_distribution: str,
+        query_distribution: str,
         seed: int = None,
         load_on_init: bool = True,
         **kwargs,
@@ -163,6 +165,8 @@ class SyntheticWorkload(InMemoryWorkload, ABC):
         self._dimensions = dimensions
         self._metric = metric
         self._top_k = top_k
+        self._record_distribution = record_distribution
+        self._query_distribution = query_distribution
         if seed:
             self.rng = np.random.default_rng(np.random.SeedSequence(seed))
         else:
@@ -177,22 +181,54 @@ class SyntheticWorkload(InMemoryWorkload, ABC):
             self.records = None
             self.queries = None
 
+    def get_random_vector(self) -> Vector:
+        # Generate a pseudo-random vector from the workload's distribution
+        match self._metric:
+            case DistanceMetric.Cosine | DistanceMetric.DotProduct:
+                bounds = (-1, 1)
+            case DistanceMetric.Euclidean:
+                bounds = (0, 255)
+        match self._record_distribution:
+            case "uniform":
+                return self.rng.uniform(bounds[0], bounds[1], self._dimensions)
+            case "normal":
+                # Center is usually offset from midpoint by a certain amount
+                offset = self.rng.uniform(-0.2, 0.2)
+                center = (bounds[0] + bounds[1]) / 2 + offset * (bounds[1] - bounds[0])
+                # Use a heuristic 4.5 stdev range of bounds - seems to
+                # mimic embeddings well
+                stdev = (bounds[1] - bounds[0]) / 4.5
+                return self.rng.normal(center, stdev, self._dimensions)
+            case _:
+                raise ValueError(
+                    f"Unsupported record distribution: {self.record_distribution}"
+                )
+
+    def get_random_query_idx(self, num_idxs: int) -> int:
+        # Pick a random record from our records to use as a query,
+        # based on the query distribution.
+        match self._query_distribution:
+            case "uniform":
+                return self.rng.integers(0, self._request_count, num_idxs)
+            case "zipfian":
+                idxs = []
+                while len(idxs) < num_idxs:
+                    if (offset := self.rng.zipf(1.1)) < self._request_count:
+                        idxs.append(offset)
+                return idxs
+            case _:
+                raise ValueError(
+                    f"Unsupported query distribution: {self.query_distribution}"
+                )
+
     def setup_records(self):
         # Pseudo-randomly generate the full RecordList of records
         # If dot product or cosine, generate each dimension as [0, 1]
         # If euclidean, use [0, 255]
-        # TODO: Add custom distribution support (normal, hypergeo, zipfian, etc.)
         self.records = pandas.DataFrame(
             {
                 "id": np.arange(self._record_count).astype(str),
-                "values": [
-                    (
-                        self.rng.uniform(size=self._dimensions)
-                        if self._metric != DistanceMetric.Euclidean
-                        else self.rng.uniform(0, 256, self._dimensions)
-                    )
-                    for _ in range(self._record_count)
-                ],
+                "values": [self.get_random_vector() for _ in range(self._record_count)],
             }
         )
 
@@ -202,12 +238,8 @@ class SyntheticWorkload(InMemoryWorkload, ABC):
         self.queries = pandas.DataFrame(
             {
                 "values": [
-                    (
-                        self.rng.uniform(size=self._dimensions)
-                        if self._metric != DistanceMetric.Euclidean
-                        else self.rng.uniform(0, 256, self._dimensions)
-                    )
-                    for _ in range(self._request_count)
+                    self.records["values"].iat[i]
+                    for i in self.get_random_query_idx(self._request_count)
                 ],
                 "top_k": np.full(self._request_count, self._top_k),
                 # TODO: Add metadata support
@@ -286,6 +318,8 @@ class SyntheticRunbook(VectorWorkloadSequence, ABC):
         metric: DistanceMetric,
         top_k: int,
         steps: int,
+        record_distribution: str,
+        query_distribution: str,
         no_aggregate_stats: bool,
         seed: int = None,
         load_on_init: bool = True,
@@ -293,7 +327,9 @@ class SyntheticRunbook(VectorWorkloadSequence, ABC):
     ):
         super().__init__(name)
         self._record_count = record_count
+        self._record_distribution = record_distribution
         self._request_count = request_count
+        self._query_distribution = query_distribution
         self._dimensions = dimensions
         self._metric = metric
         self._top_k = top_k
@@ -324,6 +360,46 @@ class SyntheticRunbook(VectorWorkloadSequence, ABC):
 
     def request_count(self) -> int:
         return self._request_count
+
+    def get_random_vector(self) -> Vector:
+        # Generate a pseudo-random vector from the workload's distribution
+        match self._metric:
+            case DistanceMetric.Cosine | DistanceMetric.DotProduct:
+                bounds = (-1, 1)
+            case DistanceMetric.Euclidean:
+                bounds = (0, 255)
+        match self._record_distribution:
+            case "uniform":
+                return self.rng.uniform(bounds[0], bounds[1], self._dimensions)
+            case "normal":
+                # Center is usually offset from midpoint by a certain amount
+                offset = self.rng.uniform(-0.2, 0.2)
+                center = (bounds[0] + bounds[1]) / 2 + offset * (bounds[1] - bounds[0])
+                # Use a heuristic 4.5 stdev range of bounds - seems to
+                # mimic embeddings well
+                stdev = (bounds[1] - bounds[0]) / 4.5
+                return self.rng.normal(center, stdev, self._dimensions)
+            case _:
+                raise ValueError(
+                    f"Unsupported record distribution: {self.record_distribution}"
+                )
+
+    def get_random_query_idx(self, num_idxs: int) -> int:
+        # Pick a random record from our records to use as a query,
+        # based on the query distribution.
+        match self._query_distribution:
+            case "uniform":
+                return self.rng.integers(0, self._request_count, num_idxs)
+            case "zipfian":
+                idxs = []
+                while len(idxs) < num_idxs:
+                    if (offset := self.rng.zipf(1.1)) < self._request_count:
+                        idxs.append(offset)
+                return idxs
+            case _:
+                raise ValueError(
+                    f"Unsupported query distribution: {self.query_distribution}"
+                )
 
     def setup_workload_sketches(self):
         self.workloads = []
@@ -383,42 +459,24 @@ class SyntheticRunbook(VectorWorkloadSequence, ABC):
         # Pseudo-randomly generate the full RecordList of records
         # If dot product or cosine, generate each dimension as [0, 1]
         # If euclidean, use [0, 255]
-        # TODO: Add custom distribution support (normal, hypergeo, zipfian, etc.)
         self.records = pandas.DataFrame(
             {
                 "id": np.arange(self._record_count).astype(str),
-                "values": [
-                    (
-                        self.rng.uniform(size=self._dimensions)
-                        if self._metric != DistanceMetric.Euclidean
-                        else self.rng.uniform(0, 256, self._dimensions)
-                    )
-                    for _ in range(self._record_count)
-                ],
+                "values": [self.get_random_vector() for _ in range(self._record_count)],
             }
         )
 
     def setup_queries(self):
         # Pseudo-randomly generate the full RecordList of queries
-        # Query will be generated with the same distribution as records
         self.queries = pandas.DataFrame(
             {
                 "values": [
-                    (
-                        self.rng.uniform(size=self._dimensions)
-                        if self._metric != DistanceMetric.Euclidean
-                        else self.rng.uniform(0, 256, self._dimensions)
-                    )
-                    for _ in range(self._request_count)
+                    self.records["values"].iat[i]
+                    for i in self.get_random_query_idx(self._request_count)
                 ],
                 "top_k": np.full(self._request_count, self._top_k),
                 # TODO: Add metadata support
             }
-        )
-
-        # Recalculate ground truth neighbors for each query
-        self.queries["neighbors"] = ParquetSubsetWorkload.recalculate_neighbors(
-            self.records, self.queries, self._metric
         )
 
 
@@ -472,6 +530,7 @@ class SyntheticProportionalWorkload(InMemoryWorkload, ABC):
         delete_proportion: float,
         fetch_proportion: float,
         query_distribution: str,
+        record_distribution: str,
         seed: int = None,
         load_on_init: bool = True,
         **kwargs,
@@ -489,6 +548,7 @@ class SyntheticProportionalWorkload(InMemoryWorkload, ABC):
         self._delete_proportion = delete_proportion
         self._fetch_proportion = fetch_proportion
         self._query_distribution = query_distribution
+        self._record_distribution = record_distribution
         if seed:
             self.rng = np.random.default_rng(np.random.SeedSequence(seed))
         else:
@@ -507,11 +567,31 @@ class SyntheticProportionalWorkload(InMemoryWorkload, ABC):
         # The same id/version pair will always generate the same vector.
         seed_seq = np.random.SeedSequence([self.seed, id, version])
         rng = np.random.default_rng(seed_seq)
+
+        def get_vector(bounds: tuple[int, int], dimensions: int) -> Vector:
+            match self._record_distribution:
+                case "uniform":
+                    return rng.uniform(bounds[0], bounds[1], dimensions)
+                case "normal":
+                    # Center is usually offset from midpoint by a certain amount
+                    offset = rng.uniform(-0.2, 0.2)
+                    center = (bounds[0] + bounds[1]) / 2 + offset * (
+                        bounds[1] - bounds[0]
+                    )
+                    # Use a heuristic 4.5 stdev range of bounds - seems to
+                    # mimic embeddings well
+                    stdev = (bounds[1] - bounds[0]) / 4.5
+                    return rng.normal(center, stdev, dimensions)
+                case _:
+                    raise ValueError(
+                        f"Unsupported record distribution: {self.record_distribution}"
+                    )
+
         match self._metric:
             case DistanceMetric.Cosine | DistanceMetric.DotProduct:
-                return rng.uniform(size=self._dimensions)
+                return get_vector((-1, 1), self._dimensions)
             case DistanceMetric.Euclidean:
-                return rng.uniform(0, 256, self._dimensions)
+                return get_vector((0, 255), self._dimensions)
 
     def query_distributor(self, num_available_indexes, samples) -> list[int]:
         match self._query_distribution:

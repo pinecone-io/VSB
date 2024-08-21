@@ -219,6 +219,15 @@ def add_vsb_cmdline_args(
         " Default is %(default)s.",
     )
     synthetic_group.add_argument(
+        "--synthetic_record_distribution",
+        type=str,
+        default="normal",
+        choices=["uniform", "normal"],
+        help="Distribution of record vectors in space for synthetic proportional workloads. "
+        "For the euclidean metric, vectors are spread from [0, 255]. For cosine and dotproduct "
+        "metrics, vectors are spread from [-1, 1]. Default is %(default)s.",
+    )
+    synthetic_group.add_argument(
         "--synthetic_query_distribution",
         type=str,
         default="zipfian",
