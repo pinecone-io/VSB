@@ -18,11 +18,13 @@ class WorkloadHelpAction(argparse.Action):
             table.add_column("Record Count", justify="right", style="green")
             table.add_column("Dimensions")
             table.add_column("Distance Metric", justify="center")
-            table.add_column("Query Count", justify="right", style="red")
+            table.add_column("Request Count", justify="right", style="red")
             for workload in Workload:
                 if workload == Workload.Synthetic:
                     # Don't describe synthetic workload, static methods are not available
-                    table.add_row("synthetic", "?", "?", "?", "?")
+                    table.add_row(
+                        "synthetic", "<varies>", "<varies>", "<varies>", "<varies>"
+                    )
                     continue
                 table.add_row(*tuple(str(x) for x in workload.describe()))
             console = rich.console.Console()
@@ -130,14 +132,14 @@ def add_vsb_cmdline_args(
     synthetic_group.add_argument(
         "--synthetic_record_count",
         type=int,
-        default=10000,
+        default=1000,
         help="Number of records to generate for the synthetic workload. For synthetic proportional "
         "workloads, this is the initial number of records before queries. Default is %(default)s.",
     )
     synthetic_group.add_argument(
-        "--synthetic_query_count",
+        "--synthetic_request_count",
         type=int,
-        default=1000,
+        default=100,
         help="Number of queries to generate for the synthetic workload. For synthetic proportional "
         "workloads, this is the number of queries (including upserts) to run after the initial "
         "population. Default is %(default)s.",
@@ -169,8 +171,10 @@ def add_vsb_cmdline_args(
     synthetic_group.add_argument(
         "--synthetic_steps",
         type=int,
-        default=10,
-        help="Number of steps to use for the synthetic workload. Default is %(default)s.",
+        default=2,
+        help="Number of steps to use for the synthetic workload. The total record/request set will be "
+        "evenly split amongst these steps, such that one portion of the records is upserted, then "
+        "one portion of the requests is run, and so forth. Default is %(default)s.",
     )
     synthetic_group.add_argument(
         "--synthetic_no_aggregate_stats",
@@ -178,10 +182,16 @@ def add_vsb_cmdline_args(
         help="Aggregate statistics for the synthetic workload. Default is %(default)s.",
     )
     synthetic_group.add_argument(
-        "--synthetic_upsert_proportion",
+        "--synthetic_insert_proportion",
         type=float,
-        default=0.5,
-        help="Proportion of upsert operations for synthetic proportional workloads. Default is %(default)s.",
+        default=0.25,
+        help="Proportion of insert operations for synthetic proportional workloads. Default is %(default)s.",
+    )
+    synthetic_group.add_argument(
+        "--synthetic_update_proportion",
+        type=float,
+        default=0.25,
+        help="Proportion of update operations for synthetic proportional workloads. Default is %(default)s.",
     )
     synthetic_group.add_argument(
         "--synthetic_query_proportion",
@@ -359,7 +369,7 @@ def validate_parsed_args(
         case "synthetic":
             required = (
                 "synthetic_record_count",
-                "synthetic_query_count",
+                "synthetic_request_count",
                 "synthetic_dimensions",
                 "synthetic_metric",
                 "synthetic_top_k",

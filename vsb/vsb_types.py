@@ -61,7 +61,11 @@ class SearchRequest(BaseModel):
     neighbors: list[str] = None
 
 
-class UpsertRequest(BaseModel):
+class InsertRequest(BaseModel):
+    records: RecordList
+
+
+class UpdateRequest(BaseModel):
     records: RecordList
 
 
@@ -73,7 +77,9 @@ class FetchRequest(BaseModel):
     ids: list[str]
 
 
-QueryRequest = SearchRequest | UpsertRequest | DeleteRequest | FetchRequest
+QueryRequest = (
+    SearchRequest | InsertRequest | UpdateRequest | DeleteRequest | FetchRequest
+)
 
 
 class DistanceMetric(Enum):

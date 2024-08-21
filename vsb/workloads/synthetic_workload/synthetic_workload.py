@@ -1,3 +1,14 @@
+"""
+A collection of classes that generate synthetic workloads, with
+pseudo-randomly generated records and requests in some order.
+
+SyntheticWorkload and SyntheticRunbook steps are generated eagerly
+at initialization, and records/requests are held in memory with InMemoryWorkload,
+so in-place recall calculation is possible. SyntheticProportionalWorkload generates 
+a workload with a specified proportion of queries, upserts, deletes, and fetches, 
+data of which is generated at request time with a specified distribution. 
+"""
+
 import json
 from abc import ABC
 from collections.abc import Iterator
@@ -15,7 +26,8 @@ from ..parquet_workload.parquet_workload import ParquetSubsetWorkload
 from ...vsb_types import (
     QueryRequest,
     SearchRequest,
-    UpsertRequest,
+    InsertRequest,
+    UpdateRequest,
     FetchRequest,
     DeleteRequest,
     RecordList,
@@ -126,7 +138,7 @@ class InMemoryWorkload(VectorWorkload, ABC):
         return self._record_count
 
     def request_count(self) -> int:
-        return self._query_count
+        return self._request_count
 
 
 class SyntheticWorkload(InMemoryWorkload, ABC):
@@ -137,7 +149,7 @@ class SyntheticWorkload(InMemoryWorkload, ABC):
         name: str,
         cache_dir: str,
         record_count: int,
-        query_count: int,
+        request_count: int,
         dimensions: int,
         metric: DistanceMetric,
         top_k: int,
@@ -147,7 +159,7 @@ class SyntheticWorkload(InMemoryWorkload, ABC):
     ):
         super().__init__(name)
         self._record_count = record_count
-        self._query_count = query_count
+        self._request_count = request_count
         self._dimensions = dimensions
         self._metric = metric
         self._top_k = top_k
@@ -195,9 +207,9 @@ class SyntheticWorkload(InMemoryWorkload, ABC):
                         if self._metric != DistanceMetric.Euclidean
                         else self.rng.uniform(0, 256, self._dimensions)
                     )
-                    for _ in range(self._query_count)
+                    for _ in range(self._request_count)
                 ],
-                "top_k": np.full(self._query_count, self._top_k),
+                "top_k": np.full(self._request_count, self._top_k),
                 # TODO: Add metadata support
             }
         )
@@ -211,6 +223,8 @@ class SyntheticWorkload(InMemoryWorkload, ABC):
 class SyntheticRunbook(VectorWorkloadSequence, ABC):
     """A synthetic workload sequence that simulates a series of "steps" of
     various operations (upsert, search, delete?) on a database over time.
+    Each step contains a populate phase and a request phase; the total
+    set of records and requests is divided evenly among the steps.
     """
 
     class WorkloadSketch(VectorWorkload, ABC):
@@ -224,13 +238,13 @@ class SyntheticRunbook(VectorWorkloadSequence, ABC):
             dimensions: int,
             metric: DistanceMetric,
             record_count: int,
-            query_count: int,
+            request_count: int,
         ):
             self._name = name
             self._dimensions = dimensions
             self._metric = metric
             self._record_count = record_count
-            self._query_count = query_count
+            self._request_count = request_count
 
         @property
         def name(self) -> str:
@@ -246,7 +260,7 @@ class SyntheticRunbook(VectorWorkloadSequence, ABC):
             return self._record_count
 
         def request_count(self) -> int:
-            return self._query_count
+            return self._request_count
 
         def get_sample_record(self) -> Record:
             # MasterRunner should never call this method.
@@ -267,7 +281,7 @@ class SyntheticRunbook(VectorWorkloadSequence, ABC):
         name: str,
         cache_dir: str,
         record_count: int,
-        query_count: int,
+        request_count: int,
         dimensions: int,
         metric: DistanceMetric,
         top_k: int,
@@ -279,7 +293,7 @@ class SyntheticRunbook(VectorWorkloadSequence, ABC):
     ):
         super().__init__(name)
         self._record_count = record_count
-        self._query_count = query_count
+        self._request_count = request_count
         self._dimensions = dimensions
         self._metric = metric
         self._top_k = top_k
@@ -308,8 +322,8 @@ class SyntheticRunbook(VectorWorkloadSequence, ABC):
     def record_count(self) -> int:
         return self._record_count
 
-    def query_count(self) -> int:
-        return self._query_count
+    def request_count(self) -> int:
+        return self._request_count
 
     def setup_workload_sketches(self):
         self.workloads = []
@@ -320,8 +334,8 @@ class SyntheticRunbook(VectorWorkloadSequence, ABC):
             record_count = self._record_count // self._steps * (i + 1) + (
                 i < self._record_count % self._steps
             )
-            query_count = self._query_count // self._steps * (i + 1) + (
-                i < self._query_count % self._steps
+            request_count = self._request_count // self._steps * (i + 1) + (
+                i < self._request_count % self._steps
             )
             self.workloads.append(
                 self.WorkloadSketch(
@@ -329,7 +343,7 @@ class SyntheticRunbook(VectorWorkloadSequence, ABC):
                     dimensions=self._dimensions,
                     metric=self._metric,
                     record_count=record_count,
-                    query_count=query_count,
+                    request_count=request_count,
                 )
             )
         return self.workloads
@@ -395,9 +409,9 @@ class SyntheticRunbook(VectorWorkloadSequence, ABC):
                         if self._metric != DistanceMetric.Euclidean
                         else self.rng.uniform(0, 256, self._dimensions)
                     )
-                    for _ in range(self._query_count)
+                    for _ in range(self._request_count)
                 ],
-                "top_k": np.full(self._query_count, self._top_k),
+                "top_k": np.full(self._request_count, self._top_k),
                 # TODO: Add metadata support
             }
         )
@@ -426,7 +440,7 @@ class CumulativeSubsetWorkload(InMemoryWorkload, ABC):
     ):
         super().__init__(name)
         self._record_count = records.shape[0]
-        self._query_count = queries.shape[0]
+        self._request_count = queries.shape[0]
         self._dimensions = dimensions
         self._metric = metric
         self._top_k = top_k
@@ -447,13 +461,14 @@ class SyntheticProportionalWorkload(InMemoryWorkload, ABC):
         name: str,
         cache_dir: str,
         record_count: int,
-        query_count: int,
+        request_count: int,
         dimensions: int,
         metric: DistanceMetric,
         top_k: int,
         batch_size: int,
         query_proportion: float,
-        upsert_proportion: float,
+        insert_proportion: float,
+        update_proportion: float,
         delete_proportion: float,
         fetch_proportion: float,
         query_distribution: str,
@@ -463,13 +478,14 @@ class SyntheticProportionalWorkload(InMemoryWorkload, ABC):
     ):
         super().__init__(name)
         self._record_count = record_count
-        self._query_count = query_count
+        self._request_count = request_count
         self._dimensions = dimensions
         self._metric = metric
         self._top_k = top_k
         self._batch_size = batch_size
         self._query_proportion = query_proportion
-        self._upsert_proportion = upsert_proportion
+        self._insert_proportion = insert_proportion
+        self._update_proportion = update_proportion
         self._delete_proportion = delete_proportion
         self._fetch_proportion = fetch_proportion
         self._query_distribution = query_distribution
@@ -526,14 +542,14 @@ class SyntheticProportionalWorkload(InMemoryWorkload, ABC):
     def get_query_iter(
         self, num_users: int, user_id: int, batch_size: int
     ) -> Iterator[tuple[str, QueryRequest]]:
-        user_n_queries = self._query_count // num_users + (
-            user_id < self._query_count % num_users
+        user_n_queries = self._request_count // num_users + (
+            user_id < self._request_count % num_users
         )
         user_n_records = self._record_count // num_users + (
             user_id < self._record_count % num_users
         )
         # User-unique upsert id range to avoid conflicts
-        upsert_index = self._record_count + user_id * (user_n_queries + 1)
+        insert_index = self._record_count + user_id * (user_n_queries + 1)
         # User-unique delete/fetch id range to avoid conflicts
         original_index_start = self._record_count // num_users * user_id + (
             min(self._record_count % num_users, user_id)
@@ -542,9 +558,11 @@ class SyntheticProportionalWorkload(InMemoryWorkload, ABC):
         # We maintain a deque of available indexes for upserts, deletions, fetches,
         # and searches. We delete from the front, and upsert to the back. Fetches
         # and searches will be taken by specified distribution (zipfian, etc.)
-        available_indexes = list(range(original_index_start, original_index_end))
+        available_indexes = [
+            (i, 0) for i in range(original_index_start, original_index_end)
+        ]
 
-        def make_query_iter(num_queries, upsert_index, available_indexes):
+        def make_query_iter(num_queries, insert_index, available_indexes):
             # Generate queries in batches. These batches will be homogenous, but a
             # single query iter may contain multiple types of queries.
             for query_num in range(0, num_queries, self._batch_size):
@@ -555,57 +573,88 @@ class SyntheticProportionalWorkload(InMemoryWorkload, ABC):
                 # do _batch_size requests of that type
                 p = [
                     self._query_proportion,
-                    self._upsert_proportion,
+                    self._insert_proportion,
+                    self._update_proportion,
                     self._delete_proportion,
                     self._fetch_proportion,
                 ]
                 # Normalize probabilities to sum to 1
                 p = [x / sum(p) for x in p]
                 req_type = self.rng.choice(
-                    ["search", "upsert", "delete", "fetch"],
+                    ["search", "insert", "update", "delete", "fetch"],
                     p=p,
                 )
                 match req_type:
                     case "search":
                         for _ in range(curr_batch_size):
                             idx = self.query_distributor(len(available_indexes), 1)[0]
-                            # TODO: change when we have versioning w/ updates
-                            vector = self.id_to_vec(available_indexes[idx], 0)
+                            vector = self.id_to_vec(
+                                available_indexes[idx][0], available_indexes[idx][1]
+                            )
                             yield "", SearchRequest(
                                 values=vector,
                                 top_k=self._top_k,
                                 neighbors=[],
                             )
-                    case "upsert":
+                    case "insert":
                         for next_i in range(0, curr_batch_size, upsert_batch_size):
                             # Yield in batches of max upsert_batch_size
-                            upsert_n = min(upsert_batch_size, curr_batch_size - next_i)
-                            yield "", UpsertRequest(
+                            insert_n = min(upsert_batch_size, curr_batch_size - next_i)
+                            yield "", InsertRequest(
                                 records=RecordList(
                                     root=[
                                         Record(
                                             id=str(i),
-                                            values=self.rng.uniform(
-                                                size=self._dimensions
-                                            ),
+                                            values=self.id_to_vec(i, 0),
                                         )
                                         for i in range(
-                                            upsert_index, upsert_index + upsert_n
+                                            insert_index, insert_index + insert_n
                                         )
                                     ]
                                 )
                             )
                             # Update available_indexes for deletions
                             available_indexes.extend(
-                                range(upsert_index, upsert_index + upsert_n)
+                                [
+                                    (i, 0)
+                                    for i in range(
+                                        insert_index, insert_index + insert_n
+                                    )
+                                ]
                             )
-                            # Update upsert_index for next batch
-                            upsert_index += upsert_n
+                            # Update insert_index for next batch
+                            insert_index += insert_n
+                    case "update":
+                        # Update a sample of existing records
+                        idxs = self.query_distributor(
+                            len(available_indexes), curr_batch_size
+                        )
+                        for i in idxs:
+                            available_indexes[i] = (
+                                available_indexes[i][0],
+                                available_indexes[i][1] + 1,
+                            )
+                        updated_records = [
+                            Record(
+                                id=str(available_indexes[i][0]),
+                                values=self.id_to_vec(
+                                    available_indexes[i][0], available_indexes[i][1]
+                                ),
+                            )
+                            for i in idxs
+                        ]
+                        for next_i in range(0, curr_batch_size, upsert_batch_size):
+                            update_n = min(upsert_batch_size, curr_batch_size - next_i)
+                            yield "", UpdateRequest(
+                                records=RecordList(
+                                    root=updated_records[next_i : next_i + update_n]
+                                )
+                            )
 
                     case "delete":
                         # Delete an arbitrary subset of records
                         delete_ids = [
-                            str(i) for i in available_indexes[:curr_batch_size]
+                            str(i) for i, _ in available_indexes[:curr_batch_size]
                         ]
                         available_indexes = available_indexes[curr_batch_size:]
                         yield "", DeleteRequest(ids=delete_ids)
@@ -613,8 +662,8 @@ class SyntheticProportionalWorkload(InMemoryWorkload, ABC):
                         idxs = self.query_distributor(
                             len(available_indexes), curr_batch_size
                         )
-                        fetch_ids = [str(available_indexes[i]) for i in idxs]
+                        fetch_ids = [str(available_indexes[i][0]) for i in idxs]
 
                         yield "", FetchRequest(ids=fetch_ids)
 
-        return make_query_iter(user_n_queries, upsert_index, available_indexes)
+        return make_query_iter(user_n_queries, insert_index, available_indexes)

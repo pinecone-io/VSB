@@ -25,10 +25,14 @@ class PineconeNamespace(Namespace):
         # TODO: Support multiple namespaces
         self.index = index
 
-    def upsert_batch(self, batch: RecordList):
+    def insert_batch(self, batch: RecordList):
         # Pinecone expects a list of dicts (or tuples).
         dicts = [dict(rec) for rec in batch]
         self.index.upsert(dicts)
+
+    def update_batch(self, batch: list[Record]):
+        # Pinecone treats insert and update as the same operation.
+        self.insert_batch(batch)
 
     def search(self, request: SearchRequest) -> list[str]:
         @retry(

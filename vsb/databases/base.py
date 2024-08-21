@@ -16,7 +16,11 @@ class Namespace(ABC):
     """
 
     @abstractmethod
-    def upsert_batch(self, batch: list[Record]):
+    def insert_batch(self, batch: list[Record]):
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_batch(self, batch: list[Record]):
         raise NotImplementedError
 
     @abstractmethod

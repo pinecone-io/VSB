@@ -98,14 +98,15 @@ def setup_environment(environment, **_kwargs):
     synthetic_options = (
         {
             "record_count": options.synthetic_record_count,
-            "query_count": options.synthetic_query_count,
+            "request_count": options.synthetic_request_count,
             "dimensions": options.synthetic_dimensions,
             "metric": DistanceMetric(options.synthetic_metric),
             "top_k": options.synthetic_top_k,
             "seed": options.synthetic_seed,
             "steps": options.synthetic_steps,
             "no_aggregate_stats": options.synthetic_no_aggregate_stats,
-            "upsert_proportion": options.synthetic_upsert_proportion,
+            "insert_proportion": options.synthetic_insert_proportion,
+            "update_proportion": options.synthetic_update_proportion,
             "delete_proportion": options.synthetic_delete_proportion,
             "query_proportion": options.synthetic_query_proportion,
             "fetch_proportion": options.synthetic_fetch_proportion,

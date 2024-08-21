@@ -35,7 +35,7 @@ class PgvectorNamespace(Namespace):
         self.ivfflat_lists = ivfflat_lists
         self.warned_no_metadata = False
 
-    def upsert_batch(self, batch: RecordList):
+    def insert_batch(self, batch: RecordList):
         # pgvector / psycopg expects a list of tuples.
         data = [(rec.id, np.array(rec.values), Jsonb(rec.metadata)) for rec in batch]
 
@@ -50,12 +50,21 @@ class PgvectorNamespace(Namespace):
                     f"Are you sure this is correct?"
                 )
 
-        upsert_query = (
+        insert_query = (
             "INSERT INTO " + self.table + " (id, embedding, metadata) "
             "VALUES (%s, %s, %s)"
         )
         with self.conn.cursor() as cur:
-            cur.executemany(upsert_query, data)
+            cur.executemany(insert_query, data)
+
+    def update_batch(self, batch: RecordList):
+        data = [(np.array(rec.values), Jsonb(rec.metadata), rec.id) for rec in batch]
+        update_query = (
+            "UPDATE " + self.table + " SET embedding = %s, metadata = %s "
+            "WHERE id = %s"
+        )
+        with self.conn.cursor() as cur:
+            cur.executemany(update_query, data)
 
     def search(self, request: SearchRequest) -> list[str]:
         match self.index_type:

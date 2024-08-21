@@ -401,7 +401,7 @@ class TestCommon:
                 "--processes=2",
                 "--synthetic_steps=2",
                 "--synthetic_record_count=1000",
-                "--synthetic_query_count=500",
+                "--synthetic_request_count=500",
             ],
         )
         assert proc.returncode == 0
@@ -436,36 +436,39 @@ class TestCommon:
                 "--users=4",
                 "--processes=2",
                 "--synthetic_record_count=1000",
-                "--synthetic_query_count=4000",
-                "--synthetic_query_proportion=0.25",
-                "--synthetic_fetch_proportion=0.25",
-                "--synthetic_delete_proportion=0.25",
-                "--synthetic_upsert_proportion=0.25",
-                "--batch_size=10",
+                "--synthetic_request_count=1000",
+                "--synthetic_query_proportion=0.2",
+                "--synthetic_fetch_proportion=0.2",
+                "--synthetic_delete_proportion=0.2",
+                "--synthetic_insert_proportion=0.2",
+                "--synthetic_update_proportion=0.2",
             ],
         )
         assert proc.returncode == 0
 
+        # Each of the 5 request types should have around 200 requests each.
         check_request_counts(
             stdout,
             {
                 "Populate": {"num_requests": lambda x: x <= 4, "num_failures": 0},
                 "Search": {
-                    "num_requests": lambda x: (x >= 900 and x <= 1100),
+                    "num_requests": lambda x: (x >= 150 and x <= 250),
                     "num_failures": 0,
                 },
-                # Fetch, Delete, and Upsert should happen in batches of 10
-                # 1000 records / 10 records per batch = ~100 batches
                 "Fetch": {
-                    "num_requests": lambda x: (x >= 80 and x <= 120),
+                    "num_requests": lambda x: (x >= 150 and x <= 250),
                     "num_failures": 0,
                 },
                 "Delete": {
-                    "num_requests": lambda x: (x >= 80 and x <= 120),
+                    "num_requests": lambda x: (x >= 150 and x <= 250),
                     "num_failures": 0,
                 },
-                "Upsert": {
-                    "num_requests": lambda x: (x >= 80 and x <= 120),
+                "Insert": {
+                    "num_requests": lambda x: (x >= 150 and x <= 250),
+                    "num_failures": 0,
+                },
+                "Update": {
+                    "num_requests": lambda x: (x >= 150 and x <= 250),
                     "num_failures": 0,
                 },
             },

@@ -61,7 +61,7 @@ def pinecone_index_yfcc():
 
 @pytest.fixture(scope="module")
 def pinecone_index_synthetic():
-    index_name = _create_pinecone_index(dims=100, metric="cosine")
+    index_name = _create_pinecone_index(dims=192, metric="cosine")
     yield index_name
     _delete_pinecone_index(index_name)
 

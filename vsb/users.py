@@ -17,7 +17,8 @@ import vsb.metrics_tracker
 from vsb.vsb_types import (
     RecordList,
     SearchRequest,
-    UpsertRequest,
+    InsertRequest,
+    UpdateRequest,
     DeleteRequest,
     FetchRequest,
     QueryRequest,
@@ -124,7 +125,7 @@ class PopulateUser(User):
                 index = self.database.get_namespace(tenant)
 
                 start = time.perf_counter()
-                index.upsert_batch(vectors)
+                index.insert_batch(vectors)
                 stop = time.perf_counter()
 
                 elapsed_ms = (stop - start) * 1000.0
@@ -270,8 +271,10 @@ class RunUser(User):
             match request:
                 case SearchRequest():
                     results = index.search(request)
-                case UpsertRequest():
-                    results = index.upsert_batch(request.records)
+                case InsertRequest():
+                    results = index.insert_batch(request.records)
+                case UpdateRequest():
+                    results = index.update_batch(request.records)
                 case FetchRequest():
                     results = index.fetch_batch(request.ids)
                 case DeleteRequest():
@@ -283,9 +286,13 @@ class RunUser(User):
                     calc_metrics = metrics.calculate_metrics(request, results)
                     type_label = "Search"
                     reqs = None
-                case UpsertRequest():
+                case InsertRequest():
                     calc_metrics = {}
-                    type_label = "Upsert"
+                    type_label = "Insert"
+                    reqs = len(request.records)
+                case UpdateRequest():
+                    calc_metrics = {}
+                    type_label = "Update"
                     reqs = len(request.records)
                 case FetchRequest():
                     calc_metrics = {}
@@ -674,7 +681,7 @@ class LoadShape(LoadTestShape):
                 workload = env.workload_sequence[env.iteration]
                 cumulative_current_rps = 0
                 cumulative_num_requests = 0
-                for req_name in ["Search", "Upsert", "Fetch", "Delete"]:
+                for req_name in ["Search", "Insert", "Update" "Fetch", "Delete"]:
                     req_type = (
                         f"{workload.name}.{req_name}"
                         if env.workload_sequence.workload_count() > 1
@@ -736,7 +743,7 @@ class LoadShape(LoadTestShape):
                     )
                     and not self.no_aggregate_stats
                 ):
-                    total = env.workload_sequence.query_count()
+                    total = env.workload_sequence.request_count()
                 else:
                     total = self.request_count
                 vsb.progress.update(
