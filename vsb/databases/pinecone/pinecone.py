@@ -154,3 +154,6 @@ class PineconeDB(DB):
 
     def skip_refinalize(self):
         return False
+
+    def get_record_count(self) -> int:
+        return self.index.describe_index_stats()["total_vector_count"]

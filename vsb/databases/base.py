@@ -100,3 +100,9 @@ class DB(ABC):
         finalize, we may want to skip trying to build an existing index.
         """
         pass
+
+    def get_record_count(self) -> int:
+        """
+        Returns the total number of records in the database.
+        """
+        pass

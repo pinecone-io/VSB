@@ -267,3 +267,8 @@ class PgvectorDB(DB):
         # pgvector's index will update on successive inserts,
         # no need to try to build an existing index.
         return True
+
+    def get_record_count(self) -> int:
+        with self.conn.cursor() as cur:
+            cur.execute(f"SELECT COUNT(*) FROM {self.table}")
+            return cur.fetchone()[0]

@@ -9,6 +9,8 @@ from vsb.workloads import Workload, WorkloadSequence
 from vsb.vsb_types import DistanceMetric
 from vsb import default_cache_dir
 
+import numpy as np
+
 
 class WorkloadHelpAction(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
@@ -131,6 +133,7 @@ def add_vsb_cmdline_args(
     )
     synthetic_group.add_argument(
         "--synthetic_record_count",
+        "-N",
         type=int,
         default=1000,
         help="Number of records to generate for the synthetic workload. For synthetic proportional "
@@ -138,6 +141,7 @@ def add_vsb_cmdline_args(
     )
     synthetic_group.add_argument(
         "--synthetic_request_count",
+        "-c",
         type=int,
         default=100,
         help="Number of queries to generate for the synthetic workload. For synthetic proportional "
@@ -165,7 +169,8 @@ def add_vsb_cmdline_args(
     )
     synthetic_group.add_argument(
         "--synthetic_seed",
-        type=int,
+        type=str,
+        default=str(np.random.SeedSequence().entropy),
         help="Seed to use for the synthetic workload. If not specified, a random seed will be generated.",
     )
     synthetic_group.add_argument(
@@ -183,30 +188,38 @@ def add_vsb_cmdline_args(
     )
     synthetic_group.add_argument(
         "--synthetic_insert_proportion",
+        "-n",
         type=float,
-        default=0.25,
-        help="Proportion of insert operations for synthetic proportional workloads. Default is %(default)s.",
+        default=0,
+        help="Proportion of insert operations for synthetic proportional workloads. Default is %(default)s. "
+        "If no proportions are set, the default is 0.25.",
     )
     synthetic_group.add_argument(
         "--synthetic_update_proportion",
+        "-p",
         type=float,
-        default=0.25,
-        help="Proportion of update operations for synthetic proportional workloads. Default is %(default)s.",
+        default=0,
+        help="Proportion of update operations for synthetic proportional workloads. Default is %(default)s. "
+        "If no proportions are set, the default is 0.25.",
     )
     synthetic_group.add_argument(
         "--synthetic_query_proportion",
+        "-q",
         type=float,
-        default=0.5,
-        help="Proportion of query operations for synthetic proportional workloads. Default is %(default)s.",
+        default=0,
+        help="Proportion of query operations for synthetic proportional workloads. Default is %(default)s. "
+        "If no proportions are set, the default is 0.5.",
     )
     synthetic_group.add_argument(
         "--synthetic_delete_proportion",
+        "-d",
         type=float,
         default=0,
         help="Proportion of delete operations for synthetic proportional workloads. Default is %(default)s.",
     )
     synthetic_group.add_argument(
         "--synthetic_fetch_proportion",
+        "-e",
         type=float,
         default=0,
         help="Proportion of fetch operations for synthetic proportional workloads. Default is %(default)s.",
@@ -404,5 +417,16 @@ def validate_parsed_args(
                     "The following arguments must be specified when --workload is "
                     "'synthetic'" + formatter.format_help(),
                 )
+            if (
+                args.synthetic_query_proportion == 0
+                and args.synthetic_insert_proportion == 0
+                and args.synthetic_update_proportion == 0
+                and args.synthetic_delete_proportion == 0
+                and args.synthetic_fetch_proportion == 0
+            ):
+                # If no proportions are set, default to 0.25 insert, 0.25 update, 0.5 query
+                args.synthetic_insert_proportion = 0.25
+                args.synthetic_update_proportion = 0.25
+                args.synthetic_query_proportion = 0.5
         case _:
             pass

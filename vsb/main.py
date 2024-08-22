@@ -28,6 +28,7 @@ def main():
         description="Vector Search Bench",
         usage="vsb --database=<DATABASE> --workload=<WORKLOAD> [additional "
         "options...]\nPass --help for full list of options.\n",
+        conflict_handler="resolve",
     )
     add_vsb_cmdline_args(parser, include_locust_args=True)
 

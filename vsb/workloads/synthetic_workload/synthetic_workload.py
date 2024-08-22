@@ -531,7 +531,7 @@ class SyntheticProportionalWorkload(InMemoryWorkload, ABC):
         fetch_proportion: float,
         query_distribution: str,
         record_distribution: str,
-        seed: int = None,
+        seed: int,
         load_on_init: bool = True,
         **kwargs,
     ):
@@ -549,12 +549,8 @@ class SyntheticProportionalWorkload(InMemoryWorkload, ABC):
         self._fetch_proportion = fetch_proportion
         self._query_distribution = query_distribution
         self._record_distribution = record_distribution
-        if seed:
-            self.rng = np.random.default_rng(np.random.SeedSequence(seed))
-        else:
-            ss = np.random.SeedSequence()
-            self.seed = ss.entropy
-            self.rng = np.random.default_rng(ss)
+        self.seed = seed
+        self.rng = np.random.default_rng(np.random.SeedSequence(seed))
 
         if load_on_init:
             self.setup_records()
@@ -594,13 +590,15 @@ class SyntheticProportionalWorkload(InMemoryWorkload, ABC):
                 return get_vector((0, 255), self._dimensions)
 
     def query_distributor(self, num_available_indexes, samples) -> list[int]:
+        if num_available_indexes == 0:
+            return []
         match self._query_distribution:
             case "uniform":
                 return self.rng.choice(num_available_indexes, samples, replace=False)
             case "zipfian":
                 query_idx = []
                 while len(query_idx) < samples:
-                    if (offset := self.rng.zipf(1.1)) < num_available_indexes:
+                    if (offset := self.rng.zipf(1.1) - 1) < num_available_indexes:
                         query_idx.append(offset)
                 return query_idx
             case _:
@@ -667,7 +665,11 @@ class SyntheticProportionalWorkload(InMemoryWorkload, ABC):
                 match req_type:
                     case "search":
                         for _ in range(curr_batch_size):
-                            idx = self.query_distributor(len(available_indexes), 1)[0]
+                            idx = self.query_distributor(len(available_indexes), 1)
+                            if not idx:
+                                # No available indexes left
+                                break
+                            idx = idx[0]
                             vector = self.id_to_vec(
                                 available_indexes[idx][0], available_indexes[idx][1]
                             )

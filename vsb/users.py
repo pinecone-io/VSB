@@ -293,7 +293,16 @@ class RunUser(User):
             elapsed_ms = (stop - start) * 1000.0
             match request:
                 case SearchRequest():
-                    calc_metrics = metrics.calculate_metrics(request, results)
+                    if isinstance(
+                        self.workload,
+                        vsb.workloads.synthetic_workload.synthetic_workload.SyntheticProportionalWorkload,
+                    ):
+                        # TODO: change when recall calculation is implemented
+                        # We can't calculate recall for synthetic proportional workloads right now,
+                        # so don't collect data to pollute the output table.
+                        calc_metrics = {}
+                    else:
+                        calc_metrics = metrics.calculate_metrics(request, results)
                     type_label = "Search"
                     reqs = None
                 case InsertRequest():
@@ -716,7 +725,7 @@ class LoadShape(LoadTestShape):
                 workload = env.workload_sequence[env.iteration]
                 cumulative_current_rps = 0
                 cumulative_num_requests = 0
-                for req_name in ["Search", "Insert", "Update" "Fetch", "Delete"]:
+                for req_name in ["Search", "Insert", "Update", "Fetch", "Delete"]:
                     if isinstance(
                         env.workload_sequence,
                         vsb.workloads.synthetic_workload.synthetic_workload.SyntheticRunbook,
