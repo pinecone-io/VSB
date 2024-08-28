@@ -129,21 +129,11 @@ class PopulateUser(User):
                 stop = time.perf_counter()
 
                 elapsed_ms = (stop - start) * 1000.0
-                if isinstance(
-                    self.environment.workload_sequence,
-                    vsb.workloads.synthetic_workload.synthetic_workload.SyntheticRunbook,
-                ):
-                    req_type = (
-                        f"{self.workload.name}.Populate"
-                        if self.environment.parsed_options.synthetic_no_aggregate_stats
-                        else "Populate"
-                    )
-                else:
-                    req_type = (
-                        f"{self.workload.name}.Populate"
-                        if self.environment.workload_sequence.workload_count() > 1
-                        else "Populate"
-                    )
+                req_type = (
+                    f"{self.workload.get_stats_prefix()}.Populate"
+                    if self.environment.workload_sequence.workload_count() > 1
+                    else "Populate"
+                )
                 self.environment.events.request.fire(
                     request_type=req_type,
                     name=self.workload.name,
@@ -293,16 +283,13 @@ class RunUser(User):
             elapsed_ms = (stop - start) * 1000.0
             match request:
                 case SearchRequest():
-                    if isinstance(
-                        self.workload,
-                        vsb.workloads.synthetic_workload.synthetic_workload.SyntheticProportionalWorkload,
-                    ):
+                    if self.workload.recall_available():
+                        calc_metrics = metrics.calculate_metrics(request, results)
+                    else:
                         # TODO: change when recall calculation is implemented
                         # We can't calculate recall for synthetic proportional workloads right now,
                         # so don't collect data to pollute the output table.
                         calc_metrics = {}
-                    else:
-                        calc_metrics = metrics.calculate_metrics(request, results)
                     type_label = "Search"
                     reqs = None
                 case InsertRequest():
@@ -324,21 +311,11 @@ class RunUser(User):
                 case _:
                     raise ValueError(f"Unknown request type:{request}")
 
-            if isinstance(
-                self.environment.workload_sequence,
-                vsb.workloads.synthetic_workload.synthetic_workload.SyntheticRunbook,
-            ):
-                req_type = (
-                    f"{self.workload.name}.{type_label}"
-                    if self.environment.parsed_options.synthetic_no_aggregate_stats
-                    else type_label
-                )
-            else:
-                req_type = (
-                    f"{self.workload.name}.{type_label}"
-                    if self.environment.workload_sequence.workload_count() > 1
-                    else type_label
-                )
+            req_type = (
+                f"{self.workload.get_stats_prefix()}.{type_label}"
+                if self.environment.workload_sequence.workload_count() > 1
+                else type_label
+            )
             self.environment.events.request.fire(
                 request_type=req_type,
                 name=self.workload.name,
@@ -391,6 +368,7 @@ class LoadShape(LoadTestShape):
 
     def __init__(self):
         super().__init__()
+        logger.debug(f"Initialising LoadShape")
         self.phase = LoadShape.Phase.Init
         self.record_count: int = None
         self.request_count: int = None
@@ -407,7 +385,7 @@ class LoadShape(LoadTestShape):
         then it doesn't actually start any ClassB tasks. As such we need to
         first reduce task count to 0, then ramp back to N tasks of ClassB.
         """
-
+        logger.debug(f"LoadShape.tick() - phase:{self.phase}")
         match self.phase:
             case LoadShape.Phase.Init:
                 # self.runner is not initialised until after __init__(), so we must
@@ -666,21 +644,11 @@ class LoadShape(LoadTestShape):
 
                 env = self.runner.environment
                 workload = env.workload_sequence[env.iteration]
-                if isinstance(
-                    env.workload_sequence,
-                    vsb.workloads.synthetic_workload.synthetic_workload.SyntheticRunbook,
-                ):
-                    req_type = (
-                        f"{workload.name}.Populate"
-                        if self.no_aggregate_stats
-                        else "Populate"
-                    )
-                else:
-                    req_type = (
-                        f"{workload.name}.Populate"
-                        if env.workload_sequence.workload_count() > 1
-                        else "Populate"
-                    )
+                req_type = (
+                    f"{workload.get_stats_prefix()}.Populate"
+                    if env.workload_sequence.workload_count() > 1
+                    else "Populate"
+                )
                 completed = vsb.metrics_tracker.calculated_metrics.get(
                     req_type, {}
                 ).get("records", 0)
@@ -726,21 +694,11 @@ class LoadShape(LoadTestShape):
                 cumulative_current_rps = 0
                 cumulative_num_requests = 0
                 for req_name in ["Search", "Insert", "Update", "Fetch", "Delete"]:
-                    if isinstance(
-                        env.workload_sequence,
-                        vsb.workloads.synthetic_workload.synthetic_workload.SyntheticRunbook,
-                    ):
-                        req_type = (
-                            f"{workload.name}.{req_name}"
-                            if self.no_aggregate_stats
-                            else req_name
-                        )
-                    else:
-                        req_type = (
-                            f"{workload.name}.{req_name}"
-                            if env.workload_sequence.workload_count() > 1
-                            else req_name
-                        )
+                    req_type = (
+                        f"{workload.get_stats_prefix()}.{req_name}"
+                        if env.workload_sequence.workload_count() > 1
+                        else req_name
+                    )
                     stats: locust.stats.StatsEntry = env.stats.get(
                         workload.name, req_type
                     )
@@ -765,21 +723,11 @@ class LoadShape(LoadTestShape):
                 )
 
                 def get_recall_pct(p):
-                    if isinstance(
-                        env.workload_sequence,
-                        vsb.workloads.synthetic_workload.synthetic_workload.SyntheticRunbook,
-                    ):
-                        req_type = (
-                            f"{workload.name}.Search"
-                            if self.no_aggregate_stats
-                            else "Search"
-                        )
-                    else:
-                        req_type = (
-                            f"{workload.name}.Search"
-                            if env.workload_sequence.workload_count() > 1
-                            else "Search"
-                        )
+                    req_type = (
+                        f"{workload.get_stats_prefix()}.Search"
+                        if env.workload_sequence.workload_count() > 1
+                        else "Search"
+                    )
                     recall = vsb.metrics_tracker.get_metric_percentile(
                         req_type, "recall", p
                     )

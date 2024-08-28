@@ -173,17 +173,27 @@ range of vector databases. It can be used to perform a range of tasks, including
 
 Sometimes the workload you want to model doesn't exist in any provided dataset, or you want
 to test a specific aspect of a database's performance. In these cases, you can use the `synthetic`, `synthetic-runbook`, 
-and `synthetic-proportional` workloads to generate custom workloads with specific characteristics:
+and `synthetic-proportional` workloads to generate custom workloads with specific characteristics. Some
+important parameters for synthetic workloads include:
 
-* `--synthetic_record_count`: The number of records to generate for the synthetic workload.
-* `--synthetic_request_count`: The number of requests to generate for the synthetic workload.
+* `--synthetic_records`: The number of records to generate for the synthetic workload.
+* `--synthetic_requests`: The number of requests to generate for the synthetic workload.
 * `--synthetic_dimensions`: The dimensionality of generated vectors.
 * `--synthetic_query_distribution`: The distribution of query/fetch IDs for synthetic proportional workloads.
-* `--synthetic_record_distribution`: The distribution of record vectors in space for synthetic proportional workloads.
-* `--synthetic_insert_proportion`: The proportion of insert operations for synthetic proportional workloads.
-* `--synthetic_query_proportion`: The proportion of query operations for synthetic proportional workloads.
+* `--synthetic_record_ratio`: The distribution of record vectors in space for synthetic proportional workloads.
+* `--synthetic_insert_ratio`: The proportion of insert operations for synthetic proportional workloads.
+* `--synthetic_query_ratio`: The proportion of query operations for synthetic proportional workloads.
 
 You can see the full list of parameters by running `vsb --help`.
+
+`synthetic` workloads generate a fixed number of records and queries with the given distribution, then
+runs population and query phases in sequence.
+
+`synthetic-runbook` workloads generate a fixed number of records and queries, and splits them into a series of 
+'populate -> run' steps. This is useful for testing how a database performs when data is loaded incrementally.
+
+`synthetic-proportional` workloads populate the database with an initial set of records, then run a series of
+assorted request operations (inserts, queries, deletes, updates) in proportion to the given ratios.
 
 **Example**
 
@@ -193,9 +203,16 @@ a zipfian query distribution, and 30% inserts, 50% queries, 10% deletes, and 10%
 ```shell
 vsb --database=pinecone --pinecone_api_key=<API_KEY> \
     --workload=synthetic-proportional \
-    -n=10000 -r=1000000 -i=0.3 -q=0.5 -d=0.1 -u=0.1 \
+    --synthetic_records=10000 --synthetic-queries=1000000 \
+    --synthetic_insert_ratio=0.3 --synthetic_query_ratio=0.5 \
+    --synthetic_delete_ratio=0.1 --synthetic_update_ratio=0.1 \
     --synthetic_dimensions=768 --synthetic_query_distribution=zipfian
 ```
+
+> [!NOTE]
+> You can use shorter versions of the parameters, such as `-n` for records and `-r` for queries.
+> The full list of flags is available by running `vsb --help`.
+
 
 The following command runs a series of 4 synthetic workloads against Pinecone, in order,
 each with 10,000 records and 500 queries, with custom dimensionality and metrics:

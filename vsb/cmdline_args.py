@@ -7,7 +7,7 @@ from pinecone import ServerlessSpec
 from vsb.databases import Database
 from vsb.workloads import Workload, WorkloadSequence
 from vsb.vsb_types import DistanceMetric
-from vsb import default_cache_dir
+from vsb import default_cache_dir, logger
 
 import numpy as np
 
@@ -188,7 +188,7 @@ def add_vsb_cmdline_args(
     )
     synthetic_group.add_argument(
         "--synthetic_insert_proportion",
-        "-n",
+        "--si",
         type=float,
         default=0,
         help="Proportion of insert operations for synthetic proportional workloads. Default is %(default)s. "
@@ -196,7 +196,7 @@ def add_vsb_cmdline_args(
     )
     synthetic_group.add_argument(
         "--synthetic_update_proportion",
-        "-p",
+        "--su",
         type=float,
         default=0,
         help="Proportion of update operations for synthetic proportional workloads. Default is %(default)s. "
@@ -204,7 +204,7 @@ def add_vsb_cmdline_args(
     )
     synthetic_group.add_argument(
         "--synthetic_query_proportion",
-        "-q",
+        "--sq",
         type=float,
         default=0,
         help="Proportion of query operations for synthetic proportional workloads. Default is %(default)s. "
@@ -212,14 +212,14 @@ def add_vsb_cmdline_args(
     )
     synthetic_group.add_argument(
         "--synthetic_delete_proportion",
-        "-d",
+        "--sd",
         type=float,
         default=0,
         help="Proportion of delete operations for synthetic proportional workloads. Default is %(default)s.",
     )
     synthetic_group.add_argument(
         "--synthetic_fetch_proportion",
-        "-e",
+        "--sf",
         type=float,
         default=0,
         help="Proportion of fetch operations for synthetic proportional workloads. Default is %(default)s.",
@@ -233,6 +233,7 @@ def add_vsb_cmdline_args(
     )
     synthetic_group.add_argument(
         "--synthetic_record_distribution",
+        "--sdist",
         type=str,
         default="normal",
         choices=["uniform", "normal"],
@@ -242,6 +243,7 @@ def add_vsb_cmdline_args(
     )
     synthetic_group.add_argument(
         "--synthetic_query_distribution",
+        "--qdist",
         type=str,
         default="zipfian",
         choices=["uniform", "zipfian"],
@@ -426,7 +428,11 @@ def validate_parsed_args(
             ):
                 # If no proportions are set, default to 0.25 insert, 0.25 update, 0.5 query
                 args.synthetic_insert_proportion = 0.25
-                args.synthetic_update_proportion = 0.25
                 args.synthetic_query_proportion = 0.5
+                args.synthetic_delete_proportion = 0.25
+            if args.workload == "synthetic-proportional":
+                logger.warning(
+                    "SyntheticProportionalWorkloads don't have ground-truth based metrics like recall yet."
+                )
         case _:
             pass

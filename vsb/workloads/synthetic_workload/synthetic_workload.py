@@ -17,12 +17,12 @@ from typing import Generator
 import pandas
 import numpy as np
 import pyarrow
+import sklearn.neighbors as skn
 
 import itertools
 
 from vsb import logger
 from ..base import VectorWorkload, VectorWorkloadSequence
-from ..parquet_workload.parquet_workload import ParquetSubsetWorkload
 from ...vsb_types import (
     QueryRequest,
     SearchRequest,
@@ -140,6 +140,39 @@ class InMemoryWorkload(VectorWorkload, ABC):
     def request_count(self) -> int:
         return self._request_count
 
+    @staticmethod
+    def recalculate_neighbors(
+        records: pandas.DataFrame, queries: pandas.DataFrame, metric: DistanceMetric
+    ) -> pandas.DataFrame:
+        """Recalculate the ground truth neighbors for each query based on the
+        current state of the records DataFrame. This method uses scikit-learn methods that
+        assume top_k is the same for all queries, and can only accomodate euclidean and cosine
+        metrics without metadata."""
+        # Convert records to sklearn BallTree
+        top_k = queries["top_k"][0]  # Assume all queries have the same top_k
+        record_vectors = np.stack(records["values"].values)
+        match metric:
+            case DistanceMetric.Euclidean:
+                metric_str = "euclidean"
+            case DistanceMetric.Cosine:
+                # Cosine ranking is equivalent to euclidean ranking of normalized vectors
+                record_vectors = (
+                    record_vectors
+                    / np.linalg.norm(record_vectors, axis=1)[:, np.newaxis]
+                )
+                metric_str = "euclidean"
+            case _:
+                raise ValueError(f"Unsupported metric: {metric}")
+        btree = skn.NearestNeighbors(
+            n_neighbors=top_k, algorithm="ball_tree", metric=metric_str
+        ).fit(np.stack(records["values"].values))
+        # Query the BallTree for the top_k neighbors of each query
+        distances, indices = btree.kneighbors(np.stack(queries["values"].values))
+        # Convert the indices to record IDs
+        id_arr = records["id"].array  # numpy array for fast indexing
+        queries["neighbors"] = [[id_arr[i] for i in row] for row in indices]
+        return queries
+
 
 class SyntheticWorkload(InMemoryWorkload, ABC):
     """A workload in which records and queries are generated pseudo-randomly."""
@@ -247,9 +280,7 @@ class SyntheticWorkload(InMemoryWorkload, ABC):
         )
 
         # Recalculate ground truth neighbors for each query
-        self.queries["neighbors"] = ParquetSubsetWorkload.recalculate_neighbors(
-            self.records, self.queries, self._metric
-        )
+        self.recalculate_neighbors(self.records, self.queries, self._metric)
 
 
 class SyntheticRunbook(VectorWorkloadSequence, ABC):
@@ -271,12 +302,14 @@ class SyntheticRunbook(VectorWorkloadSequence, ABC):
             metric: DistanceMetric,
             record_count: int,
             request_count: int,
+            no_aggregate_stats: bool,
         ):
             self._name = name
             self._dimensions = dimensions
             self._metric = metric
             self._record_count = record_count
             self._request_count = request_count
+            self._no_aggregate_stats = no_aggregate_stats
 
         @property
         def name(self) -> str:
@@ -307,6 +340,9 @@ class SyntheticRunbook(VectorWorkloadSequence, ABC):
             self, num_users: int, user_id: int, batch_size: int
         ) -> Iterator[tuple[str, SearchRequest]]:
             raise NotImplementedError
+
+        def get_stats_prefix(self) -> str:
+            return self._name if self._no_aggregate_stats else ""
 
     def __init__(
         self,
@@ -420,6 +456,7 @@ class SyntheticRunbook(VectorWorkloadSequence, ABC):
                     metric=self._metric,
                     record_count=record_count,
                     request_count=request_count,
+                    no_aggregate_stats=self._no_aggregate_stats,
                 )
             )
         return self.workloads
@@ -504,9 +541,7 @@ class CumulativeSubsetWorkload(InMemoryWorkload, ABC):
         self._top_k = top_k
         self.records = records
         self.queries = queries
-        self.queries["neighbors"] = ParquetSubsetWorkload.recalculate_neighbors(
-            cumulative_records, self.queries, self._metric
-        )
+        self.recalculate_neighbors(cumulative_records, self.queries, self._metric)
 
 
 class SyntheticProportionalWorkload(InMemoryWorkload, ABC):

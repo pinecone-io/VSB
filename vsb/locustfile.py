@@ -30,8 +30,6 @@ from gevent.event import AsyncResult
 import gevent
 import locust.stats
 
-import numpy as np
-
 # Note: These are _not_ unused, they are required to register our User
 # and custom LoadShape classes with locust.
 import users
@@ -230,7 +228,8 @@ def check_environment_setup(environment, **_kwargs):
     # Spawn a greenlet to check if the environment is correctly setup.
     def check_environment_setup_async(environment):
         while not hasattr(environment, "setup_done"):
-            gevent.sleep(0.01)
+            logger.debug("check_environment_setup_async(): waiting for setup_done")
+            gevent.sleep(1)
         logger.debug(
             f"check_environment_setup_async(): setup_done={environment.setup_done}"
         )

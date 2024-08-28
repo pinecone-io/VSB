@@ -89,6 +89,18 @@ class VectorWorkload(ABC):
         """
         raise NotImplementedError
 
+    def get_stats_prefix(self) -> str:
+        """
+        Returns the prefix to use for stats emitted by this workload.
+        """
+        return self.name
+
+    def recall_available(self) -> bool:
+        """
+        Returns True if the workload has recall data available for queries.
+        """
+        return True
+
 
 class VectorWorkloadSequence(ABC):
     @abstractmethod

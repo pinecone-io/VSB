@@ -12,6 +12,7 @@ from ..base import VectorWorkload
 from ..dataset import Dataset
 from ...vsb_types import SearchRequest, RecordList, Record, DistanceMetric, Vector
 from ...databases.pgvector.filter_util import FilterUtil
+from ..synthetic_workload.synthetic_workload import InMemoryWorkload
 
 
 class ParquetWorkload(VectorWorkload, ABC):
@@ -162,9 +163,6 @@ class ParquetSubsetWorkload(ParquetWorkload, ABC):
             self._decode_metadata(records)
             all_records = pandas.concat([all_records, records])
         return all_records
-
-    def _get_topk(self, req: SearchRequest) -> list[str]:
-        return self.calc_k_nearest_neighbors(self.records, self.metric(), req)
 
     @staticmethod
     def recalculate_neighbors(
