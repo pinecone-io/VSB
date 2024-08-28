@@ -1,5 +1,6 @@
 import configargparse
 import argparse
+import sys
 import rich.table
 import rich.console
 import json
@@ -132,7 +133,7 @@ def add_vsb_cmdline_args(
         "Options specific to synthetic workloads"
     )
     synthetic_group.add_argument(
-        "--synthetic_record_count",
+        "--synthetic_records",
         "-N",
         type=int,
         default=1000,
@@ -140,12 +141,12 @@ def add_vsb_cmdline_args(
         "workloads, this is the initial number of records before queries. Default is %(default)s.",
     )
     synthetic_group.add_argument(
-        "--synthetic_request_count",
+        "--synthetic_requests",
         "-c",
         type=int,
         default=100,
-        help="Number of queries to generate for the synthetic workload. For synthetic proportional "
-        "workloads, this is the number of queries (including upserts) to run after the initial "
+        help="Number of requests to generate for the synthetic workload. For synthetic proportional "
+        "workloads, this is the number of requests (including upserts) to run after the initial "
         "population. Default is %(default)s.",
     )
     synthetic_group.add_argument(
@@ -186,39 +187,46 @@ def add_vsb_cmdline_args(
         action="store_true",
         help="Aggregate statistics for the synthetic workload. Default is %(default)s.",
     )
+    use_default_ratios = not (
+        "--synthetic_insert_ratio" in "".join(sys.argv)
+        or "--synthetic_update_ratio" in "".join(sys.argv)
+        or "--synthetic_query_ratio" in "".join(sys.argv)
+        or "--synthetic_delete_ratio" in "".join(sys.argv)
+        or "--synthetic_fetch_ratio" in "".join(sys.argv)
+    )
     synthetic_group.add_argument(
-        "--synthetic_insert_proportion",
+        "--synthetic_insert_ratio",
         "--si",
         type=float,
-        default=0,
+        default=(0.25 if use_default_ratios else 0),
         help="Proportion of insert operations for synthetic proportional workloads. Default is %(default)s. "
         "If no proportions are set, the default is 0.25.",
     )
     synthetic_group.add_argument(
-        "--synthetic_update_proportion",
+        "--synthetic_update_ratio",
         "--su",
         type=float,
-        default=0,
+        default=(0.25 if use_default_ratios else 0),
         help="Proportion of update operations for synthetic proportional workloads. Default is %(default)s. "
         "If no proportions are set, the default is 0.25.",
     )
     synthetic_group.add_argument(
-        "--synthetic_query_proportion",
+        "--synthetic_query_ratio",
         "--sq",
         type=float,
-        default=0,
+        default=(0.5 if use_default_ratios else 0),
         help="Proportion of query operations for synthetic proportional workloads. Default is %(default)s. "
         "If no proportions are set, the default is 0.5.",
     )
     synthetic_group.add_argument(
-        "--synthetic_delete_proportion",
+        "--synthetic_delete_ratio",
         "--sd",
         type=float,
         default=0,
         help="Proportion of delete operations for synthetic proportional workloads. Default is %(default)s.",
     )
     synthetic_group.add_argument(
-        "--synthetic_fetch_proportion",
+        "--synthetic_fetch_ratio",
         "--sf",
         type=float,
         default=0,
@@ -390,10 +398,10 @@ def validate_parsed_args(
         case _:
             pass
     match args.workload:
-        case "synthetic":
+        case "synthetic" | "synthetic-proportional" | "synthetic-runbook":
             required = (
-                "synthetic_record_count",
-                "synthetic_request_count",
+                "synthetic_records",
+                "synthetic_requests",
                 "synthetic_dimensions",
                 "synthetic_metric",
                 "synthetic_top_k",
@@ -420,19 +428,16 @@ def validate_parsed_args(
                     "'synthetic'" + formatter.format_help(),
                 )
             if (
-                args.synthetic_query_proportion == 0
-                and args.synthetic_insert_proportion == 0
-                and args.synthetic_update_proportion == 0
-                and args.synthetic_delete_proportion == 0
-                and args.synthetic_fetch_proportion == 0
+                args.synthetic_query_ratio == 0
+                and args.synthetic_insert_ratio == 0
+                and args.synthetic_update_ratio == 0
+                and args.synthetic_delete_ratio == 0
+                and args.synthetic_fetch_ratio == 0
             ):
-                # If no proportions are set, default to 0.25 insert, 0.25 update, 0.5 query
-                args.synthetic_insert_proportion = 0.25
-                args.synthetic_query_proportion = 0.5
-                args.synthetic_delete_proportion = 0.25
-            if args.workload == "synthetic-proportional":
-                logger.warning(
-                    "SyntheticProportionalWorkloads don't have ground-truth based metrics like recall yet."
+                parser.error(
+                    "At least one of --synthetic_query_ratio, --synthetic_insert_ratio, "
+                    "--synthetic_update_ratio, --synthetic_delete_ratio, or --synthetic_fetch_ratio "
+                    "must be non-zero."
                 )
         case _:
             pass

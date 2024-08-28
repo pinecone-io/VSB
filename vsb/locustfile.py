@@ -97,19 +97,19 @@ def setup_environment(environment, **_kwargs):
 
     synthetic_options = (
         {
-            "record_count": options.synthetic_record_count,
-            "request_count": options.synthetic_request_count,
+            "record_count": options.synthetic_records,
+            "request_count": options.synthetic_requests,
             "dimensions": options.synthetic_dimensions,
             "metric": DistanceMetric(options.synthetic_metric),
             "top_k": options.synthetic_top_k,
             "seed": int(options.synthetic_seed),
             "steps": options.synthetic_steps,
             "no_aggregate_stats": options.synthetic_no_aggregate_stats,
-            "insert_proportion": options.synthetic_insert_proportion,
-            "update_proportion": options.synthetic_update_proportion,
-            "delete_proportion": options.synthetic_delete_proportion,
-            "query_proportion": options.synthetic_query_proportion,
-            "fetch_proportion": options.synthetic_fetch_proportion,
+            "insert_proportion": options.synthetic_insert_ratio,
+            "update_proportion": options.synthetic_update_ratio,
+            "delete_proportion": options.synthetic_delete_ratio,
+            "query_proportion": options.synthetic_query_ratio,
+            "fetch_proportion": options.synthetic_fetch_ratio,
             "batch_size": options.synthetic_batch_size,
             "record_distribution": options.synthetic_record_distribution,
             "query_distribution": options.synthetic_query_distribution,
@@ -228,8 +228,7 @@ def check_environment_setup(environment, **_kwargs):
     # Spawn a greenlet to check if the environment is correctly setup.
     def check_environment_setup_async(environment):
         while not hasattr(environment, "setup_done"):
-            logger.debug("check_environment_setup_async(): waiting for setup_done")
-            gevent.sleep(1)
+            gevent.sleep(0.01)
         logger.debug(
             f"check_environment_setup_async(): setup_done={environment.setup_done}"
         )

@@ -400,8 +400,8 @@ class TestCommon:
                 "--users=2",
                 "--processes=2",
                 "--synthetic_steps=2",
-                "--synthetic_record_count=1000",
-                "--synthetic_request_count=500",
+                "--synthetic_records=1000",
+                "--synthetic_requests=500",
             ],
         )
         assert proc.returncode == 0
@@ -435,13 +435,13 @@ class TestCommon:
             extra_args=[
                 "--users=4",
                 "--processes=2",
-                "--synthetic_record_count=1000",
-                "--synthetic_request_count=1000",
-                "--synthetic_query_proportion=0.2",
-                "--synthetic_fetch_proportion=0.2",
-                "--synthetic_delete_proportion=0.2",
-                "--synthetic_insert_proportion=0.2",
-                "--synthetic_update_proportion=0.2",
+                "--synthetic_records=1000",
+                "--synthetic_requests=1000",
+                "--synthetic_query_ratio=0.2",
+                "--synthetic_fetch_ratio=0.2",
+                "--synthetic_delete_ratio=0.2",
+                "--synthetic_insert_ratio=0.2",
+                "--synthetic_update_ratio=0.2",
             ],
         )
         assert proc.returncode == 0

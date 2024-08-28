@@ -12,7 +12,6 @@ from ..base import VectorWorkload
 from ..dataset import Dataset
 from ...vsb_types import SearchRequest, RecordList, Record, DistanceMetric, Vector
 from ...databases.pgvector.filter_util import FilterUtil
-from ..synthetic_workload.synthetic_workload import InMemoryWorkload
 
 
 class ParquetWorkload(VectorWorkload, ABC):

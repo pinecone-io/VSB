@@ -93,7 +93,7 @@ class VectorWorkload(ABC):
         """
         Returns the prefix to use for stats emitted by this workload.
         """
-        return self.name
+        return self.name + "."
 
     def recall_available(self) -> bool:
         """

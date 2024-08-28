@@ -130,7 +130,7 @@ class PopulateUser(User):
 
                 elapsed_ms = (stop - start) * 1000.0
                 req_type = (
-                    f"{self.workload.get_stats_prefix()}.Populate"
+                    f"{self.workload.get_stats_prefix()}Populate"
                     if self.environment.workload_sequence.workload_count() > 1
                     else "Populate"
                 )
@@ -312,7 +312,7 @@ class RunUser(User):
                     raise ValueError(f"Unknown request type:{request}")
 
             req_type = (
-                f"{self.workload.get_stats_prefix()}.{type_label}"
+                f"{self.workload.get_stats_prefix()}{type_label}"
                 if self.environment.workload_sequence.workload_count() > 1
                 else type_label
             )
@@ -645,7 +645,7 @@ class LoadShape(LoadTestShape):
                 env = self.runner.environment
                 workload = env.workload_sequence[env.iteration]
                 req_type = (
-                    f"{workload.get_stats_prefix()}.Populate"
+                    f"{workload.get_stats_prefix()}Populate"
                     if env.workload_sequence.workload_count() > 1
                     else "Populate"
                 )
@@ -695,7 +695,7 @@ class LoadShape(LoadTestShape):
                 cumulative_num_requests = 0
                 for req_name in ["Search", "Insert", "Update", "Fetch", "Delete"]:
                     req_type = (
-                        f"{workload.get_stats_prefix()}.{req_name}"
+                        f"{workload.get_stats_prefix()}{req_name}"
                         if env.workload_sequence.workload_count() > 1
                         else req_name
                     )
@@ -724,7 +724,7 @@ class LoadShape(LoadTestShape):
 
                 def get_recall_pct(p):
                     req_type = (
-                        f"{workload.get_stats_prefix()}.Search"
+                        f"{workload.get_stats_prefix()}Search"
                         if env.workload_sequence.workload_count() > 1
                         else "Search"
                     )

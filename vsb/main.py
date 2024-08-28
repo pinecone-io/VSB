@@ -47,6 +47,10 @@ def main():
         f"workload='{args.workload}', users={args.num_users}, requests_per_sec={requests_per_sec}"
     )
     logger.info(f"Writing benchmark results to '{vsb.log_dir}'")
+    if args.workload == "synthetic-proportional":
+        logger.warning(
+            "SyntheticProportionalWorkloads don't have ground-truth based metrics like recall yet."
+        )
 
     # If we got here then args are valid - pass them on to locusts' main(),
     # appending the location of our locustfile and --headless to start
