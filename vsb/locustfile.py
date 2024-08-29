@@ -101,6 +101,7 @@ def setup_environment(environment, **_kwargs):
             "request_count": options.synthetic_requests,
             "dimensions": options.synthetic_dimensions,
             "metric": DistanceMetric(options.synthetic_metric),
+            "metadata": options.synthetic_metadata,
             "top_k": options.synthetic_top_k,
             "seed": int(options.synthetic_seed),
             "steps": options.synthetic_steps,

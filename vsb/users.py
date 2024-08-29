@@ -324,6 +324,7 @@ class RunUser(User):
                 metrics=calc_metrics,
                 counters={"requests": reqs} if reqs else {},
             )
+            del request
         except Exception as e:
             traceback.print_exception(e)
             self.environment.runner.quit()

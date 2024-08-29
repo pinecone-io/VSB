@@ -169,6 +169,12 @@ def add_vsb_cmdline_args(
         help="Top-k value to use for the synthetic workload. Default is %(default)s.",
     )
     synthetic_group.add_argument(
+        "--synthetic_metadata",
+        type=int,
+        default=0,
+        help="Amount of metadata per vector, in bytes. Default is %(default)s (no metadata).",
+    )
+    synthetic_group.add_argument(
         "--synthetic_seed",
         type=str,
         default=str(np.random.SeedSequence().entropy),
@@ -187,12 +193,18 @@ def add_vsb_cmdline_args(
         action="store_true",
         help="Aggregate statistics for the synthetic workload. Default is %(default)s.",
     )
+    # TODO: fix bug
     use_default_ratios = not (
         "--synthetic_insert_ratio" in "".join(sys.argv)
         or "--synthetic_update_ratio" in "".join(sys.argv)
         or "--synthetic_query_ratio" in "".join(sys.argv)
         or "--synthetic_delete_ratio" in "".join(sys.argv)
         or "--synthetic_fetch_ratio" in "".join(sys.argv)
+        or "--si" in "".join(sys.argv)
+        or "--su" in "".join(sys.argv)
+        or "--sq" in "".join(sys.argv)
+        or "--sd" in "".join(sys.argv)
+        or "--sf" in "".join(sys.argv)
     )
     synthetic_group.add_argument(
         "--synthetic_insert_ratio",

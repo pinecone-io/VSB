@@ -16,8 +16,10 @@ from typing import Generator
 
 import pandas
 import numpy as np
+import random
 import pyarrow
-import sklearn.neighbors as skn
+import os
+import string
 
 import itertools
 
@@ -536,6 +538,7 @@ class SyntheticProportionalWorkload(InMemoryWorkload, ABC):
         request_count: int,
         dimensions: int,
         metric: DistanceMetric,
+        metadata: int,
         top_k: int,
         batch_size: int,
         query_proportion: float,
@@ -554,6 +557,7 @@ class SyntheticProportionalWorkload(InMemoryWorkload, ABC):
         self._request_count = request_count
         self._dimensions = dimensions
         self._metric = metric
+        self._metadata = metadata
         self._top_k = top_k
         self._batch_size = batch_size
         self._query_proportion = query_proportion
@@ -565,11 +569,6 @@ class SyntheticProportionalWorkload(InMemoryWorkload, ABC):
         self._record_distribution = record_distribution
         self.seed = seed
         self.rng = np.random.default_rng(np.random.SeedSequence(seed))
-
-        if load_on_init:
-            self.setup_records()
-        else:
-            self.records = None
 
     def id_to_vec(self, id: int, version: int) -> Vector:
         # Generate a pseudo-random vector based on the id, version, and seed
@@ -603,6 +602,29 @@ class SyntheticProportionalWorkload(InMemoryWorkload, ABC):
             case DistanceMetric.Euclidean:
                 return get_vector((0, 255), self._dimensions)
 
+    def generate_synthetic_metadata(self, bytes: int) -> dict:
+        # break bytes into ~40B key-value (10B, 30B) pairs
+        metadata = {
+            'team_id': ['%024x' % random.randrange(16**24) for _ in range(2)],
+            'user_id': ['%024x' % random.randrange(16**24) for _ in range(2)],
+            'organisation_id': ['%024x' % random.randrange(16**24) for _ in range(2)]
+        }
+        # char_set = list(string.ascii_uppercase + string.digits)
+        # for i in range(0, bytes, 40):
+        #     pair_size = min(bytes - i, 40)
+        #     if pair_size // 4 == 0:
+        #         # each pair needs to be at least 2 bytes
+        #         metadata["x"] = (
+        #             "".join(self.rng.choice(char_set, pair_size - 1))
+        #             if pair_size > 1
+        #             else "x"
+        #         )
+        #         break
+        #     key = "".join(self.rng.choice(char_set, pair_size // 4))
+        #     val = "".join(self.rng.choice(char_set, 40 - pair_size // 4))
+        #     metadata[key] = val
+        return metadata
+
     def query_distributor(self, num_available_indexes, samples) -> list[int]:
         if num_available_indexes == 0:
             return []
@@ -628,8 +650,51 @@ class SyntheticProportionalWorkload(InMemoryWorkload, ABC):
             {
                 "id": np.arange(self._record_count).astype(str),
                 "values": [self.id_to_vec(id, 0) for id in range(self._record_count)],
+                "metadata": [
+                    self.generate_synthetic_metadata(self._metadata)
+                    for _ in range(self._record_count)
+                ],
             }
         )
+
+    def get_sample_record(self):
+        return Record(
+            id="0",
+            values=self.id_to_vec(0, 0),
+            metadata=self.generate_synthetic_metadata(self._metadata),
+        )
+
+    def get_record_batch_iter(
+        self, num_users: int, user_id: int, batch_size: int
+    ) -> Iterator[tuple[str, RecordList]]:
+        user_n_records = self._record_count // num_users + (
+            user_id < self._record_count % num_users
+        )
+        original_index_start = self._record_count // num_users * user_id + (
+            min(self._record_count % num_users, user_id)
+        )
+        # User-unique upsert id range to avoid conflicts
+        insert_index = self._record_count + user_id * (user_n_records + 1)
+        batch_size = min(batch_size, self._batch_size)
+
+        def make_record_iter(num_records, insert_index):
+            for next_i in range(0, num_records, batch_size):
+                # Yield in batches of max batch_size
+                insert_n = min(batch_size, num_records - next_i)
+                yield "", RecordList(
+                    root=[
+                        Record(
+                            id=str(i),
+                            values=self.id_to_vec(i, 0),
+                            metadata=self.generate_synthetic_metadata(self._metadata),
+                        )
+                        for i in range(insert_index, insert_index + insert_n)
+                    ]
+                )
+                # Update insert_index for next batch
+                insert_index += insert_n
+
+        return make_record_iter(user_n_records, insert_index)
 
     def get_query_iter(
         self, num_users: int, user_id: int, batch_size: int
@@ -702,6 +767,9 @@ class SyntheticProportionalWorkload(InMemoryWorkload, ABC):
                                         Record(
                                             id=str(i),
                                             values=self.id_to_vec(i, 0),
+                                            metadata=self.generate_synthetic_metadata(
+                                                self._metadata
+                                            ),
                                         )
                                         for i in range(
                                             insert_index, insert_index + insert_n
