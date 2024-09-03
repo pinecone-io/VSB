@@ -189,6 +189,10 @@ Metadata is specified by providing multiple `--synthetic_metadata` flags describ
 with a key and supported value. Values can be `<# digits>n` for a random integer, `<# chars>s` for a
 random string, `<# chars>s<# strings>l` for a random list of strings, or `b` for a random boolean.
 
+For example, `--synthetic_metadata=id:10n` generates a metadata field `id` with a random 10-digit integer.
+`--synthetic_metadata=tags:5s10l` generates a metadata field `tags` with a list of 10 ranodm strings, each 
+5 characters long. `--synthetic_metadata=active:b` generates a metadata field `active` with a random boolean.
+
 You can see the full list of parameters by running `vsb --help`.
 
 `synthetic` workloads generate a fixed number of records and queries with the given distribution, then

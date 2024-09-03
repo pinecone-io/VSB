@@ -16,7 +16,7 @@ class Nq768TasbBase(ParquetWorkload, ABC):
 
 
 class Nq768Tasb(Nq768TasbBase):
-    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True):
+    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True, **kwargs):
         super().__init__(
             name, "nq-768-tasb", cache_dir=cache_dir, load_on_init=load_on_init
         )
@@ -33,7 +33,7 @@ class Nq768Tasb(Nq768TasbBase):
 class Nq768TasbTest(ParquetSubsetWorkload, Nq768TasbBase):
     """Reduced, "test" variant of nq768; with ~1% of the full dataset."""
 
-    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True):
+    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True, **kwargs):
         super().__init__(
             name, "nq-768-tasb", cache_dir=cache_dir, limit=26809, query_limit=35
         )
@@ -87,7 +87,7 @@ class Nq768TasbSplit(VectorWorkloadSequence):
     """Drift sequence for nq768 that loads cheese values,
     builds index, loads holes, and queries."""
 
-    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True):
+    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True, **kwargs):
         self._name = name
         self.cheese = Nq768TasbCheese("cheese", cache_dir, load_on_init)
         self.holes = Nq768TasbHoles("holes", cache_dir, load_on_init)

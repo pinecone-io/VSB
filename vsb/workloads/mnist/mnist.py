@@ -19,7 +19,7 @@ class MnistBase(ParquetWorkload, ABC):
 
 
 class Mnist(MnistBase):
-    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True):
+    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True, **kwargs):
         super().__init__(name, "mnist", cache_dir=cache_dir, load_on_init=load_on_init)
 
     @staticmethod
@@ -35,7 +35,7 @@ class MnistTest(ParquetSubsetWorkload, MnistBase):
     """Reduced, "test" variant of mnist; with 1% of the full dataset (600
     passages and 20 queries)."""
 
-    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True):
+    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True, **kwargs):
         super().__init__(name, "mnist", cache_dir=cache_dir, limit=600, query_limit=20)
 
     @staticmethod
@@ -52,7 +52,7 @@ class MnistSecondTest(ParquetSubsetWorkload, MnistBase):
     passages and 20 queries). IDs are appended with a prefix to avoid
     conflicts with the first test."""
 
-    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True):
+    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True, **kwargs):
         super().__init__(name, "mnist", cache_dir=cache_dir, limit=600, query_limit=20)
 
     @staticmethod
@@ -113,7 +113,7 @@ class MnistSplit(VectorWorkloadSequence):
     """Drift sequence for mnist that loads cheese values,
     builds index, loads holes, and queries."""
 
-    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True):
+    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True, **kwargs):
         self._name = name
         self.cheese = MnistCheese("cheese", cache_dir, load_on_init)
         self.holes = MnistHoles("holes", cache_dir, load_on_init)
