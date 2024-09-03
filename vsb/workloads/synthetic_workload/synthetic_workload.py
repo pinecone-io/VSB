@@ -146,26 +146,19 @@ class SyntheticWorkload(InMemoryWorkload, ABC):
     def __init__(
         self,
         name: str,
-        cache_dir: str,
-        record_count: int,
-        request_count: int,
-        dimensions: int,
-        metric: DistanceMetric,
-        top_k: int,
-        record_distribution: str,
-        query_distribution: str,
-        seed: int = None,
+        options,
         load_on_init: bool = True,
         **kwargs,
     ):
         super().__init__(name)
-        self._record_count = record_count
-        self._request_count = request_count
-        self._dimensions = dimensions
-        self._metric = metric
-        self._top_k = top_k
-        self._record_distribution = record_distribution
-        self._query_distribution = query_distribution
+        self._record_count = options.synthetic_records
+        self._record_distribution = options.synthetic_record_distribution
+        self._query_distribution = options.synthetic_query_distribution
+        self._request_count = options.synthetic_requests
+        self._dimensions = options.synthetic_dimensions
+        self._metric = DistanceMetric(options.synthetic_metric)
+        self._top_k = options.synthetic_top_k
+        seed = int(options.synthetic_seed)
         if seed:
             self.rng = np.random.default_rng(np.random.SeedSequence(seed))
         else:
@@ -315,30 +308,24 @@ class SyntheticRunbook(VectorWorkloadSequence, ABC):
     def __init__(
         self,
         name: str,
-        cache_dir: str,
-        record_count: int,
-        request_count: int,
-        dimensions: int,
-        metric: DistanceMetric,
-        top_k: int,
-        steps: int,
-        record_distribution: str,
-        query_distribution: str,
-        no_aggregate_stats: bool,
-        seed: int = None,
+        options,
         load_on_init: bool = True,
         **kwargs,
     ):
         super().__init__(name)
-        self._record_count = record_count
-        self._record_distribution = record_distribution
-        self._request_count = request_count
-        self._query_distribution = query_distribution
-        self._dimensions = dimensions
-        self._metric = metric
-        self._top_k = top_k
-        self._steps = steps
-        self._no_aggregate_stats = no_aggregate_stats
+        self._record_count = options.synthetic_records
+        self._record_distribution = options.synthetic_record_distribution
+        self._query_distribution = options.synthetic_query_distribution
+        self._request_count = options.synthetic_requests
+        self._dimensions = options.synthetic_dimensions
+        self._metric = DistanceMetric(options.synthetic_metric)
+        self._metadata_gen = (
+            SyntheticProportionalWorkload.parse_synthetic_metadata_template(
+                options.synthetic_metadata
+            )
+        )
+        self._top_k = options.synthetic_top_k
+        seed = int(options.synthetic_seed)
         if seed:
             self.rng = np.random.default_rng(np.random.SeedSequence(seed))
         else:
@@ -470,6 +457,10 @@ class SyntheticRunbook(VectorWorkloadSequence, ABC):
             {
                 "id": np.arange(self._record_count).astype(str),
                 "values": [self.get_random_vector() for _ in range(self._record_count)],
+                "metadata": [
+                    {key: value(self.rng) for key, value in self._metadata_gen}
+                    for _ in range(self._record_count)
+                ],
             }
         )
 
@@ -529,42 +520,28 @@ class SyntheticProportionalWorkload(InMemoryWorkload, ABC):
     def __init__(
         self,
         name: str,
-        cache_dir: str,
-        record_count: int,
-        request_count: int,
-        dimensions: int,
-        metric: DistanceMetric,
-        metadata: list[str],
-        top_k: int,
-        batch_size: int,
-        query_proportion: float,
-        insert_proportion: float,
-        update_proportion: float,
-        delete_proportion: float,
-        fetch_proportion: float,
-        query_distribution: str,
-        record_distribution: str,
-        seed: int,
-        load_on_init: bool = True,
+        options,
         **kwargs,
     ):
         super().__init__(name)
-        self._record_count = record_count
-        self._request_count = request_count
-        self._dimensions = dimensions
-        self._metric = metric
-        self._metadata_gen = self.parse_synthetic_metadata_template(metadata)
-        self._top_k = top_k
-        self._batch_size = batch_size
-        self._query_proportion = query_proportion
-        self._insert_proportion = insert_proportion
-        self._update_proportion = update_proportion
-        self._delete_proportion = delete_proportion
-        self._fetch_proportion = fetch_proportion
-        self._query_distribution = query_distribution
-        self._record_distribution = record_distribution
-        self.seed = seed
-        self.rng = np.random.default_rng(np.random.SeedSequence(seed))
+        self._record_count = options.synthetic_records
+        self._request_count = options.synthetic_requests
+        self._dimensions = options.synthetic_dimensions
+        self._metric = DistanceMetric(options.synthetic_metric)
+        self._metadata_gen = self.parse_synthetic_metadata_template(
+            options.synthetic_metadata
+        )
+        self._top_k = options.synthetic_top_k
+        self._batch_size = options.synthetic_batch_size
+        self._query_proportion = options.synthetic_query_ratio
+        self._insert_proportion = options.synthetic_insert_ratio
+        self._update_proportion = options.synthetic_update_ratio
+        self._delete_proportion = options.synthetic_delete_ratio
+        self._fetch_proportion = options.synthetic_fetch_ratio
+        self._query_distribution = options.synthetic_query_distribution
+        self._record_distribution = options.synthetic_record_distribution
+        self.seed = int(options.synthetic_seed)
+        self.rng = np.random.default_rng(np.random.SeedSequence(self.seed))
 
     def id_to_vec(self, id: int, version: int) -> dict:
         # Generate a pseudo-random vector based on the id, version, and seed

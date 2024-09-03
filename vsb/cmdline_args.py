@@ -198,49 +198,33 @@ def add_vsb_cmdline_args(
         action="store_true",
         help="Aggregate statistics for the synthetic workload. Default is %(default)s.",
     )
-    use_default_ratios = not (
-        "--synthetic_insert_ratio" in "".join(sys.argv)
-        or "--synthetic_update_ratio" in "".join(sys.argv)
-        or "--synthetic_query_ratio" in "".join(sys.argv)
-        or "--synthetic_delete_ratio" in "".join(sys.argv)
-        or "--synthetic_fetch_ratio" in "".join(sys.argv)
-        or "--si" in "".join(sys.argv)
-        or "--su" in "".join(sys.argv)
-        or "--sq" in "".join(sys.argv)
-        or "--sd" in "".join(sys.argv)
-        or "--sf" in "".join(sys.argv)
-    )
     synthetic_group.add_argument(
         "--synthetic_insert_ratio",
         "--si",
         type=float,
-        default=(0.25 if use_default_ratios else 0),
-        help="Proportion of insert operations for synthetic proportional workloads. Default is %(default)s. "
-        "If no proportions are set, the default is 0.25.",
+        default=0,
+        help="Proportion of insert operations for synthetic proportional workloads. Default is %(default)s. ",
     )
     synthetic_group.add_argument(
         "--synthetic_update_ratio",
         "--su",
         type=float,
-        default=(0.25 if use_default_ratios else 0),
-        help="Proportion of update operations for synthetic proportional workloads. Default is %(default)s. "
-        "If no proportions are set, the default is 0.25.",
+        default=0.2,
+        help="Proportion of update operations for synthetic proportional workloads. Default is %(default)s. ",
     )
     synthetic_group.add_argument(
         "--synthetic_query_ratio",
         "--sq",
         type=float,
-        default=(0.25 if use_default_ratios else 0),
-        help="Proportion of query operations for synthetic proportional workloads. Default is %(default)s. "
-        "If no proportions are set, the default is 0.25.",
+        default=0.8,
+        help="Proportion of query operations for synthetic proportional workloads. Default is %(default)s. ",
     )
     synthetic_group.add_argument(
         "--synthetic_delete_ratio",
         "--sd",
         type=float,
-        default=(0.25 if use_default_ratios else 0),
-        help="Proportion of delete operations for synthetic proportional workloads. Default is %(default)s. "
-        "If no proportions are set, the default is 0.25.",
+        default=0,
+        help="Proportion of delete operations for synthetic proportional workloads. Default is %(default)s. ",
     )
     synthetic_group.add_argument(
         "--synthetic_fetch_ratio",

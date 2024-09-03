@@ -279,6 +279,8 @@ class RunUser(User):
                     results = index.fetch_batch(request.ids)
                 case DeleteRequest():
                     results = index.delete_batch(request.ids)
+                case _:
+                    raise ValueError(f"Unknown request type:{request}")
             stop = time.perf_counter()
             elapsed_ms = (stop - start) * 1000.0
             match request:

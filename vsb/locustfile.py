@@ -95,30 +95,6 @@ def setup_environment(environment, **_kwargs):
 
     logger.debug(f"setup_environment(): runner={type(environment.runner)}")
 
-    synthetic_options = (
-        {
-            "record_count": options.synthetic_records,
-            "request_count": options.synthetic_requests,
-            "dimensions": options.synthetic_dimensions,
-            "metric": DistanceMetric(options.synthetic_metric),
-            "metadata": options.synthetic_metadata,
-            "top_k": options.synthetic_top_k,
-            "seed": int(options.synthetic_seed),
-            "steps": options.synthetic_steps,
-            "no_aggregate_stats": options.synthetic_no_aggregate_stats,
-            "insert_proportion": options.synthetic_insert_ratio,
-            "update_proportion": options.synthetic_update_ratio,
-            "delete_proportion": options.synthetic_delete_ratio,
-            "query_proportion": options.synthetic_query_ratio,
-            "fetch_proportion": options.synthetic_fetch_ratio,
-            "batch_size": options.synthetic_batch_size,
-            "record_distribution": options.synthetic_record_distribution,
-            "query_distribution": options.synthetic_query_distribution,
-        }
-        if "synthetic" in options.workload
-        else {}
-    )
-
     # Load the WorkloadSequence
     if isinstance(environment.runner, MasterRunner):
         # In distributed mode, the master does not need to load workload
@@ -127,13 +103,13 @@ def setup_environment(environment, **_kwargs):
         environment.workload_sequence = build_workload_sequence(
             options.workload,
             cache_dir=options.cache_dir,
-            **synthetic_options,
+            options=options,
             load_on_init=False,
         )
 
     else:
         environment.workload_sequence = build_workload_sequence(
-            options.workload, cache_dir=options.cache_dir, **synthetic_options
+            options.workload, cache_dir=options.cache_dir, options=options
         )
 
     # Reset distributors for new Populate -> Run iteration
