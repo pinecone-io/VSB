@@ -132,7 +132,7 @@ class MnistDoubleTest(VectorWorkloadSequence):
     """Reduced variant of mnist that reruns the test workload twice.
     Primarily used for testing multi-iteration workloads."""
 
-    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True):
+    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True, **kwargs):
         # load_on_init is ignored; ParquetSubsetWorkload does not support it
         self._name = name
         self.test1 = MnistTest("test1", cache_dir)

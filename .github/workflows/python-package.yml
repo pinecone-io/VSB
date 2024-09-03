@@ -61,6 +61,14 @@ jobs:
         SERVERLESS_CLOUD: aws
         NAME_PREFIX: test-${{ github.run_number }}
         PINECONE_API_KEY: '${{ secrets.PINECONE_API_KEY }}'
+    - name: Clean up dangling indexes
+      if: always()
+      run: |
+        poetry run python3 .github/scripts/cleanup_pinecone_project.py
+      env:
+        ENVIRONMENT: ${{ matrix.environment }}
+        NAME_PREFIX: test-${{ github.run_number }}
+        PINECONE_API_KEY: '${{ secrets.PINECONE_API_KEY }}'
     - name: Shut down Docker Compose
       if: always()
       run: |
