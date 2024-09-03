@@ -57,17 +57,7 @@ def master_receive_setup_update(environment, msg, **_kwargs):
     environment.setup_completed_workers.add(msg.data["user_id"])
 
 
-@events.init.add_listener
-def setup_listeners(environment, **_kwargs):
-    logger.debug(f"setup_listeners(): runner={type(environment.runner)}")
-    # In distributed mode, we need the MasterRunner to wait for all workers
-    # to setup their environment before starting the test. Since this may take
-    # a few minutes (from downloading a large dataset), we need to rely on the
-    # event loop to keep the master responsive to heartbeats.
-    if not isinstance(environment.runner, WorkerRunner):
-        environment.setup_completed_workers = set()
-        environment.runner.register_message("setup_done", master_receive_setup_update)
-
+def spawn_setup(environment, **_kwargs):
     # We need to perform this work in a background thread (not in the current
     # gevent greenlet) as otherwise we block the current greenlet (pandas data
     # loading is not gevent-friendly) and locust's master / worker heartbeat
@@ -86,6 +76,21 @@ def setup_listeners(environment, **_kwargs):
         environment.runner.quit()
 
     gl.link_exception(on_exception)
+
+
+@events.init.add_listener
+def setup_listeners(environment, **_kwargs):
+    logger.debug(f"setup_listeners(): runner={type(environment.runner)}")
+    # In distributed mode, we need the MasterRunner to wait for all workers
+    # to setup their environment before starting the test. Since this may take
+    # a few minutes (from downloading a large dataset), we need to rely on the
+    # event loop to keep the master responsive to heartbeats.
+    if not isinstance(environment.runner, WorkerRunner):
+        environment.setup_completed_workers = set()
+        environment.runner.register_message("setup_done", master_receive_setup_update)
+    # Wait for LoadShape to advance to WaitingForWorkers before setting up
+    # the environment, or the master may hang.
+    environment.runner.register_message("spawn_setup", spawn_setup)
 
 
 def setup_environment(environment, **_kwargs):

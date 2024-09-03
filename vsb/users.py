@@ -2,6 +2,7 @@ import time
 import traceback
 from enum import Enum, auto
 
+import gevent.event
 import rich.progress
 from locust import User, task, LoadTestShape, constant_throughput, runners
 from locust.exception import ResponseError, StopUser
@@ -403,6 +404,8 @@ class LoadShape(LoadTestShape):
                 # attributes like workload_sequence that might not be set up yet
                 logger.debug(f"switching to WaitingForWorkers phase")
                 self.phase = LoadShape.Phase.WaitingForWorkers
+                # Notify all nodes to start their setup
+                self.runner.send_message("spawn_setup")
                 return self.tick()
             case LoadShape.Phase.WaitingForWorkers:
                 if (
