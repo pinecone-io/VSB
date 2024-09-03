@@ -183,6 +183,11 @@ important parameters for synthetic workloads include:
 * `--synthetic_record_ratio`: The distribution of record vectors in space for synthetic proportional workloads.
 * `--synthetic_insert_ratio`: The proportion of insert operations for synthetic proportional workloads.
 * `--synthetic_query_ratio`: The proportion of query operations for synthetic proportional workloads.
+* `--synthetic_metadata`: The metadata schema to use for each record.
+
+Metadata is specified by providing multiple `--synthetic_metadata` flags describing a metadata field
+with a key and supported value. Values can be `<# digits>n` for a random integer, `<# chars>s` for a
+random string, `<# chars>s<# strings>l` for a random list of strings, or `b` for a random boolean.
 
 You can see the full list of parameters by running `vsb --help`.
 
@@ -206,7 +211,8 @@ vsb --database=pinecone --pinecone_api_key=<API_KEY> \
     --synthetic_records=10000 --synthetic_queries=1000000 \
     --synthetic_insert_ratio=0.3 --synthetic_query_ratio=0.5 \
     --synthetic_delete_ratio=0.1 --synthetic_update_ratio=0.1 \
-    --synthetic_dimensions=768 --synthetic_query_distribution=zipfian
+    --synthetic_dimensions=768 --synthetic_query_distribution=zipfian \
+    --synthetic_metadata=id:10n --synthetic_metadata=tags:5s10l
 ```
 
 > [!NOTE]

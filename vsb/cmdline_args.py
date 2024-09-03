@@ -1,6 +1,7 @@
 import configargparse
 import argparse
 import sys
+import re
 import rich.table
 import rich.console
 import json
@@ -170,9 +171,13 @@ def add_vsb_cmdline_args(
     )
     synthetic_group.add_argument(
         "--synthetic_metadata",
-        type=int,
-        default=0,
-        help="Amount of metadata per vector, in bytes. Default is %(default)s (no metadata).",
+        "--sm",
+        action="append",
+        type=str,
+        default=None,
+        help="Metadata key-value template, in the form of <key:value>. Each flag specifies one pair; "
+        "keys are strings, and values can be formatted as <# digits>n (number), <# chars>s (string), "
+        "<# chars>s<# strings>l (list of strings), or b (boolean). Default is no metadata.",
     )
     synthetic_group.add_argument(
         "--synthetic_seed",
@@ -193,7 +198,6 @@ def add_vsb_cmdline_args(
         action="store_true",
         help="Aggregate statistics for the synthetic workload. Default is %(default)s.",
     )
-    # TODO: fix bug
     use_default_ratios = not (
         "--synthetic_insert_ratio" in "".join(sys.argv)
         or "--synthetic_update_ratio" in "".join(sys.argv)
@@ -226,16 +230,17 @@ def add_vsb_cmdline_args(
         "--synthetic_query_ratio",
         "--sq",
         type=float,
-        default=(0.5 if use_default_ratios else 0),
+        default=(0.25 if use_default_ratios else 0),
         help="Proportion of query operations for synthetic proportional workloads. Default is %(default)s. "
-        "If no proportions are set, the default is 0.5.",
+        "If no proportions are set, the default is 0.25.",
     )
     synthetic_group.add_argument(
         "--synthetic_delete_ratio",
         "--sd",
         type=float,
-        default=0,
-        help="Proportion of delete operations for synthetic proportional workloads. Default is %(default)s.",
+        default=(0.25 if use_default_ratios else 0),
+        help="Proportion of delete operations for synthetic proportional workloads. Default is %(default)s. "
+        "If no proportions are set, the default is 0.25.",
     )
     synthetic_group.add_argument(
         "--synthetic_fetch_ratio",
@@ -451,5 +456,37 @@ def validate_parsed_args(
                     "--synthetic_update_ratio, --synthetic_delete_ratio, or --synthetic_fetch_ratio "
                     "must be non-zero."
                 )
-        case _:
+
+            if args.synthetic_metadata:
+                for entry in args.synthetic_metadata:
+                    if not re.search(r"(\w+):(\w+)", entry):
+                        parser.error(
+                            f"Metadata key-value pair '{entry}' must be formatted as <key:value>."
+                        )
+                    entry = entry.split(":")[-1]
+                    match entry[-1]:
+                        case "s":
+                            if not re.search(r"(\d+)s", entry):
+                                parser.error(
+                                    f"Metadata string value '{entry}' must be formatted as <# chars>s."
+                                )
+                        case "l":
+                            if not re.search(r"(\d+)s(\d+)l", entry):
+                                parser.error(
+                                    f"Metadata string list value '{entry}' must be formatted as <# chars>s<# strings>l."
+                                )
+                        case "n":
+                            if not re.search(r"(\d+)n", entry):
+                                parser.error(
+                                    f"Metadata number value '{entry}' must be formatted as <# digits>n."
+                                )
+                        case "b":
+                            if entry != "b":
+                                parser.error(
+                                    f"Metadata boolean value '{entry}' must be formatted as b."
+                                )
+                        case _:
+                            parser.error(
+                                f"Metadata value '{entry}' must be formatted as <# chars>s, <# digits>n, <# chars>s<# strings>l, or b."
+                            )
             pass
