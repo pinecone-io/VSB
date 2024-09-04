@@ -389,7 +389,6 @@ class LoadShape(LoadTestShape):
         then it doesn't actually start any ClassB tasks. As such we need to
         first reduce task count to 0, then ramp back to N tasks of ClassB.
         """
-        logger.debug(f"LoadShape.tick() - phase:{self.phase}")
         match self.phase:
             case LoadShape.Phase.Init:
                 # self.runner is not initialised until after __init__(), so we must

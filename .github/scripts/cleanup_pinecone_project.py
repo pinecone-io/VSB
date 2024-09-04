@@ -20,5 +20,5 @@ for index in pc.list_indexes():
         and (is_pod_run and "pod" in index["spec"])
         or (not is_pod_run and "serverless" in index["spec"])
     ):
-        print(f"Deleting index {index}")
-        pc.delete_index(index)
+        print(f"Deleting index {index['name']}")
+        pc.delete_index(index["name"])

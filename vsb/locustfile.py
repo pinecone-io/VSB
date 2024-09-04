@@ -88,9 +88,15 @@ def setup_listeners(environment, **_kwargs):
     if not isinstance(environment.runner, WorkerRunner):
         environment.setup_completed_workers = set()
         environment.runner.register_message("setup_done", master_receive_setup_update)
+    if isinstance(environment.runner, MasterRunner):
+        # MasterRunner does not need to setup the environment, so we can
+        # spawn the setup in the background.
+        spawn_setup(environment)
     # Wait for LoadShape to advance to WaitingForWorkers before setting up
-    # the environment, or the master may hang.
-    environment.runner.register_message("spawn_setup", spawn_setup)
+    # the environment, or the master may hang. LoadShape will send a message
+    # to workers to start setup once it is ready.
+    if not isinstance(environment.runner, MasterRunner):
+        environment.runner.register_message("spawn_setup", spawn_setup)
 
 
 def setup_environment(environment, **_kwargs):
@@ -174,12 +180,13 @@ def setup_worker_database(environment, **_kwargs):
             name=environment.workload_sequence.name,
             config=vars(options),
         )
+        logger.debug(f"Database initialized: {environment.database}")
     except StopUser:
         # This is a special exception that is raised when we want to
         # stop the User from running, e.g. because the database
         # connection failed.
         log.unhandled_greenlet_exception = True
-        logger.debug(f"setup_environment() stopping User: {traceback.format_exc()}")
+        logger.debug(f"setup_worker_database() stopping User: {traceback.format_exc()}")
         environment.runner.quit()
     except:
         logger.error(

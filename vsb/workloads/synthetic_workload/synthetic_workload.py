@@ -325,6 +325,8 @@ class SyntheticRunbook(VectorWorkloadSequence, ABC):
             )
         )
         self._top_k = options.synthetic_top_k
+        self._steps = options.synthetic_steps
+        self._no_aggregate_stats = options.synthetic_no_aggregate_stats
         seed = int(options.synthetic_seed)
         if seed:
             self.rng = np.random.default_rng(np.random.SeedSequence(seed))
@@ -583,7 +585,9 @@ class SyntheticProportionalWorkload(InMemoryWorkload, ABC):
                 }
 
     @staticmethod
-    def parse_synthetic_metadata_template(template: list[str]) -> dict:
+    def parse_synthetic_metadata_template(template: list[str] | None) -> dict:
+        if template is None:
+            return {}
         generator_dict = {}
         for entry in template:
             key, value = entry.split(":")
@@ -647,11 +651,10 @@ class SyntheticProportionalWorkload(InMemoryWorkload, ABC):
         user_n_records = self._record_count // num_users + (
             user_id < self._record_count % num_users
         )
-        original_index_start = self._record_count // num_users * user_id + (
+        # User-unique upsert id range to avoid conflicts
+        insert_index = self._record_count // num_users * user_id + (
             min(self._record_count % num_users, user_id)
         )
-        # User-unique upsert id range to avoid conflicts
-        insert_index = user_id * (user_n_records + 1)
 
         def make_record_iter(num_records, insert_index):
             for next_i in range(0, num_records, batch_size):
