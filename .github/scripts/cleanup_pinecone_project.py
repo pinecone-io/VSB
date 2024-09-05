@@ -16,7 +16,7 @@ prefix = os.getenv("NAME_PREFIX")
 
 for index in pc.list_indexes():
     if (
-        index["name"][: len(prefix)] == prefix
+        index["name"].startswith(prefix)
         and (is_pod_run and "pod" in index["spec"])
         or (not is_pod_run and "serverless" in index["spec"])
     ):
