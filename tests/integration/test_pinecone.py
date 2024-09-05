@@ -59,6 +59,13 @@ def pinecone_index_yfcc():
     _delete_pinecone_index(index_name)
 
 
+@pytest.fixture(scope="module")
+def pinecone_index_synthetic():
+    index_name = _create_pinecone_index(dims=192, metric="cosine")
+    yield index_name
+    _delete_pinecone_index(index_name)
+
+
 def spawn_vsb(
     workload,
     api_key=None,
@@ -89,6 +96,7 @@ def spawn_vsb_pinecone(
     pinecone_api_key,
     pinecone_index_mnist,
     pinecone_index_yfcc,
+    pinecone_index_synthetic,
     timeout=60,
     extra_args=None,
     **kwargs,
@@ -102,6 +110,8 @@ def spawn_vsb_pinecone(
             args += ["--pinecone_index_name", pinecone_index_mnist]
         case "yfcc-test":
             args += ["--pinecone_index_name", pinecone_index_yfcc]
+        case "synthetic" | "synthetic-runbook" | "synthetic-proportional":
+            args += ["--pinecone_index_name", pinecone_index_synthetic]
         case _:
             raise ValueError(f"Specify an index name fixture for: {workload}")
     if extra_args:

@@ -35,7 +35,7 @@ class PgvectorNamespace(Namespace):
         self.ivfflat_lists = ivfflat_lists
         self.warned_no_metadata = False
 
-    def upsert_batch(self, batch: RecordList):
+    def insert_batch(self, batch: RecordList):
         # pgvector / psycopg expects a list of tuples.
         data = [(rec.id, np.array(rec.values), Jsonb(rec.metadata)) for rec in batch]
 
@@ -50,12 +50,21 @@ class PgvectorNamespace(Namespace):
                     f"Are you sure this is correct?"
                 )
 
-        upsert_query = (
+        insert_query = (
             "INSERT INTO " + self.table + " (id, embedding, metadata) "
             "VALUES (%s, %s, %s)"
         )
         with self.conn.cursor() as cur:
-            cur.executemany(upsert_query, data)
+            cur.executemany(insert_query, data)
+
+    def update_batch(self, batch: RecordList):
+        data = [(np.array(rec.values), Jsonb(rec.metadata), rec.id) for rec in batch]
+        update_query = (
+            "UPDATE " + self.table + " SET embedding = %s, metadata = %s "
+            "WHERE id = %s"
+        )
+        with self.conn.cursor() as cur:
+            cur.executemany(update_query, data)
 
     def search(self, request: SearchRequest) -> list[str]:
         match self.index_type:
@@ -91,6 +100,18 @@ class PgvectorNamespace(Namespace):
         ).fetchall()
         matches = [r[0] for r in result]
         return matches
+
+    def delete_batch(self, request: list[str]):
+        delete_query = f"DELETE FROM {self.table} WHERE id = ANY(%s)"
+        self.conn.execute(delete_query, (request,))
+
+    def fetch_batch(self, request: list[str]) -> list[Record]:
+        select_query = (
+            f"SELECT id, embedding, metadata FROM {self.table} WHERE id = ANY(%s)"
+        )
+        result = self.conn.execute(select_query, (request,)).fetchall()
+        records = [Record(id=r[0], values=r[1], metadata=r[2] or {}) for r in result]
+        return records
 
 
 class PgvectorDB(DB):
@@ -241,3 +262,13 @@ class PgvectorDB(DB):
             case DistanceMetric.DotProduct:
                 return "vector_ip_ops"
         raise ValueError("Invalid metric:{}".format(metric))
+
+    def skip_refinalize(self):
+        # pgvector's index will update on successive inserts,
+        # no need to try to build an existing index.
+        return True
+
+    def get_record_count(self) -> int:
+        with self.conn.cursor() as cur:
+            cur.execute(f"SELECT COUNT(*) FROM {self.table}")
+            return cur.fetchone()[0]

@@ -16,7 +16,7 @@ class YFCCBase(ParquetWorkload, ABC):
 
 
 class YFCC(YFCCBase):
-    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True):
+    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True, **kwargs):
         super().__init__(
             name,
             "yfcc-10M-filter-euclidean-formatted-multipart",
@@ -37,7 +37,7 @@ class YFCCTest(ParquetSubsetWorkload, YFCCBase):
     """Reduced, "test" variant of YFCC; with ~0.1% of the full dataset / 0.5%
     of queries"""
 
-    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True):
+    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True, **kwargs):
         super().__init__(
             name,
             "yfcc-100K-filter-euclidean-formatted",
@@ -101,7 +101,7 @@ class YFCCSplit(VectorWorkloadSequence):
     """Drift sequence for mnist that loads cheese values,
     builds index, loads holes, and queries."""
 
-    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True):
+    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True, **kwargs):
         self._name = name
         self.cheese = YFCCCheese("cheese", cache_dir, load_on_init)
         self.holes = YFCCHoles("holes", cache_dir, load_on_init)

@@ -2,6 +2,7 @@ import time
 import traceback
 from enum import Enum, auto
 
+import gevent.event
 import rich.progress
 from locust import User, task, LoadTestShape, constant_throughput, runners
 from locust.exception import ResponseError, StopUser
@@ -13,9 +14,21 @@ import vsb
 import vsb.logging
 from vsb import metrics, metrics_tracker
 from vsb.databases import DB
-from vsb.vsb_types import RecordList, SearchRequest
+import vsb.metrics_tracker
+from vsb.vsb_types import (
+    RecordList,
+    SearchRequest,
+    InsertRequest,
+    UpdateRequest,
+    DeleteRequest,
+    FetchRequest,
+    QueryRequest,
+)
 from vsb.workloads import VectorWorkload
 from vsb import logger
+import vsb.workloads
+import vsb.workloads.synthetic_workload
+import vsb.workloads.synthetic_workload.synthetic_workload
 
 # Dict of Distributors - objects which distribute test data across all
 # VSB Users, potentially across multiple processes.
@@ -113,12 +126,12 @@ class PopulateUser(User):
                 index = self.database.get_namespace(tenant)
 
                 start = time.perf_counter()
-                index.upsert_batch(vectors)
+                index.insert_batch(vectors)
                 stop = time.perf_counter()
 
                 elapsed_ms = (stop - start) * 1000.0
                 req_type = (
-                    f"{self.workload.name}.Populate"
+                    f"{self.workload.get_stats_prefix()}Populate"
                     if self.environment.workload_sequence.workload_count() > 1
                     else "Populate"
                 )
@@ -235,14 +248,14 @@ class RunUser(User):
         return 0
 
     def do_run(self):
-        request: SearchRequest
         if not self.query_iter:
+            batch_size = self.database.get_batch_size(self.workload.get_sample_record())
             self.query_iter = self.workload.get_query_iter(
-                self.users_total, self.user_id
+                self.users_total, self.user_id, batch_size
             )
 
         tenant: str = None
-        request: SearchRequest = None
+        request: QueryRequest = None
         try:
             (tenant, request) = next(self.query_iter)
         except StopIteration:
@@ -255,17 +268,56 @@ class RunUser(User):
             return
         try:
             index = self.database.get_namespace(tenant)
-
             start = time.perf_counter()
-            results = index.search(request)
+            match request:
+                case SearchRequest():
+                    results = index.search(request)
+                case InsertRequest():
+                    results = index.insert_batch(request.records)
+                case UpdateRequest():
+                    results = index.update_batch(request.records)
+                case FetchRequest():
+                    results = index.fetch_batch(request.ids)
+                case DeleteRequest():
+                    results = index.delete_batch(request.ids)
+                case _:
+                    raise ValueError(f"Unknown request type:{request}")
             stop = time.perf_counter()
             elapsed_ms = (stop - start) * 1000.0
-            calc_metrics = metrics.calculate_metrics(request, results)
+            match request:
+                case SearchRequest():
+                    if self.workload.recall_available():
+                        calc_metrics = metrics.calculate_metrics(request, results)
+                    else:
+                        # TODO: change when recall calculation is implemented
+                        # We can't calculate recall for synthetic proportional workloads right now,
+                        # so don't collect data to pollute the output table.
+                        calc_metrics = {}
+                    type_label = "Search"
+                    reqs = None
+                case InsertRequest():
+                    calc_metrics = {}
+                    type_label = "Insert"
+                    reqs = len(request.records)
+                case UpdateRequest():
+                    calc_metrics = {}
+                    type_label = "Update"
+                    reqs = len(request.records)
+                case FetchRequest():
+                    calc_metrics = {}
+                    type_label = "Fetch"
+                    reqs = len(request.ids)
+                case DeleteRequest():
+                    calc_metrics = {}
+                    type_label = "Delete"
+                    reqs = len(request.ids)
+                case _:
+                    raise ValueError(f"Unknown request type:{request}")
 
             req_type = (
-                f"{self.workload.name}.Search"
+                f"{self.workload.get_stats_prefix()}{type_label}"
                 if self.environment.workload_sequence.workload_count() > 1
-                else "Search"
+                else type_label
             )
             self.environment.events.request.fire(
                 request_type=req_type,
@@ -273,7 +325,9 @@ class RunUser(User):
                 response_time=elapsed_ms,
                 response_length=0,
                 metrics=calc_metrics,
+                counters={"requests": reqs} if reqs else {},
             )
+            del request
         except Exception as e:
             traceback.print_exception(e)
             self.environment.runner.quit()
@@ -318,6 +372,7 @@ class LoadShape(LoadTestShape):
 
     def __init__(self):
         super().__init__()
+        logger.debug(f"Initialising LoadShape")
         self.phase = LoadShape.Phase.Init
         self.record_count: int = None
         self.request_count: int = None
@@ -334,7 +389,6 @@ class LoadShape(LoadTestShape):
         then it doesn't actually start any ClassB tasks. As such we need to
         first reduce task count to 0, then ramp back to N tasks of ClassB.
         """
-
         match self.phase:
             case LoadShape.Phase.Init:
                 # self.runner is not initialised until after __init__(), so we must
@@ -344,10 +398,13 @@ class LoadShape(LoadTestShape):
                 parsed_opts = self.runner.environment.parsed_options
                 self.num_users = parsed_opts.num_users
                 self.skip_populate = parsed_opts.skip_populate
+                self.no_aggregate_stats = parsed_opts.synthetic_no_aggregate_stats
                 # manually change phase because _transition_phase depends on environment
                 # attributes like workload_sequence that might not be set up yet
                 logger.debug(f"switching to WaitingForWorkers phase")
                 self.phase = LoadShape.Phase.WaitingForWorkers
+                # Notify all nodes to start their setup
+                self.runner.send_message("spawn_setup")
                 return self.tick()
             case LoadShape.Phase.WaitingForWorkers:
                 if (
@@ -382,7 +439,13 @@ class LoadShape(LoadTestShape):
                 if self.get_current_user_count() == 0:
                     # stopped all previous Populate Users, can switch to Finalize
                     # phase now
-                    self._transition_phase(LoadShape.Phase.Finalize)
+                    if (
+                        self.runner.environment.database.skip_refinalize()
+                        and self.runner.environment.iteration > 0
+                    ):
+                        self._transition_phase(LoadShape.Phase.Run)
+                    else:
+                        self._transition_phase(LoadShape.Phase.Finalize)
                     return self.tick()
                 return 0, self.num_users, []
             case LoadShape.Phase.Finalize:
@@ -586,9 +649,8 @@ class LoadShape(LoadTestShape):
 
                 env = self.runner.environment
                 workload = env.workload_sequence[env.iteration]
-
                 req_type = (
-                    f"{workload.name}.Populate"
+                    f"{workload.get_stats_prefix()}Populate"
                     if env.workload_sequence.workload_count() > 1
                     else "Populate"
                 )
@@ -599,16 +661,32 @@ class LoadShape(LoadTestShape):
                 stats: locust.stats.StatsEntry = env.stats.get(workload.name, req_type)
                 duration = time.time() - stats.start_time
                 rps_str = "  Records/sec: [magenta]{:.1f}".format(completed / duration)
-                previous_record_count = (
-                    (env.workload_sequence.record_count_upto(env.iteration - 1))
-                    if env.iteration > 0
-                    else 0
-                )
+                # If --synthetic-no-aggregate-stats is set, then we need special
+                # handling to update the progress bar, since each workload in the
+                # sequence uses the same name.
+                if (
+                    isinstance(
+                        env.workload_sequence,
+                        vsb.workloads.synthetic_workload.synthetic_workload.SyntheticRunbook,
+                    )
+                    and not self.no_aggregate_stats
+                ):
+                    # All cumulative records are stored under stats[workload.name],
+                    # we don't need to sum up previous workloads.
+                    previous_record_count = 0
+                    total = env.workload_sequence.record_count()
+                else:
+                    previous_record_count = (
+                        (env.workload_sequence.record_count_upto(env.iteration - 1))
+                        if env.iteration > 0
+                        else 0
+                    )
+                    total = self.record_count
                 vsb.progress.update(
                     self.progress_task_id,
                     completed=completed
                     + previous_record_count,  # Add records from previous workloads
-                    total=self.record_count,
+                    total=total,
                     extra_info=rps_str,
                 )
             case LoadShape.Phase.Finalize:
@@ -616,20 +694,32 @@ class LoadShape(LoadTestShape):
                     self.progress_task_id, completed=1 if mark_completed else 0
                 )
             case LoadShape.Phase.Run:
-                # TODO: When we add additional request types other than Search,
-                # we need to expand this to include them.
                 env = self.runner.environment
                 workload = env.workload_sequence[env.iteration]
-                req_type = (
-                    f"{workload.name}.Search"
-                    if env.workload_sequence.workload_count() > 1
-                    else "Search"
-                )
-                stats: locust.stats.StatsEntry = env.stats.get(workload.name, req_type)
+                cumulative_current_rps = 0
+                cumulative_num_requests = 0
+                for req_name in ["Search", "Insert", "Update", "Fetch", "Delete"]:
+                    req_type = (
+                        f"{workload.get_stats_prefix()}{req_name}"
+                        if env.workload_sequence.workload_count() > 1
+                        else req_name
+                    )
+                    stats: locust.stats.StatsEntry = env.stats.get(
+                        workload.name, req_type
+                    )
+                    cumulative_current_rps += stats.current_rps
+                    completed = (
+                        vsb.metrics_tracker.calculated_metrics.get(req_type, {}).get(
+                            "requests", 0
+                        )
+                        if req_name != "Search"
+                        else stats.num_requests
+                    )
+                    cumulative_num_requests += completed
 
                 # Display current (last 10s) values for some significant metrics
                 # in the progress_details row.
-                ops_str = f"{stats.current_rps:.1f} op/s"
+                ops_str = f"{cumulative_current_rps:.1f} op/s"
                 latency_str = ", ".join(
                     [
                         f"p{p}={stats.get_current_response_time_percentile(p/100.0) or '...'}ms"
@@ -638,6 +728,11 @@ class LoadShape(LoadTestShape):
                 )
 
                 def get_recall_pct(p):
+                    req_type = (
+                        f"{workload.get_stats_prefix()}Search"
+                        if env.workload_sequence.workload_count() > 1
+                        else "Search"
+                    )
                     recall = vsb.metrics_tracker.get_metric_percentile(
                         req_type, "recall", p
                     )
@@ -654,9 +749,23 @@ class LoadShape(LoadTestShape):
                     + f"[magenta]recall: {recall_str}"
                 )
 
+                # If --synthetic-no-aggregate-stats is set, the cumulative request
+                # count is stored in the stats[workload.name] object. We just use
+                # the total request count for the entire runbook as the total,
+                # although it breaks convention with non-runbook workloads.
+                if (
+                    isinstance(
+                        env.workload_sequence,
+                        vsb.workloads.synthetic_workload.synthetic_workload.SyntheticRunbook,
+                    )
+                    and not self.no_aggregate_stats
+                ):
+                    total = env.workload_sequence.request_count()
+                else:
+                    total = self.request_count
                 vsb.progress.update(
                     self.progress_task_id,
-                    completed=stats.num_requests,
-                    total=self.request_count,
+                    completed=cumulative_num_requests,
+                    total=total,
                     extra_info=metrics_str,
                 )

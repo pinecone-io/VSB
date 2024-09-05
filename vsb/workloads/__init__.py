@@ -17,15 +17,27 @@ class Workload(Enum):
     YFCCTest = "yfcc-test"
     Cohere768 = "cohere768"
     Cohere768Test = "cohere768-test"
+    Synthetic = "synthetic"
+    SyntheticProportional = "synthetic-proportional"
 
     def build(self, **kwargs) -> VectorWorkload:
         """Construct an instance of VectorWorkload based on the value of the enum."""
         cls = self._get_class()
-        return cls(self.value, **kwargs)
+        return cls(name=self.value, **kwargs)
 
     def _get_class(self) -> type[VectorWorkload]:
         """Return the VectorWorkload class to use, based on the value of the enum"""
         match self:
+            case Workload.Synthetic:
+                from .synthetic_workload.synthetic_workload import SyntheticWorkload
+
+                return SyntheticWorkload
+            case Workload.SyntheticProportional:
+                from .synthetic_workload.synthetic_workload import (
+                    SyntheticProportionalWorkload,
+                )
+
+                return SyntheticProportionalWorkload
             case Workload.Mnist:
                 from .mnist.mnist import Mnist
 
@@ -84,6 +96,7 @@ class WorkloadSequence(Enum):
     Nq768Split = "nq768-split"
     Cohere768Split = "cohere768-split"
     YFCCSplit = "yfcc-split"
+    SyntheticRunbook = "synthetic-runbook"
 
     def build(self, **kwargs) -> VectorWorkloadSequence:
         """Construct an instance of VectorWorkload based on the value of the enum."""
@@ -93,6 +106,10 @@ class WorkloadSequence(Enum):
     def _get_class(self) -> type[VectorWorkloadSequence]:
         """Return the VectorWorkloadSequence class to use, based on the value of the enum"""
         match self:
+            case WorkloadSequence.SyntheticRunbook:
+                from .synthetic_workload.synthetic_workload import SyntheticRunbook
+
+                return SyntheticRunbook
             case WorkloadSequence.MnistSplit:
                 from .mnist.mnist import MnistSplit
 

@@ -16,11 +16,23 @@ class Namespace(ABC):
     """
 
     @abstractmethod
-    def upsert_batch(self, batch: list[Record]):
+    def insert_batch(self, batch: list[Record]):
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_batch(self, batch: list[Record]):
         raise NotImplementedError
 
     @abstractmethod
     def search(self, request: SearchRequest) -> list[str]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def fetch_batch(self, request: list[str]) -> list[Record]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def delete_batch(self, request: list[str]):
         raise NotImplementedError
 
 
@@ -76,5 +88,21 @@ class DB(ABC):
         records to be indexed.
         For databases which perform indexing as a separate step to data ingest,
         this should create the index(es).
+        """
+        pass
+
+    def skip_refinalize(self):
+        """
+        Returns True if the database does not need to be re-finalized after
+        population.
+
+        For databases with separate index building steps that would run during
+        finalize, we may want to skip trying to build an existing index.
+        """
+        pass
+
+    def get_record_count(self) -> int:
+        """
+        Returns the total number of records in the database.
         """
         pass

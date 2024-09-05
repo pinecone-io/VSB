@@ -75,7 +75,7 @@ class VectorWorkload(ABC):
 
     @abstractmethod
     def get_query_iter(
-        self, num_users: int, user_id: int
+        self, num_users: int, user_id: int, batch_size: int
     ) -> Iterator[tuple[str, SearchRequest]]:
         """
         Returns an iterator over the sequence of queries for the given user_id,
@@ -85,8 +85,21 @@ class VectorWorkload(ABC):
         Returns an Iterator which yields a tuple of (tenant, Request).
         :param num_users: The number of clients the queries are distributed across.
         :param user_id: The ID of the user requesting the iterator.
+        :param batch_size: The maximum batch size for upsert requests.
         """
         raise NotImplementedError
+
+    def get_stats_prefix(self) -> str:
+        """
+        Returns the prefix to use for stats emitted by this workload.
+        """
+        return self.name + "."
+
+    def recall_available(self) -> bool:
+        """
+        Returns True if the workload has recall data available for queries.
+        """
+        return True
 
 
 class VectorWorkloadSequence(ABC):

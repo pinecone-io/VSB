@@ -61,6 +61,27 @@ class SearchRequest(BaseModel):
     neighbors: list[str] = None
 
 
+class InsertRequest(BaseModel):
+    records: RecordList
+
+
+class UpdateRequest(BaseModel):
+    records: RecordList
+
+
+class DeleteRequest(BaseModel):
+    ids: list[str]
+
+
+class FetchRequest(BaseModel):
+    ids: list[str]
+
+
+QueryRequest = (
+    SearchRequest | InsertRequest | UpdateRequest | DeleteRequest | FetchRequest
+)
+
+
 class DistanceMetric(Enum):
     Cosine = "cosine"
     Euclidean = "euclidean"

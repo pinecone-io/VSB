@@ -30,6 +30,7 @@ class ParquetWorkload(VectorWorkload, ABC):
         limit: int = 0,
         query_limit: int = 0,
         load_on_init: bool = True,
+        **kwargs,
     ):
         super().__init__(name)
         self.dataset = Dataset(dataset_name, cache_dir=cache_dir, limit=limit)
@@ -71,7 +72,7 @@ class ParquetWorkload(VectorWorkload, ABC):
         return recordbatch_to_dataframe(batch_iter)
 
     def get_query_iter(
-        self, num_users: int, user_id: int
+        self, num_users: int, user_id: int, batch_size: int
     ) -> Iterator[tuple[str, SearchRequest]]:
         if self.queries is None:
             logger.warning(
@@ -128,6 +129,7 @@ class ParquetSubsetWorkload(ParquetWorkload, ABC):
         cache_dir: str,
         limit: int = 0,
         query_limit: int = 0,
+        **kwargs,
     ):
         super().__init__(
             name,
@@ -163,9 +165,6 @@ class ParquetSubsetWorkload(ParquetWorkload, ABC):
             all_records = pandas.concat([all_records, records])
         return all_records
 
-    def _get_topk(self, req: SearchRequest) -> list[str]:
-        return self.calc_k_nearest_neighbors(self.records, self.metric(), req)
-
     @staticmethod
     def recalculate_neighbors(
         records: pandas.DataFrame, queries: pandas.DataFrame, metric: DistanceMetric
@@ -198,13 +197,12 @@ class ParquetSubsetWorkload(ParquetWorkload, ABC):
 
         # Function to find top k nearest neighbors for a single query
         def get_top_k_nearest(query_vector, top_k, q_filter):
-            distances = calculate_distances(query_vector, embeddings)
 
             # Filter by metadata tags if provided (e.g. yfcc)
             if q_filter is not None:
                 filters = FilterUtil.to_set(q_filter)
 
-                def filt(metadata: dict):
+                def filt(metadata: dict | None):
                     if metadata is not None:
                         assert "tags" in metadata  # We only support yfcc tags for now.
                         return filters <= set(metadata["tags"])
@@ -217,7 +215,9 @@ class ParquetSubsetWorkload(ParquetWorkload, ABC):
                 filtered_indices = range(len(records))
 
             # Get the distances of the filtered indices
-            filtered_distances = distances[filtered_indices]
+            filtered_distances = calculate_distances(
+                query_vector, embeddings[filtered_indices]
+            )
 
             # Get the indices of the top_k smallest distances
             top_k_filtered_indices = np.argsort(filtered_distances)[:top_k]
@@ -227,7 +227,7 @@ class ParquetSubsetWorkload(ParquetWorkload, ABC):
                 filtered_indices[i] for i in top_k_filtered_indices
             ]
 
-            return records.iloc[top_k_original_indices]["id"].tolist()
+            return records["id"].iloc[top_k_original_indices].tolist()
 
         # Apply the function to each query
         return queries.apply(

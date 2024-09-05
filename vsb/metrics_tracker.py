@@ -197,6 +197,9 @@ def get_stats_summary(stats: RequestStats, current=True) -> str:
 
     for key in sorted(stats.entries.keys()):
         r = stats.entries[key]
+        if r.num_requests == 0:
+            # Skip request types with no activity
+            continue
         table.add_row(
             r.method,
             str(r.num_requests),
@@ -283,7 +286,16 @@ def print_metrics_on_quitting(environment: locust.env.Environment):
         vsb.console.print("")
         vsb.console.print(get_stats_summary(environment.stats, False))
         vsb.console.print(get_metrics_stats_summary(environment.stats))
-
+        vsb.console.print("")
+        if environment.parsed_options.workload == "synthetic-proportional":
+            vsb.logger.warning(
+                "SyntheticProportionalWorkloads don't have ground-truth based metrics like recall yet."
+            )
+            vsb.logger.info(
+                f"Total records in DB at end of run: {environment.database.get_record_count()}"
+            )
+        if "synthetic" in environment.parsed_options.workload:
+            vsb.logger.info(f"Seed: {environment.parsed_options.synthetic_seed}")
         stats_file = vsb.log_dir / "stats.json"
         stats_file.write_text(get_stats_json(environment.stats))
         logger.info(f"Saved stats to '{stats_file}'")

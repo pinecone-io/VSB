@@ -170,9 +170,6 @@ class Dataset:
     def _download_dataset_files(self):
         with FileLock(self.cache / ".lock"):
             self.cache.mkdir(parents=True, exist_ok=True)
-            logger.debug(
-                f"Checking for existence of dataset '{self.name}' in dataset cache '{self.cache}'"
-            )
             client = Client.create_anonymous_client()
             bucket: Bucket = client.bucket(Dataset.gcs_bucket)
             blobs = [b for b in bucket.list_blobs(prefix=self.name + "/")]
@@ -180,9 +177,6 @@ class Dataset:
             # (non-empty directories will have their files downloaded
             # anyway).
             blobs = [b for b in blobs if not b.name.endswith("/")]
-            logger.debug(
-                f"Dataset consists of {len(blobs)} files" f":{[b.name for b in blobs]}"
-            )
 
             def should_download(blob):
                 path = self.cache / blob.name

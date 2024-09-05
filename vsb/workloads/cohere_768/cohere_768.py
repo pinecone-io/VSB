@@ -20,7 +20,7 @@ class CohereBase(ParquetWorkload, ABC):
 
 
 class Cohere768(CohereBase):
-    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True):
+    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True, **kwargs):
         super().__init__(
             name, "cohere-768", cache_dir=cache_dir, load_on_init=load_on_init
         )
@@ -38,7 +38,7 @@ class Cohere768Test(ParquetSubsetWorkload, CohereBase):
     """Reduced, "test" variant of cohere-768; with ~0.1% of the full dataset (100,000
     passages and 100 queries)."""
 
-    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True):
+    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True, **kwargs):
         super().__init__(
             name,
             "cohere-768",
@@ -96,7 +96,7 @@ class Cohere768Split(VectorWorkloadSequence):
     """Drift sequence for cohere-768 that loads cheese values,
     builds index, loads holes, and queries."""
 
-    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True):
+    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True, **kwargs):
         self._name = name
         self.cheese = Cohere768Cheese("cheese", cache_dir, load_on_init)
         self.holes = Cohere768Holes("holes", cache_dir, load_on_init)

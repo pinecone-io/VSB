@@ -125,7 +125,7 @@ VSB currently supports the following workloads:
 | `nq768`     |   2,680,893 |        768 |    cosine | Natural language questions from [Google Research](https://ai.google.com/research/NaturalQuestions).                                         |
 | `yfcc-10M`  |  10,000,000 |        192 | euclidean | Images from [Yahoo Flickr Creative Commons 100M](https://paperswithcode.com/dataset/yfcc100m) annotated with a "bag" of tags                |
 | `cohere768` |  10,000,000 |        768 | euclidean | English Wikipedia articles embedded with Cohere from [wikipedia-22-12](https://huggingface.co/datasets/Cohere/wikipedia-22-12/tree/main/en) |
-
+| `synthetic` | (user-specified) | (user-specified) | (user-specified) | Synthetic records and queries pseudo-randomly generated of a custom distribution, dimensionality, metric, and cardinality. |
 
 > You can also display the list of supported workloads using the following command: 
 > `vsb --workload=help`
@@ -169,6 +169,73 @@ range of vector databases. It can be used to perform a range of tasks, including
 * Understand the performance characteristics and identify the bottlenecks of a database;
 * Perform regression testing to ensure that changes to a database do not degrade performance.
 
+### Synthetic Workloads
+
+Sometimes the workload you want to model doesn't exist in any provided dataset, or you want
+to test a specific aspect of a database's performance. In these cases, you can use the `synthetic`, `synthetic-runbook`, 
+and `synthetic-proportional` workloads to generate custom workloads with specific characteristics. Some
+important parameters for synthetic workloads include:
+
+* `--synthetic_records`: The number of records to generate for the synthetic workload.
+* `--synthetic_requests`: The number of requests to generate for the synthetic workload.
+* `--synthetic_dimensions`: The dimensionality of generated vectors.
+* `--synthetic_query_distribution`: The distribution of query/fetch IDs for synthetic proportional workloads.
+* `--synthetic_record_ratio`: The distribution of record vectors in space for synthetic proportional workloads.
+* `--synthetic_insert_ratio`: The proportion of insert operations for synthetic proportional workloads.
+* `--synthetic_query_ratio`: The proportion of query operations for synthetic proportional workloads.
+* `--synthetic_metadata`: The metadata schema to use for each record.
+
+Metadata is specified by providing multiple `--synthetic_metadata` flags describing a metadata field
+with a key and supported value. Values can be `<# digits>n` for a random integer, `<# chars>s` for a
+random string, `<# chars>s<# strings>l` for a random list of strings, or `b` for a random boolean.
+
+For example, `--synthetic_metadata=id:10n` generates a metadata field `id` with a random 10-digit integer.
+`--synthetic_metadata=tags:5s10l` generates a metadata field `tags` with a list of 10 ranodm strings, each 
+5 characters long. `--synthetic_metadata=active:b` generates a metadata field `active` with a random boolean.
+
+You can see the full list of parameters by running `vsb --help`.
+
+`synthetic` workloads generate a fixed number of records and queries with the given distribution, then
+runs population and query phases in sequence.
+
+`synthetic-runbook` workloads generate a fixed number of records and queries, and splits them into a series of 
+'populate -> run' steps. This is useful for testing how a database performs when data is loaded incrementally.
+
+`synthetic-proportional` workloads populate the database with an initial set of records, then run a series of
+assorted request operations (inserts, queries, deletes, updates) in proportion to the given ratios.
+
+**Example**
+
+The following command runs a synthetic workload against Pinecone, with 10,000 initial records,
+a zipfian query distribution, and 30% inserts, 50% queries, 10% deletes, and 10% updates:
+
+```shell
+vsb --database=pinecone --pinecone_api_key=<API_KEY> \
+    --workload=synthetic-proportional \
+    --synthetic_records=10000 --synthetic_queries=1000000 \
+    --synthetic_insert_ratio=0.3 --synthetic_query_ratio=0.5 \
+    --synthetic_delete_ratio=0.1 --synthetic_update_ratio=0.1 \
+    --synthetic_dimensions=768 --synthetic_query_distribution=zipfian \
+    --synthetic_metadata=id:10n --synthetic_metadata=tags:5s10l
+```
+
+> [!NOTE]
+> You can use shorter versions of the parameters, such as `-N` for records and `-c` for queries.
+> The full list of flags is available by running `vsb --help`.
+
+
+The following command runs a series of 4 synthetic workloads against Pinecone, in order,
+each with 10,000 records and 500 queries, with custom dimensionality and metrics:
+
+(Load 10000, Run 500, Load next 10000, ...)
+
+```shell
+vsb --database=pinecone --pinecone_api_key=<API_KEY> \
+    --workload=synthetic-runbook --synthetic_steps=4 \
+    -n=40000 -r=2000 --synthetic_dimensions=400 \
+    --synthetic_metric=euclidean
+```
+
 ### Measuring latency
 
 VSB measures latency by sending a query to the database and measuring the duration 
@@ -190,7 +257,7 @@ The following command runs the `yfcc-10M` workload against Pinecone at 10 QPS:
 
 ```shell
 vsb --database=pinecone --workload=yfcc-10M \
-    --pinecone_index_name=<INDEX_NAME> --pinecone_api_key=<API_KEY> \
+    --pinecone_api_key=<API_KEY> \
     --users=10 --requests_per_sec=10
 ```
 

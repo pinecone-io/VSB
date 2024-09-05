@@ -25,10 +25,14 @@ class PineconeNamespace(Namespace):
         # TODO: Support multiple namespaces
         self.index = index
 
-    def upsert_batch(self, batch: RecordList):
+    def insert_batch(self, batch: RecordList):
         # Pinecone expects a list of dicts (or tuples).
         dicts = [dict(rec) for rec in batch]
         self.index.upsert(dicts)
+
+    def update_batch(self, batch: list[Record]):
+        # Pinecone treats insert and update as the same operation.
+        self.insert_batch(batch)
 
     def search(self, request: SearchRequest) -> list[str]:
         @retry(
@@ -44,6 +48,12 @@ class PineconeNamespace(Namespace):
         result = do_query_with_retry()
         matches = [m["id"] for m in result["matches"]]
         return matches
+
+    def fetch_batch(self, request: list[str]) -> list[Record]:
+        return self.index.fetch(request).vectors.values
+
+    def delete_batch(self, request: list[str]):
+        self.index.delete(request)
 
 
 class PineconeDB(DB):
@@ -141,3 +151,9 @@ class PineconeDB(DB):
                     )
                     break
                 time.sleep(1)
+
+    def skip_refinalize(self):
+        return False
+
+    def get_record_count(self) -> int:
+        return self.index.describe_index_stats()["total_vector_count"]

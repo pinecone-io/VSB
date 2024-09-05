@@ -20,6 +20,7 @@ from vsb.workloads import (
     build_workload_sequence,
     VectorWorkloadSequence,
 )
+from vsb.vsb_types import DistanceMetric
 from vsb import console, logger
 from locust import events, log
 from locust.runners import WorkerRunner, MasterRunner, LocalRunner
@@ -56,17 +57,7 @@ def master_receive_setup_update(environment, msg, **_kwargs):
     environment.setup_completed_workers.add(msg.data["user_id"])
 
 
-@events.init.add_listener
-def setup_listeners(environment, **_kwargs):
-    logger.debug(f"setup_listeners(): runner={type(environment.runner)}")
-    # In distributed mode, we need the MasterRunner to wait for all workers
-    # to setup their environment before starting the test. Since this may take
-    # a few minutes (from downloading a large dataset), we need to rely on the
-    # event loop to keep the master responsive to heartbeats.
-    if not isinstance(environment.runner, WorkerRunner):
-        environment.setup_completed_workers = set()
-        environment.runner.register_message("setup_done", master_receive_setup_update)
-
+def spawn_setup(environment, **_kwargs):
     # We need to perform this work in a background thread (not in the current
     # gevent greenlet) as otherwise we block the current greenlet (pandas data
     # loading is not gevent-friendly) and locust's master / worker heartbeat
@@ -87,6 +78,27 @@ def setup_listeners(environment, **_kwargs):
     gl.link_exception(on_exception)
 
 
+@events.init.add_listener
+def setup_listeners(environment, **_kwargs):
+    logger.debug(f"setup_listeners(): runner={type(environment.runner)}")
+    # In distributed mode, we need the MasterRunner to wait for all workers
+    # to setup their environment before starting the test. Since this may take
+    # a few minutes (from downloading a large dataset), we need to rely on the
+    # event loop to keep the master responsive to heartbeats.
+    if not isinstance(environment.runner, WorkerRunner):
+        environment.setup_completed_workers = set()
+        environment.runner.register_message("setup_done", master_receive_setup_update)
+    if isinstance(environment.runner, MasterRunner):
+        # MasterRunner does not need to setup the environment, so we can
+        # spawn the setup in the background.
+        spawn_setup(environment)
+    # Wait for LoadShape to advance to WaitingForWorkers before setting up
+    # the environment, or the master may hang. LoadShape will send a message
+    # to workers to start setup once it is ready.
+    if not isinstance(environment.runner, MasterRunner):
+        environment.runner.register_message("spawn_setup", spawn_setup)
+
+
 def setup_environment(environment, **_kwargs):
     env = environment
     options = env.parsed_options
@@ -100,12 +112,15 @@ def setup_environment(environment, **_kwargs):
         # data, as it does not run users. It only accesses static
         # methods on the workload classes.
         environment.workload_sequence = build_workload_sequence(
-            options.workload, cache_dir=options.cache_dir, load_on_init=False
+            options.workload,
+            cache_dir=options.cache_dir,
+            options=options,
+            load_on_init=False,
         )
 
     else:
         environment.workload_sequence = build_workload_sequence(
-            options.workload, cache_dir=options.cache_dir
+            options.workload, cache_dir=options.cache_dir, options=options
         )
 
     # Reset distributors for new Populate -> Run iteration
@@ -165,12 +180,13 @@ def setup_worker_database(environment, **_kwargs):
             name=environment.workload_sequence.name,
             config=vars(options),
         )
+        logger.debug(f"Database initialized: {environment.database}")
     except StopUser:
         # This is a special exception that is raised when we want to
         # stop the User from running, e.g. because the database
         # connection failed.
         log.unhandled_greenlet_exception = True
-        logger.debug(f"setup_environment() stopping User: {traceback.format_exc()}")
+        logger.debug(f"setup_worker_database() stopping User: {traceback.format_exc()}")
         environment.runner.quit()
     except:
         logger.error(
