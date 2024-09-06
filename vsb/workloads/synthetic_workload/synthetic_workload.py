@@ -40,14 +40,15 @@ from ...databases.pgvector.filter_util import FilterUtil
 class InMemoryWorkload(VectorWorkload, ABC):
     """A workload that stores records and queries in memory."""
 
-    def __init__(
-        self,
-        name: str,
-    ):
+    def __init__(self, name: str, options):
         # Set up records and queries in a subclass constructor.
         super().__init__(name)
         self.records = None
         self.queries = None
+        self._record_count = options.synthetic_records
+        self._request_count = options.synthetic_requests
+        self._num_workers = options.expect_workers
+        self._num_users = options.num_users
 
     def get_sample_record(self) -> Record:
         return Record(**self.records.head(1).to_dict("records")[0])
@@ -97,14 +98,23 @@ class InMemoryWorkload(VectorWorkload, ABC):
                 f"this shouldn't happen."
             )
             self.queries = self.setup_queries()
-        # Calculate start / end for this query chunk, then split the table
-        # and create an iterator over it.
-        quotient, remainder = divmod(self.queries.shape[0], num_users)
+        # Worker queries are worker-local - that is, each worker will only
+        # have the max potential queries for its users.
+        quotient, remainder = divmod(self._request_count, num_users)
         chunks = [quotient + (1 if r < remainder else 0) for r in range(num_users)]
-        # Determine start position based on sum of size of all chunks prior
-        # to ours.
-        start = sum(chunks[:user_id])
-        end = start + chunks[user_id]
+        user_q, user_r = divmod(self._num_users, self._num_workers)
+        user_chunks = [
+            user_q + (1 if r < user_r else 0) for r in range(self._num_workers)
+        ]
+        # Determine start user of this worker
+        users_before = 0
+        i = 0
+        while users_before <= user_id:
+            users_before += user_chunks[i]
+            i += 1
+        current_user_chunk = i - 1
+        start_of_user_chunk = sum(user_chunks[:current_user_chunk])
+        query_offset = sum(chunks[start_of_user_chunk:user_id])
 
         # Return an iterator for the Nth chunk.
         def make_query_iter(start, end):
@@ -115,13 +125,12 @@ class InMemoryWorkload(VectorWorkload, ABC):
                     "values": self.queries["values"].iat[index],
                     "top_k": self.queries["top_k"].iat[index],
                     "neighbors": self.queries["neighbors"].iat[index],
-                    # TODO: Add metadata support
                 }
 
                 # TODO: Add multiple tenant support.
                 yield "", SearchRequest(**query)
 
-        return make_query_iter(start, end)
+        return make_query_iter(query_offset, query_offset + chunks[user_id])
 
     # Information methods can't be static because they vary per instance.
     # Upon calling these methods statically, VectorWorkload's
@@ -150,11 +159,9 @@ class SyntheticWorkload(InMemoryWorkload, ABC):
         load_on_init: bool = True,
         **kwargs,
     ):
-        super().__init__(name)
-        self._record_count = options.synthetic_records
+        super().__init__(name, options)
         self._record_distribution = options.synthetic_record_distribution
         self._query_distribution = options.synthetic_query_distribution
-        self._request_count = options.synthetic_requests
         self._dimensions = options.synthetic_dimensions
         self._metric = DistanceMetric(options.synthetic_metric)
         self._top_k = options.synthetic_top_k
@@ -227,14 +234,20 @@ class SyntheticWorkload(InMemoryWorkload, ABC):
     def setup_queries(self):
         # Pseudo-randomly generate the full RecordList of queries
         # Query will be generated with the same distribution as records
+        max_users_per_worker = int(np.ceil(self._num_users / self._num_workers))
+        # Give each worker a number of queries proportional to the maximum number of users
+        # any worker can have.
+        max_queries_per_worker = (
+            int(np.ceil(self._request_count * max_users_per_worker / self._num_users))
+            + self._num_users
+        )
         self.queries = pandas.DataFrame(
             {
                 "values": [
                     self.records["values"].iat[i]
-                    for i in self.get_random_query_idx(self._request_count)
+                    for i in self.get_random_query_idx(max_queries_per_worker)
                 ],
-                "top_k": np.full(self._request_count, self._top_k),
-                # TODO: Add metadata support
+                "top_k": np.full(max_queries_per_worker, self._top_k),
             }
         )
 
@@ -509,6 +522,44 @@ class CumulativeSubsetWorkload(InMemoryWorkload, ABC):
         self.queries["neighbors"] = ParquetSubsetWorkload.recalculate_neighbors(
             cumulative_records, self.queries, self._metric
         )
+
+    # CumulativeSubsetWorkload still stores all queries, so override
+    # the get_query_iter method accordingly.
+    def get_query_iter(
+        self, num_users: int, user_id: int, batch_size: int
+    ) -> Iterator[tuple[str, SearchRequest]]:
+        if self.queries is None:
+            logger.warning(
+                f"Had to lazy load queries for {self.name} workload - "
+                f"load_on_init is intended for MasterRunners to skip loading,"
+                f"this shouldn't happen."
+            )
+            self.queries = self.setup_queries()
+        # Calculate start / end for this query chunk, then split the table
+        # and create an iterator over it.
+        quotient, remainder = divmod(self.queries.shape[0], num_users)
+        chunks = [quotient + (1 if r < remainder else 0) for r in range(num_users)]
+        # Determine start position based on sum of size of all chunks prior
+        # to ours.
+        start = sum(chunks[:user_id])
+        end = start + chunks[user_id]
+
+        # Return an iterator for the Nth chunk.
+        def make_query_iter(start, end):
+            for index in range(start, end):
+                # Iterate over indexes because we're yielding one at a time, and
+                # .iat is faster than .iloc for single values.
+                query = {
+                    "values": self.queries["values"].iat[index],
+                    "top_k": self.queries["top_k"].iat[index],
+                    "neighbors": self.queries["neighbors"].iat[index],
+                    # TODO: Add metadata support
+                }
+
+                # TODO: Add multiple tenant support.
+                yield "", SearchRequest(**query)
+
+        return make_query_iter(start, end)
 
     def get_stats_prefix(self) -> str:
         return self._name if self._no_aggregate_stats else ""
