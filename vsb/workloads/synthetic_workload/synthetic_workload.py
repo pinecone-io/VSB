@@ -541,7 +541,7 @@ class CumulativeSubsetWorkload(InMemoryWorkload, ABC):
             cumulative_records, self.queries, self._metric
         )
 
-    # CumulativeSubsetWorkload still stores all queries, so soverride
+    # CumulativeSubsetWorkload still stores all queries, so override
     # the get_query_iter method accordingly.
     def get_query_iter(
         self, num_users: int, user_id: int, batch_size: int
