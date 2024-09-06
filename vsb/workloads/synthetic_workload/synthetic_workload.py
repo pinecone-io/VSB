@@ -594,7 +594,7 @@ class SyntheticProportionalWorkload(InMemoryWorkload, ABC):
         options,
         **kwargs,
     ):
-        super().__init__(name)
+        super().__init__(name, options)
         self._record_count = options.synthetic_records
         self._request_count = options.synthetic_requests
         self._dimensions = options.synthetic_dimensions
