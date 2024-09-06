@@ -81,9 +81,15 @@ class InMemoryWorkload(VectorWorkload, ABC):
         def dataframe_to_recordlist(
             records: pandas.DataFrame,
         ) -> Generator[tuple[str, list[dict]], None, None]:
-            for batch in np.array_split(
-                records, np.ceil(records.shape[0] / batch_size)
-            ):
+            num_batches = int(np.ceil(records.shape[0] / batch_size))
+            batch_q, batch_r = divmod(records.shape[0], num_batches)
+            batch_sizes = [
+                batch_q + (1 if r < batch_r else 0) for r in range(num_batches)
+            ]
+            for batch in [
+                records.iloc[sum(batch_sizes[:i]) : sum(batch_sizes[: i + 1])]
+                for i in range(num_batches)
+            ]:
                 yield "", RecordList(batch.to_dict("records"))
 
         return dataframe_to_recordlist(user_chunk)
@@ -340,6 +346,7 @@ class SyntheticRunbook(VectorWorkloadSequence, ABC):
         self._top_k = options.synthetic_top_k
         self._steps = options.synthetic_steps
         self._no_aggregate_stats = options.synthetic_no_aggregate_stats
+        self._options = options
         seed = int(options.synthetic_seed)
         if seed:
             self.rng = np.random.default_rng(np.random.SeedSequence(seed))
@@ -435,13 +442,22 @@ class SyntheticRunbook(VectorWorkloadSequence, ABC):
         assert self.records is not None
         assert self.queries is not None
         self.workloads = []
-        cumulative_records = pandas.DataFrame(columns=["id", "values"])
-        record_workload_chunks = np.array_split(self.records, self._steps)
-        query_workload_chunks = np.array_split(self.queries, self._steps)
+        record_q, record_r = divmod(self._record_count, self._steps)
+        query_q, query_r = divmod(self._request_count, self._steps)
+        record_chunk_sizes = [
+            record_q + (1 if r < record_r else 0) for r in range(self._steps)
+        ]
+        query_chunk_sizes = [
+            query_q + (1 if r < query_r else 0) for r in range(self._steps)
+        ]
         for i in range(self._steps):
-            records = record_workload_chunks[i]
-            # TODO: make more efficient, don't use concat
-            cumulative_records = pandas.concat([cumulative_records, records])
+            cumulative_records = self.records.iloc[: sum(record_chunk_sizes[: i + 1])]
+            records = self.records.iloc[
+                sum(record_chunk_sizes[:i]) : sum(record_chunk_sizes[: i + 1])
+            ]
+            queries = self.queries.iloc[
+                sum(query_chunk_sizes[:i]) : sum(query_chunk_sizes[: i + 1])
+            ]
             workload_name = (
                 # Add step number to workload name to make it unique if not aggregating stats
                 f"{self.name}_step_{i+1}"
@@ -451,12 +467,13 @@ class SyntheticRunbook(VectorWorkloadSequence, ABC):
             workload = CumulativeSubsetWorkload(
                 workload_name,
                 records,
-                query_workload_chunks[i],
+                queries,
                 cumulative_records,
                 self._dimensions,
                 self._metric,
                 self._top_k,
                 self._no_aggregate_stats,
+                self._options,
             )
             self.workloads.append(workload)
         # clear memory
@@ -509,8 +526,9 @@ class CumulativeSubsetWorkload(InMemoryWorkload, ABC):
         metric: DistanceMetric,
         top_k: int,
         no_aggregate_stats: bool,
+        options,
     ):
-        super().__init__(name)
+        super().__init__(name, options)
         self._no_aggregate_stats = no_aggregate_stats
         self._record_count = records.shape[0]
         self._request_count = queries.shape[0]
@@ -523,7 +541,7 @@ class CumulativeSubsetWorkload(InMemoryWorkload, ABC):
             cumulative_records, self.queries, self._metric
         )
 
-    # CumulativeSubsetWorkload still stores all queries, so override
+    # CumulativeSubsetWorkload still stores all queries, so soverride
     # the get_query_iter method accordingly.
     def get_query_iter(
         self, num_users: int, user_id: int, batch_size: int
