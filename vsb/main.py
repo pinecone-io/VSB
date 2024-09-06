@@ -10,6 +10,10 @@ import vsb
 from vsb.cmdline_args import add_vsb_cmdline_args, validate_parsed_args
 from vsb.logging import logger, setup_logging
 
+import pandas as pd
+
+pd.options.mode.chained_assignment = None  # default='warn'
+
 
 def main():
     # We use locust internally to drive execution, however we want to present
