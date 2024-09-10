@@ -14,7 +14,7 @@ grpcio = "^1.66.1"
 pyarrow = "^17.0.0"
 pinecone-client = {version = "^5.0", extras = ["grpc"]}
 tabulate = "^0.9.0"
-pydantic = "^2.8.2"
+pydantic = "^2.9.1"
 locust-plugins = "^4.5.1"
 pgvector = "^0.3.2"
 psycopg = "^3.2.1"
