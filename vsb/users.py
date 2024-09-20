@@ -720,9 +720,19 @@ class LoadShape(LoadTestShape):
                 # Display current (last 10s) values for some significant metrics
                 # in the progress_details row.
                 ops_str = f"{cumulative_current_rps:.1f} op/s"
+
+                # Show latency and Recall metrics for Search operations.
+                search_type = (
+                    f"{workload.get_stats_prefix()}Search"
+                    if env.workload_sequence.workload_count() > 1
+                    else "Search"
+                )
+                search_stats: locust.stats.StatsEntry = env.stats.get(
+                    workload.name, search_type
+                )
                 latency_str = ", ".join(
                     [
-                        f"p{p}={stats.get_current_response_time_percentile(p/100.0) or '...'}ms"
+                        f"p{p}={search_stats.get_current_response_time_percentile(p/100.0) or '...'}ms"
                         for p in [50, 95]
                     ]
                 )
@@ -734,7 +744,7 @@ class LoadShape(LoadTestShape):
                         else "Search"
                     )
                     recall = vsb.metrics_tracker.get_metric_percentile(
-                        req_type, "recall", p
+                        req_type, "Recall", p
                     )
                     return f"{recall:.2f}" if recall else "..."
 
@@ -744,9 +754,9 @@ class LoadShape(LoadTestShape):
                 metrics_str = (
                     f"  Current metrics (last {last_n}s): [magenta]{ops_str}[/magenta]"
                     + " | "
-                    + f"[magenta]latency: {latency_str}[/magenta]"
+                    + f"[magenta]Search latency: {latency_str}[/magenta]"
                     + " | "
-                    + f"[magenta]recall: {recall_str}"
+                    + f"[magenta]Recall: {recall_str}"
                 )
 
                 # If --synthetic-no-aggregate-stats is set, the cumulative request
