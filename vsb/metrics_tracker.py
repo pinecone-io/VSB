@@ -234,6 +234,8 @@ def get_metrics_stats_summary(stats: RequestStats) -> rich.table.Table:
     table.add_column("Max", justify="right", style="magenta", min_width=4)
     table.add_column("Mean", justify="right", style="magenta", min_width=4)
 
+    operation_emitted = False
+
     # Populate the table with stats entries, sorted by Operation
     for index, key in enumerate(sorted(stats.entries.keys())):
         # First add the locust-tracked response times (latency)
@@ -250,7 +252,13 @@ def get_metrics_stats_summary(stats: RequestStats) -> rich.table.Table:
                 f"{r.max_response_time:.0f}",
                 f"{r.avg_response_time:.0f}",
             ]
+            # If we are starting a new operation section (and already
+            # emitted a different operation) then separate with a blank
+            # row.
+            if operation_emitted:
+                table.add_row()
             table.add_row(*row)
+            operation_emitted = True
         request = key[1]
         # Also include any custom metrics for this request type.
         if custom := calculated_metrics.get(request, None):
@@ -268,9 +276,7 @@ def get_metrics_stats_summary(stats: RequestStats) -> rich.table.Table:
                         f"{value.get_mean_value() / HDR_SCALE_FACTOR:.2f}",
                     ]
                     table.add_row(*row)
-        # Separate each request type with a blank row
-        if index < len(stats.entries) - 1:
-            table.add_row()
+                    operation_emitted = True
 
     return table
 
@@ -286,7 +292,6 @@ def print_metrics_on_quitting(environment: locust.env.Environment):
         vsb.console.print("")
         vsb.console.print(get_stats_summary(environment.stats, False))
         vsb.console.print(get_metrics_stats_summary(environment.stats))
-        vsb.console.print("")
         if environment.parsed_options.workload == "synthetic-proportional":
             vsb.logger.warning(
                 "SyntheticProportionalWorkloads don't have ground-truth based metrics like recall yet."
