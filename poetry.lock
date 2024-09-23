@@ -1089,8 +1089,8 @@ psutil = ">=5.9.1"
 pywin32 = {version = "*", markers = "sys_platform == \"win32\""}
 pyzmq = ">=25.0.0"
 requests = [
-    {version = ">=2.26.0", markers = "python_full_version <= \"3.11.0\""},
     {version = ">=2.32.2", markers = "python_full_version > \"3.11.0\""},
+    {version = ">=2.26.0", markers = "python_full_version <= \"3.11.0\""},
 ]
 Werkzeug = ">=2.0.0"
 
@@ -1483,8 +1483,8 @@ files = [
 
 [package.dependencies]
 numpy = [
-    {version = ">=1.23.2", markers = "python_version == \"3.11\""},
     {version = ">=1.26.0", markers = "python_version >= \"3.12\""},
+    {version = ">=1.23.2", markers = "python_version == \"3.11\""},
 ]
 python-dateutil = ">=2.8.2"
 pytz = ">=2020.1"
@@ -1551,14 +1551,14 @@ files = [
 numpy = "*"
 
 [[package]]
-name = "pinecone-client"
-version = "5.0.1"
+name = "pinecone"
+version = "5.3.1"
 description = "Pinecone client and SDK"
 optional = false
 python-versions = "<4.0,>=3.8"
 files = [
-    {file = "pinecone_client-5.0.1-py3-none-any.whl", hash = "sha256:c8f7835e1045ba84e295f217a8e85573ffb80b41501bbc1af6d92c9631c567a7"},
-    {file = "pinecone_client-5.0.1.tar.gz", hash = "sha256:11c33ff5d1c38a6ce69e69fe532c0f22f312fb28d761bb30b3767816d3181d64"},
+    {file = "pinecone-5.3.1-py3-none-any.whl", hash = "sha256:dd180963d29cd648f2d58becf18b21f150362aef80446dd3a7ed15cbe85bb4c7"},
+    {file = "pinecone-5.3.1.tar.gz", hash = "sha256:a216630331753958f4ebcdc6e6d473402d17152f2194af3e19b3416c73b0dcc4"},
 ]
 
 [package.dependencies]
@@ -1566,15 +1566,16 @@ certifi = ">=2019.11.17"
 googleapis-common-protos = {version = ">=1.53.0", optional = true, markers = "extra == \"grpc\""}
 grpcio = {version = ">=1.59.0", optional = true, markers = "python_version >= \"3.11\" and python_version < \"4.0\" and extra == \"grpc\""}
 lz4 = {version = ">=3.1.3", optional = true, markers = "extra == \"grpc\""}
-pinecone-plugin-inference = ">=1.0.3,<2.0.0"
+pinecone-plugin-inference = ">=1.1.0,<2.0.0"
 pinecone-plugin-interface = ">=0.0.7,<0.0.8"
 protobuf = {version = ">=4.25,<5.0", optional = true, markers = "extra == \"grpc\""}
 protoc-gen-openapiv2 = {version = ">=0.0.1,<0.0.2", optional = true, markers = "extra == \"grpc\""}
+python-dateutil = ">=2.5.3"
 tqdm = ">=4.64.1"
 typing-extensions = ">=3.7.4"
 urllib3 = [
-    {version = ">=1.26.0", markers = "python_version >= \"3.8\" and python_version < \"3.12\""},
     {version = ">=1.26.5", markers = "python_version >= \"3.12\" and python_version < \"4.0\""},
+    {version = ">=1.26.0", markers = "python_version >= \"3.8\" and python_version < \"3.12\""},
 ]
 
 [package.extras]
@@ -1582,13 +1583,13 @@ grpc = ["googleapis-common-protos (>=1.53.0)", "grpcio (>=1.44.0)", "grpcio (>=1
 
 [[package]]
 name = "pinecone-plugin-inference"
-version = "1.0.3"
+version = "1.1.0"
 description = "Embeddings plugin for Pinecone SDK"
 optional = false
 python-versions = "<4.0,>=3.8"
 files = [
-    {file = "pinecone_plugin_inference-1.0.3-py3-none-any.whl", hash = "sha256:bbdfe5dba99a87374d9e3315b62b8e1bbca52d5fe069a64cd6b212efbc8b9afd"},
-    {file = "pinecone_plugin_inference-1.0.3.tar.gz", hash = "sha256:c6519ba730123713a181c010f0db9d6449d11de451b8e79bec4efd662b096f41"},
+    {file = "pinecone_plugin_inference-1.1.0-py3-none-any.whl", hash = "sha256:32c61aba21c9a28fdcd0e782204c1ca641aeb3fd6e42764fbf0de8186eb657ec"},
+    {file = "pinecone_plugin_inference-1.1.0.tar.gz", hash = "sha256:283e5ae4590b901bf2179beb56fc3d1b715e63582f37ec7abb0708cf70912d1f"},
 ]
 
 [package.dependencies]
@@ -1881,8 +1882,8 @@ files = [
 annotated-types = ">=0.6.0"
 pydantic-core = "2.23.3"
 typing-extensions = [
-    {version = ">=4.6.1", markers = "python_version < \"3.13\""},
     {version = ">=4.12.2", markers = "python_version >= \"3.13\""},
+    {version = ">=4.6.1", markers = "python_version < \"3.13\""},
 ]
 
 [package.extras]
@@ -2541,4 +2542,4 @@ testing = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "48d117de4ce741b9d76b764ad227bdc027ba16091c4eeb718c60527b18ceff95"
+content-hash = "32cf5ecabfb8037bc087775f435323cf8238cdc1ddabac031d4e2d515ab105e2"
