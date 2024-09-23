@@ -122,9 +122,9 @@ VSB currently supports the following workloads:
 | Name        | Cardinality | Dimensions |    Metric | Description                                                                                                                                 |
 |-------------|------------:|-----------:|----------:|---------------------------------------------------------------------------------------------------------------------------------------------|
 | `mnist`     |      60,000 |        784 | euclidean | Images of handwritten digits from [MNIST](https://en.wikipedia.org/wiki/MNIST_database)                                                     |
-| `nq768`     |   2,680,893 |        768 |    cosine | Natural language questions from [Google Research](https://ai.google.com/research/NaturalQuestions).                                         |
+| `nq768`     |   2,680,893 |        768 | dot product | Natural language questions from [Google Research](https://ai.google.com/research/NaturalQuestions).                                         |
 | `yfcc-10M`  |  10,000,000 |        192 | euclidean | Images from [Yahoo Flickr Creative Commons 100M](https://paperswithcode.com/dataset/yfcc100m) annotated with a "bag" of tags                |
-| `cohere768` |  10,000,000 |        768 | euclidean | English Wikipedia articles embedded with Cohere from [wikipedia-22-12](https://huggingface.co/datasets/Cohere/wikipedia-22-12/tree/main/en) |
+| `cohere768` |  10,000,000 |        768 | cosine | English Wikipedia articles embedded with Cohere from [wikipedia-22-12](https://huggingface.co/datasets/Cohere/wikipedia-22-12/tree/main/en) |
 | `synthetic` | (user-specified) | (user-specified) | (user-specified) | Synthetic records and queries pseudo-randomly generated of a custom distribution, dimensionality, metric, and cardinality. |
 
 > You can also display the list of supported workloads using the following command: 
