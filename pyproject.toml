@@ -27,7 +27,7 @@ filelock = "^3.16.0"
 vsb = "vsb.main:main"
 
 [tool.poetry.group.dev.dependencies]
-black = "^24.4.2"
+black = "^24.8.0"
 pytest = "^8.3.3"
 flake8 = "^7.1.1"
 pre-commit = "^3.8.0"
