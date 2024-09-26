@@ -108,9 +108,11 @@ class ParquetWorkload(VectorWorkload, ABC):
         return make_query_iter(user_chunk)
 
     @staticmethod
-    def _decode_metadata(records):
+    def _decode_metadata(records: pandas.DataFrame):
         # Metadata is encoded as a string, need to convert to JSON dict
         if "metadata" in records:
+            # Replace None values with empty dictionary "{}" as string
+            records["metadata"] = records["metadata"].fillna("{}")
             records["metadata"] = records["metadata"].map(json.loads)
 
 
