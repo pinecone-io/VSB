@@ -1539,12 +1539,13 @@ files = [
 
 [[package]]
 name = "pgvector"
-version = "0.3.2"
+version = "0.3.5"
 description = "pgvector support for Python"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "pgvector-0.3.2-py2.py3-none-any.whl", hash = "sha256:a44541c75a7340993b2840015820a910e5d7625d2ddd1235c1ee659732531bf6"},
+    {file = "pgvector-0.3.5-py3-none-any.whl", hash = "sha256:56cca90392e596ea18873c593ec858a1984a77d16d1f82b8d0c180e79ef1018f"},
+    {file = "pgvector-0.3.5.tar.gz", hash = "sha256:e876c9ee382c4c2f7ee57691a4c4015d688c7222e47448ce310ded03ecfafe2f"},
 ]
 
 [package.dependencies]
@@ -2542,4 +2543,4 @@ testing = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "ebd2d1bff5058b203bb95273b70a2270bace4c1ecf85af42675ed14f268ea8bd"
+content-hash = "64cec1b71ddf58ac999f11a9e2ee24df1b05a8e9289df975f71bb37f050b87ac"
