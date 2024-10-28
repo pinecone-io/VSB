@@ -17,6 +17,8 @@ class Workload(Enum):
     YFCCTest = "yfcc-test"
     Cohere768 = "cohere768"
     Cohere768Test = "cohere768-test"
+    MsMarcoV2Ada = "msmarco-v2-ada"
+    MsMarcoV2AdaTest = "msmarco-v2-ada-test"
     Synthetic = "synthetic"
     SyntheticProportional = "synthetic-proportional"
 
@@ -72,6 +74,16 @@ class Workload(Enum):
                 from .cohere_768.cohere_768 import Cohere768Test
 
                 return Cohere768Test
+
+            case Workload.MsMarcoV2Ada:
+                from .msmarco_v2_ada.msmarco_v2_ada import MsMarcoV2Ada
+
+                return MsMarcoV2Ada
+
+            case Workload.MsMarcoV2AdaTest:
+                from .msmarco_v2_ada.msmarco_v2_ada import MsMarcoV2AdaTest
+
+                return MsMarcoV2AdaTest
 
     def describe(self) -> tuple[str, int, int, str, int]:
         """Return a tuple with attributes of the workload: name, dataset size, dimensionality, distance metric, and query count."""
