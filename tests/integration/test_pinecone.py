@@ -173,4 +173,4 @@ class TestPinecone:
             extra_args=["--no-overwrite"],
         )
         assert proc.returncode == 2
-        assert "cowardly refusing to overwrite existing data. " in stderr
+        assert "cowardly refusing to overwrite existing data. " in stdout
