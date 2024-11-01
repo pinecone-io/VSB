@@ -72,7 +72,7 @@ def spawn_vsb(
     index_name=None,
     index_spec=None,
     timeout=60,
-    extra_args=None,
+    extra_args: list = None,
 ):
     """Spawn an instance of vsb with the given arguments, returning the proc object,
     its stdout and stderr.
@@ -159,3 +159,18 @@ class TestPinecone:
         assert proc.returncode == 0
         assert "Creating new index" in stdout
         assert "Saved stats to 'reports/" in stdout
+
+    def test_overwrite(self, pinecone_api_key, pinecone_index_mnist):
+        # Tests that attempting to populate an existing index fails if the
+        # user doesn't specify --overwrite (recall that we create a new index
+        # outside of VSB in the harness via pinecone_index_mnist).
+        # Note that spawn_vsb() always specifies --overwrite, so we need to
+        # additionally add --no-overwrite to the args here.
+        (proc, stdout, stderr) = spawn_vsb(
+            workload="mnist-test",
+            api_key=pinecone_api_key,
+            index_name=pinecone_index_mnist,
+            extra_args=["--no-overwrite"],
+        )
+        assert proc.returncode == 2
+        assert "cowardly refusing to overwrite existing data. " in stderr

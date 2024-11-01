@@ -58,21 +58,26 @@ class SetupUser(User):
     @task
     def setup(self):
         """Perform any database-specific initialization of the populate phase"""
-        match self.state:
-            case self.State.Active:
-                self.database.initialize_population()
-                self.environment.runner.send_message(
-                    "update_progress",
-                    {
-                        "user": 0,
-                        "phase": "setup",
-                    },
-                )
-                self.state = self.State.Done
-            case self.State.Done:
-                # Nothing more to do, but sleep briefly here to prevent
-                # us busy-looping in this state.
-                gevent.sleep(0.1)
+        try:
+            match self.state:
+                case self.State.Active:
+                    self.database.initialize_population()
+                    self.environment.runner.send_message(
+                        "update_progress",
+                        {
+                            "user": 0,
+                            "phase": "setup",
+                        },
+                    )
+                    self.state = self.State.Done
+                case self.State.Done:
+                    # Nothing more to do, but sleep briefly here to prevent
+                    # us busy-looping in this state.
+                    gevent.sleep(0.1)
+        except Exception as e:
+            traceback.print_exception(e)
+            self.environment.runner.quit()
+            raise StopUser
 
 
 class PopulateUser(User):

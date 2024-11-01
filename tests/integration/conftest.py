@@ -125,6 +125,7 @@ def spawn_vsb_inner(
         f"--database={database}",
         f"--workload={workload}",
         "--loglevel=debug",
+        "--overwrite",
     ]
     proc = subprocess.Popen(
         args + extra_args,
