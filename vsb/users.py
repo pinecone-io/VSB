@@ -76,6 +76,7 @@ class SetupUser(User):
                     gevent.sleep(0.1)
         except Exception as e:
             traceback.print_exception(e)
+            locust.log.unhandled_greenlet_exception = True
             self.environment.runner.quit()
             raise StopUser
 
