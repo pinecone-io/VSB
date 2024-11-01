@@ -1138,13 +1138,13 @@ Werkzeug = ">=2.0.0"
 
 [[package]]
 name = "locust-plugins"
-version = "4.5.1"
+version = "4.5.3"
 description = "Useful plugins/extensions for Locust"
 optional = false
 python-versions = "<4,>=3.8"
 files = [
-    {file = "locust_plugins-4.5.1-py3-none-any.whl", hash = "sha256:cd172270429e4ad7aea188ce258be274bec08b2cf9eaaf3e8ad6bbbbedec7331"},
-    {file = "locust_plugins-4.5.1.tar.gz", hash = "sha256:e4ecfd7ca035b61b6f85a3cb00690e6399c7594aaf067941d75dcc414aaffd9d"},
+    {file = "locust_plugins-4.5.3-py3-none-any.whl", hash = "sha256:585faff85fc8517103d36b6603db75fb5dcea724e77efc8daec5f873767f6bbd"},
+    {file = "locust_plugins-4.5.3.tar.gz", hash = "sha256:99e6301178f5a58ac2ce447971b4773c017259540e4a22e92108e71e86ca31c5"},
 ]
 
 [package.dependencies]
@@ -2585,4 +2585,4 @@ testing = ["coverage (>=5.0.3)", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.11"
-content-hash = "7c37f66b708deefb85cd7d3ba1fd53b4619f6e6ee2655a9071f3914f238b3d90"
+content-hash = "ed3edcbae8c9ae2a4eabe1f798d33f0c9c3a89111a63eeee06c99286576d989d"
