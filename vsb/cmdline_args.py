@@ -97,6 +97,11 @@ def add_vsb_cmdline_args(
         help="Skip the populate phase (useful if workload has already been loaded and is static)",
     )
     general_group.add_argument(
+        "--overwrite",
+        action=argparse.BooleanOptionalAction,
+        help="Overwrite the existing index if it already exists. Default is %(default)s.",
+    )
+    general_group.add_argument(
         "--requests_per_sec",
         type=float,
         default=0,

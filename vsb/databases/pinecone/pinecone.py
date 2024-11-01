@@ -67,6 +67,7 @@ class PineconeDB(DB):
     ):
         self.pc = PineconeGRPC(config["pinecone_api_key"])
         self.skip_populate = config["skip_populate"]
+        self.overwrite = config["overwrite"]
         index_name = config["pinecone_index_name"]
         if index_name is None:
             # None specified, default to "vsb-<workload>"
@@ -74,6 +75,7 @@ class PineconeDB(DB):
         spec = config["pinecone_index_spec"]
         try:
             self.index = self.pc.Index(name=index_name)
+            self.created_index = False
         except NotFoundException:
             logger.info(
                 f"PineconeDB: Specified index '{index_name}' was not found, or the "
@@ -83,6 +85,7 @@ class PineconeDB(DB):
                 name=index_name, dimension=dimensions, metric=metric.value, spec=spec
             )
             self.index = self.pc.Index(name=index_name)
+            self.created_index = True
 
         info = self.pc.describe_index(index_name)
         index_dims = info["dimension"]
@@ -124,15 +127,30 @@ class PineconeDB(DB):
         return PineconeNamespace(self.index, namespace)
 
     def initialize_population(self):
-        # Start with an empty index if we are going to populate it.
-        if not self.skip_populate:
-            try:
-                self.index.delete(delete_all=True)
-            except PineconeException as e:
-                # Serverless indexes can throw a "Namespace not found" exception for
-                # delete_all if there are no documents in the index. Simply ignore,
-                # as the post-condition is the same.
-                pass
+        # If the index already existed before VSB (we didn't create it) and
+        # user didn't specify skip_populate; require --overwrite before
+        # deleting the existing index.
+        if self.skip_populate:
+            return
+        if not self.created_index and not self.overwrite:
+            msg = (
+                f"PineconeDB: Index '{self.index.name}' already exists - cowardly "
+                f"refusing to overwrite existing data. Specify --overwrite to "
+                f"delete it, or specify --skip-populate to skip population phase."
+            )
+            logger.critical(msg)
+            raise StopUser()
+        try:
+            logger.info(
+                f"PineconeDB: Deleting existing index '{self.index.name}' before "
+                f"population (--overwrite=True)"
+            )
+            self.index.delete(delete_all=True)
+        except PineconeException as e:
+            # Serverless indexes can throw a "Namespace not found" exception for
+            # delete_all if there are no documents in the index. Simply ignore,
+            # as the post-condition is the same.
+            pass
 
     def finalize_population(self, record_count: int):
         """Wait until all records are visible in the index"""
