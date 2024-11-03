@@ -42,7 +42,7 @@ class PineconeNamespace(Namespace):
         )
         def do_query_with_retry():
             return self.index.query(
-                vector=request.values, top_k=request.top_k, filter=request.filter
+                vector=request.values, top_k=request.top_k, filter={"float_field":{"$gt": 0.5}}, include_values=True, include_metadata=True
             )
 
         result = do_query_with_retry()
