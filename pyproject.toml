@@ -31,7 +31,7 @@ black = "^24.4.2"
 pytest = "^8.3.3"
 flake8 = "^7.1.1"
 pre-commit = "^3.8.0"
-pytest-benchmark = "^4.0.0"
+pytest-benchmark = "^5.1.0"
 
 [build-system]
 requires = ["poetry-core"]
