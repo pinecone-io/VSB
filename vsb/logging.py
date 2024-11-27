@@ -139,6 +139,12 @@ def setup_logging(log_base: Path, level: str) -> Path:
     width = None if os.getenv("TERM") else 300
     vsb.console = rich.console.Console(width=width)
     # Setup the specific logger for "vsb" to also log to stdout using RichHandler
+    # Note: Given we always want error messages (from anywhere - i.e. root logger)
+    # to be logged to stdout (see below), but we also want to log all vsb
+    # messages to stdout, we need to set propagate=False on the vsb logger to
+    # avoid duplication of messages.
+    # This means that we also need to explicitly add a handler for the
+    # file_handler to the vsb logger to see VSB's messages in the log file
     rich_handler = RichHandler(
         console=vsb.console,
         log_time_format="%Y-%m-%dT%H:%M:%S%z",
@@ -148,8 +154,11 @@ def setup_logging(log_base: Path, level: str) -> Path:
     rich_handler.setLevel(level)
     vsb.logger.setLevel(level)
     vsb.logger.addHandler(rich_handler)
+    vsb.logger.propagate = False
+    vsb.logger.addHandler(file_handler)
 
-    # And always logs errors to stdout (via RichHandler)
+    # Also log non-VSB errors to stdout (via RichHandler) - VSB errors are
+    # already logged to stdout via the vsb.logger.
     error_handler = RichHandler()
     error_handler.setLevel(logging.ERROR)
     root_logger.addHandler(error_handler)
