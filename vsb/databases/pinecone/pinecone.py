@@ -1,6 +1,7 @@
 import logging
 
 from locust.exception import StopUser
+from pinecone.core.openapi.shared.exceptions import UnauthorizedException
 
 import vsb
 from vsb import logger
@@ -76,6 +77,15 @@ class PineconeDB(DB):
         try:
             self.index = self.pc.Index(name=index_name)
             self.created_index = False
+        except UnauthorizedException:
+            api_key = config["pinecone_api_key"]
+            masked_api_key = api_key[:4] + "*" * (len(api_key) - 8) + api_key[-4:]
+            logger.critical(
+                f"PineconeDB: Got UnauthorizedException when attempting to connect "
+                f"to index '{index_name}' using API key '{masked_api_key}' - check "
+                f"your API key and permissions"
+            )
+            raise StopUser()
         except NotFoundException:
             logger.info(
                 f"PineconeDB: Specified index '{index_name}' was not found, or the "
