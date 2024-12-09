@@ -69,44 +69,47 @@ class PineconeDB(DB):
         self.pc = PineconeGRPC(config["pinecone_api_key"])
         self.skip_populate = config["skip_populate"]
         self.overwrite = config["overwrite"]
-        index_name = config["pinecone_index_name"]
-        if index_name is None:
+        self.index_name = config["pinecone_index_name"]
+        if self.index_name is None:
             # None specified, default to "vsb-<workload>"
-            index_name = f"vsb-{name}"
+            self.index_name = f"vsb-{name}"
         spec = config["pinecone_index_spec"]
         try:
-            self.index = self.pc.Index(name=index_name)
+            self.index = self.pc.Index(name=self.index_name)
             self.created_index = False
         except UnauthorizedException:
             api_key = config["pinecone_api_key"]
             masked_api_key = api_key[:4] + "*" * (len(api_key) - 8) + api_key[-4:]
             logger.critical(
                 f"PineconeDB: Got UnauthorizedException when attempting to connect "
-                f"to index '{index_name}' using API key '{masked_api_key}' - check "
+                f"to index '{self.index_name}' using API key '{masked_api_key}' - check "
                 f"your API key and permissions"
             )
             raise StopUser()
         except NotFoundException:
             logger.info(
-                f"PineconeDB: Specified index '{index_name}' was not found, or the "
-                f"specified API key cannot access it. Creating new index '{index_name}'."
+                f"PineconeDB: Specified index '{self.index_name}' was not found, or the "
+                f"specified API key cannot access it. Creating new index '{self.index_name}'."
             )
             self.pc.create_index(
-                name=index_name, dimension=dimensions, metric=metric.value, spec=spec
+                name=self.index_name,
+                dimension=dimensions,
+                metric=metric.value,
+                spec=spec,
             )
-            self.index = self.pc.Index(name=index_name)
+            self.index = self.pc.Index(name=self.index_name)
             self.created_index = True
 
-        info = self.pc.describe_index(index_name)
+        info = self.pc.describe_index(self.index_name)
         index_dims = info["dimension"]
         if dimensions != index_dims:
             raise ValueError(
-                f"PineconeDB index '{index_name}' has incorrect dimensions - expected:{dimensions}, found:{index_dims}"
+                f"PineconeDB index '{self.index_name}' has incorrect dimensions - expected:{dimensions}, found:{index_dims}"
             )
         index_metric = info["metric"]
         if metric.value != index_metric:
             raise ValueError(
-                f"PineconeDB index '{index_name}' has incorrect metric - expected:{metric.value}, found:{index_metric}"
+                f"PineconeDB index '{self.index_name}' has incorrect metric - expected:{metric.value}, found:{index_metric}"
             )
 
     def get_batch_size(self, sample_record: Record) -> int:
@@ -144,7 +147,7 @@ class PineconeDB(DB):
             return
         if not self.created_index and not self.overwrite:
             msg = (
-                f"PineconeDB: Index '{self.index.name}' already exists - cowardly "
+                f"PineconeDB: Index '{self.index_name}' already exists - cowardly "
                 f"refusing to overwrite existing data. Specify --overwrite to "
                 f"delete it, or specify --skip-populate to skip population phase."
             )
@@ -152,7 +155,7 @@ class PineconeDB(DB):
             raise StopUser()
         try:
             logger.info(
-                f"PineconeDB: Deleting existing index '{self.index.name}' before "
+                f"PineconeDB: Deleting existing index '{self.index_name}' before "
                 f"population (--overwrite=True)"
             )
             self.index.delete(delete_all=True)
