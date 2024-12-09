@@ -1,8 +1,7 @@
 import pandas
 import pytest
 
-import vsb
-from vsb.vsb_types import DistanceMetric, Record, RecordList, SearchRequest
+from vsb.vsb_types import DistanceMetric, SearchRequest
 from vsb.workloads.parquet_workload.parquet_workload import ParquetSubsetWorkload
 
 
@@ -10,19 +9,19 @@ class TestSubsetWorkloadKNN:
     records = pandas.DataFrame(
         [
             {"id": "a", "values": [2, 0, 0]},
-            {"id": "b", "values": [0, 2, 0]},
+            {"id": "b", "values": [0, 1.9, 0]},
             {"id": "c", "values": [5, 5, 0]},
             {"id": "d", "values": [-1, 0, 2]},
-            {"id": "e", "values": [0, 5, 5]},
-            {"id": "f", "values": [0, 2, 2]},
+            {"id": "e", "values": [-0.1, 5, 5.1]},
+            {"id": "f", "values": [0, 2, 2.1]},
         ]
     )
 
     queries = pandas.DataFrame(
         [
             {"values": [10, 0.5, 0], "top_k": 3},
-            {"values": [-1, 0.1, 1], "top_k": 3},
-            {"values": [0, 5, 2], "top_k": 2},
+            {"values": [-1, 0.2, 1], "top_k": 3},
+            {"values": [0, 5.2, 2.1], "top_k": 2},
         ]
     )
 
