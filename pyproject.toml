@@ -20,7 +20,7 @@ pgvector = "^0.3.6"
 psycopg = "^3.2.3"
 hdrhistogram = "^0.10.3"
 tenacity = "^9.0.0"
-rich = "^13.8.1"
+rich = "^13.9.4"
 filelock = "^3.16.0"
 
 [tool.poetry.scripts]
