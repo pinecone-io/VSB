@@ -213,7 +213,7 @@ a zipfian query distribution, and 30% inserts, 50% queries, 10% deletes, and 10%
 ```shell
 vsb --database=pinecone --pinecone_api_key=<API_KEY> \
     --workload=synthetic-proportional \
-    --synthetic_records=10000 --synthetic_queries=1000000 \
+    --synthetic_records=10000 --synthetic_requests=1000000 \
     --synthetic_insert_ratio=0.3 --synthetic_query_ratio=0.5 \
     --synthetic_delete_ratio=0.1 --synthetic_update_ratio=0.1 \
     --synthetic_dimensions=768 --synthetic_query_distribution=zipfian \
