@@ -11,7 +11,7 @@ data of which is generated at request time with a specified distribution.
 
 from abc import ABC
 from collections.abc import Iterator
-from typing import Generator
+from typing import Generator, Callable
 
 import pandas
 import numpy as np
@@ -663,29 +663,30 @@ class SyntheticProportionalWorkload(InMemoryWorkload, ABC):
             match value[-1]:
                 case "s":
                     # string of length n
-                    generator_dict[key] = lambda rng: "".join(
-                        rng.choice(list(string.ascii_letters + string.digits))
-                        for _ in range(int(value[:-1]))
+                    length = int(value[:-1])
+                    generator_dict[key] = (
+                        SyntheticProportionalWorkload.make_string_generator(length)
                     )
                 case "l":
                     # list of n strings of length m
-                    regmatch = re.match(r"(\d+)s(\d+)l", value)
-                    m, n = int(regmatch.group(1)), int(regmatch.group(2))
-                    generator_dict[key] = lambda rng: [
-                        "".join(
-                            rng.choice(list(string.ascii_letters + string.digits))
-                            for _ in range(m)
-                        )
-                        for _ in range(n)
-                    ]
+                    regmatch = re.match(r"(\d+)s(\d+)l$", value)
+                    if not regmatch:
+                        raise ValueError(f"Invalid metadata format: {value}")
+                    m, n = map(int, regmatch.groups())
+                    generator_dict[key] = (
+                        SyntheticProportionalWorkload.make_list_generator(m, n)
+                    )
                 case "n":
                     # n digit number
-                    generator_dict[key] = lambda rng: int(
-                        rng.integers(0, 10 ** int(value[:-1]))
+                    digits = int(value[:-1])
+                    generator_dict[key] = (
+                        SyntheticProportionalWorkload.make_numeric_generator(digits)
                     )
                 case "b":
                     # boolean
-                    generator_dict[key] = lambda rng: bool(rng.choice([True, False]))
+                    generator_dict[key] = (
+                        SyntheticProportionalWorkload.make_boolean_generator()
+                    )
         return generator_dict
 
     def generate_synthetic_metadata(self, rng) -> dict:
@@ -875,3 +876,43 @@ class SyntheticProportionalWorkload(InMemoryWorkload, ABC):
 
     def recall_available(self) -> bool:
         return False
+
+    @staticmethod
+    def make_string_generator(length: int) -> Callable:
+        """Generates a random string of a fixed length."""
+
+        def generator(rng):
+            return "".join(
+                rng.choice(list(string.ascii_letters + string.digits))
+                for _ in range(length)
+            )
+
+        return generator
+
+    @staticmethod
+    def make_list_generator(m: int, n: int) -> Callable:
+        """Generates a list of n strings, each of length m."""
+        string_gen = SyntheticProportionalWorkload.make_string_generator(m)
+
+        def generator(rng):
+            return [string_gen(rng) for _ in range(n)]
+
+        return generator
+
+    @staticmethod
+    def make_numeric_generator(digits: int) -> Callable:
+        """Generates an n-digit random number."""
+
+        def generator(rng):
+            return int(rng.integers(0, 10**digits))
+
+        return generator
+
+    @staticmethod
+    def make_boolean_generator() -> Callable:
+        """Generates a boolean value."""
+
+        def generator(rng):
+            return bool(rng.choice([True, False]))
+
+        return generator
