@@ -149,7 +149,7 @@ class PineconeDB(DB):
             msg = (
                 f"PineconeDB: Index '{self.index_name}' already exists - cowardly "
                 f"refusing to overwrite existing data. Specify --overwrite to "
-                f"delete it, or specify --skip-populate to skip population phase."
+                f"delete it, or specify --skip_populate to skip population phase."
             )
             logger.critical(msg)
             raise StopUser()
