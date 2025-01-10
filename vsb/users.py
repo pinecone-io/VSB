@@ -74,6 +74,20 @@ class SetupUser(User):
                     # Nothing more to do, but sleep briefly here to prevent
                     # us busy-looping in this state.
                     gevent.sleep(0.1)
+        except StopUser:
+            # Explicit stop, assume callee already logged the reason; exit with
+            # non-zero:
+            logger.debug("Stopping user due to StopUser exception")
+            self.environment.runner.send_message(
+                "update_progress",
+                {
+                    "user": 0,
+                    "phase": "setup",
+                    "error": "Stopping user due to StopUser exception",
+                },
+            )
+            self.state = self.State.Done
+
         except Exception as e:
             traceback.print_exception(e)
             locust.log.unhandled_greenlet_exception = True
@@ -375,6 +389,9 @@ class LoadShape(LoadTestShape):
         """Issue requests (queries) to the database and recording the results."""
         Done = auto()
         """Final phase when all Run Users have completed"""
+        DoneFailed = auto()
+        """Final phase when all a fatal error occurred and we want to stop down, 
+        signalling an unsuccessful run"""
 
     def __init__(self):
         super().__init__()
@@ -469,6 +486,10 @@ class LoadShape(LoadTestShape):
                 return self.num_users, self.num_users, [RunUser]
             case LoadShape.Phase.Done:
                 return None
+            case LoadShape.Phase.DoneFailed:
+                # Set exit status to 2 to indicate a failure
+                locust.log.unhandled_greenlet_exception = True
+                return None
             case _:
                 raise ValueError(f"Invalid phase:{self.phase}")
 
@@ -486,9 +507,11 @@ class LoadShape(LoadTestShape):
         ]
         if vsb.progress is not None:
             self._update_progress_bar(mark_completed=True)
-            vsb.progress.update(
-                self.progress_task_id, description=f"✔ {self.phase.name} complete"
-            )
+            if new == LoadShape.Phase.DoneFailed:
+                msg = f"✘ {self.phase.name} cancelled"
+            else:
+                msg = f"✔ {self.phase.name} complete"
+            vsb.progress.update(self.progress_task_id, description=msg)
             vsb.progress.stop()
             vsb.progress = None
         if hasattr(self.runner.environment, "workload_sequence"):
@@ -514,7 +537,10 @@ class LoadShape(LoadTestShape):
         else:
             phase_display_name = self.phase.name
         if self.phase in tracked_phases:
-            metrics_tracker.record_phase_end(phase_display_name)
+            # Skip reporting phase end on a fatal error; it adds noise after
+            # the important fatal error message.
+            if new != LoadShape.Phase.DoneFailed:
+                metrics_tracker.record_phase_end(phase_display_name)
         self.phase = new
         if hasattr(self.runner.environment, "workload_sequence"):
             workload = self.runner.environment.workload_sequence[
@@ -539,9 +565,7 @@ class LoadShape(LoadTestShape):
     def on_update_progress(self, msg, **kwargs):
         # Fired when VSBLoadShape (running on the master) receives an
         # "update_progress" message.
-        logger.debug(
-            f"VSBLoadShape.update_progress() - user:{msg.data['user']}, phase:{msg.data['phase']}"
-        )
+        logger.debug(f"VSBLoadShape.on_update_progress() - {msg.data}")
         match self.phase:
             case LoadShape.Phase.Setup:
                 assert msg.data["phase"] == "setup"
@@ -557,7 +581,11 @@ class LoadShape(LoadTestShape):
                     f"{self.request_count} - "
                     f"moving to TransitionFromSetup phase"
                 )
-                self._transition_phase(LoadShape.Phase.TransitionFromSetup)
+                if "error" in msg.data:
+                    # Setup signalled an error; cancel the benchmark
+                    self._transition_phase(LoadShape.Phase.DoneFailed)
+                else:
+                    self._transition_phase(LoadShape.Phase.TransitionFromSetup)
             case LoadShape.Phase.TransitionFromSetup:
                 logger.error(
                     f"VSBLoadShape.update_progress() - Unexpected progress update in "
