@@ -22,6 +22,8 @@ hdrhistogram = "^0.10.3"
 tenacity = "^9.0.0"
 rich = "^13.8.1"
 filelock = "^3.16.0"
+opensearch-py = "^2.8.0"
+requests-aws4auth = "^1.3.1"
 
 [tool.poetry.scripts]
 vsb = "vsb.main:main"
