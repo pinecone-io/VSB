@@ -286,6 +286,15 @@ def add_vsb_cmdline_args(
         help="JSON spec of Pinecone index to create (if it does not exist). Default is %(default)s.",
     )
 
+    opensearch_group = parser.add_argument_group("Options specific to opensearch database")
+    opensearch_group.add_argument(
+        "--opensearch_index_name",
+        type=str,
+        default=None,
+        help="Name of OpenSearch index to connect to. One will be created if it does not exist. Default is vsb-<workload>.",
+        env_var="VSB__OPENSEARCH_INDEX_NAME",
+    )
+
     pgvector_group = parser.add_argument_group("Options specific to pgvector database")
     pgvector_group.add_argument(
         "--pgvector_host",
@@ -399,6 +408,8 @@ def validate_parsed_args(
                     "The following arguments must be specified when --database is "
                     "'pinecone'" + formatter.format_help(),
                 )
+        case "opensearch":
+            pass
         case "pgvector":
             pass
         case _:
