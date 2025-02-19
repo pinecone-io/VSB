@@ -1,8 +1,7 @@
 import logging
+from logging import config
 import time
 from locust.exception import StopUser
-from pinecone.core.openapi.shared.exceptions import UnauthorizedException
-from pinecone import PineconeException, NotFoundException
 
 import vsb
 from vsb import logger
@@ -15,8 +14,8 @@ from requests_aws4auth import AWS4Auth
 import numpy as np
 
 # OpenSearch-specific configurations
-host = '09whpeomly65t2qyl8e5.us-east-1.aoss.amazonaws.com'
-region = 'us-east-1'
+host = config["opensearch_host"]
+region = config["opensearch_region"]
 service = 'aoss'
 access_key = ''
 secret_key = ''

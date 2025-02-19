@@ -294,6 +294,20 @@ def add_vsb_cmdline_args(
         help="Name of OpenSearch index to connect to. One will be created if it does not exist. Default is vsb-<workload>.",
         env_var="VSB__OPENSEARCH_INDEX_NAME",
     )
+    opensearch_group.add_argument(
+        "--opensearch_host",
+        type=str,
+        default="localhost",
+        help="opensearch host to connect to. Default is %(default)s.",
+        env_var="VSB__OPENSEARCH_HOST",
+    )
+    opensearch_group.add_argument(
+        "--opensearch_region",
+        type=str,
+        default="us-east-1",
+        help="opensearch region to connect to. Default is %(default)s.",
+        env_var="VSB__OPENSEARCH_REGION",
+    )
 
     pgvector_group = parser.add_argument_group("Options specific to pgvector database")
     pgvector_group.add_argument(
