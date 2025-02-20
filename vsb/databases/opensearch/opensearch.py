@@ -53,8 +53,8 @@ class OpenSearchNamespace(Namespace):
         #logger.info(actions)
         upload_response = client.bulk(body=actions)
         #logger.info(upload_response)
-        logger.info(f"waiting for 20 seconds")
-        time.sleep(20)
+        #logger.info(f"waiting for 20 seconds")
+        #time.sleep(20)
 
     def update_batch(self, batch: list[Record]):
         self.insert_batch(batch)
@@ -164,19 +164,26 @@ class OpenSearchDB(DB):
             logger.critical(f"Error deleting index '{self.index_name}': {e}")
             raise StopUser()
 
-    #def finalize_population(self, record_count: int):
-    #    logger.debug(f"Waiting for index to reach record count: {record_count}")
-    #    while True:
-    #        stats = client.indices.stats(index=self.index_name)
-    #        count = stats["_all"]["primaries"]["docs"]["count"]
-    #        if count >= record_count:
-    #            break
-    #        time.sleep(1)
+    def finalize_population(self, record_count: int):
+        """Wait until all records are visible in the index"""
+        logger.debug(f"OpenSearchDB: Waiting for record count to reach {record_count}")
+        with vsb.logging.progress_task(
+            "  Finalize population", "  ✔ Finalize population", total=record_count
+        ) as finalize_id:
+            while True:
+                index_count = client.count(index=self.index_name)["count"]
+                if vsb.progress:
+                    vsb.progress.update(finalize_id, completed=index_count)
+                if index_count >= record_count:
+                    logger.debug(
+                        f"OpenSearchDB: Index vector count reached {index_count}, "
+                        f"finalize is complete"
+                    )
+                    break
+                time.sleep(5)
 
     def skip_refinalize(self):
         return False
 
-    #def get_record_count(self) -> int:
-    #    stats = client.indices.stats(index=self.index_name)
-    #    return stats["_all"]["primaries"]["docs"]["count"]
-
+    def get_record_count(self) -> int:
+        return client.count(index=self.index_name)["count"]
