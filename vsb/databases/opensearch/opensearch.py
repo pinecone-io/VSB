@@ -1,5 +1,4 @@
 import logging
-from logging import config
 import time
 from locust.exception import StopUser
 
@@ -35,12 +34,15 @@ client = OpenSearch(
 )
 
 class OpenSearchNamespace(Namespace):
-    def __init__(self, index_name: str):
+    def __init__(self, client: OpenSearch, index_name: str, dimensions: int, namespace: str):
+        self.client = client
         self.index_name = index_name
+        self.dimensions = dimensions
+        self.namespace = namespace
 
     def insert_batch(self, batch: RecordList):
         actions = []
-        action = {"index": {"_index": "vsb-mnist-test"}}
+        action = {"index": {"_index": self.index_name}}
         for rec in batch:
             vector_document = {
                 "vsb_vec_id": rec.id,
@@ -51,7 +53,7 @@ class OpenSearchNamespace(Namespace):
 
         # Bulk ingest documents
         #logger.info(actions)
-        upload_response = client.bulk(body=actions)
+        upload_response = self.client.bulk(body=actions)
         #logger.info(upload_response)
         #logger.info(f"waiting for 20 seconds")
         #time.sleep(20)
@@ -68,12 +70,12 @@ class OpenSearchNamespace(Namespace):
                 "knn": {
                     "v_content": {
                         "vector": request.values,
-                        "k": 784
+                        "k": self.dimensions
                     }
                 }
             }
         }
-        response = client.search(body=query, index=self.index_name)
+        response = self.client.search(body=query, index=self.index_name)
         #logger.info(response)
         #sending the VSB Id's of the top k results
         vsb_id = []
@@ -99,9 +101,29 @@ class OpenSearchDB(DB):
         name: str,
         config: dict,
     ):
+        self.host = config["opensearch_host"]
+        self.region = config["opensearch_region"]
+        self.service = 'aoss'
+        self.access_key = config["aws_access_key"]
+        self.secret_key = config["aws_secret_key"]
+        self.token = config["aws_session_token"]
+
         self.index_name = config["opensearch_index_name"]
         self.skip_populate = config["skip_populate"]
         self.overwrite = config["overwrite"]
+
+        #Create the OpenSearch client
+        awsauth = AWS4Auth(self.access_key, self.secret_key, self.region, self.service, session_token=self.token)
+        self.client = OpenSearch(
+            hosts=[{'host': self.host, 'port': 443}],
+            http_auth=awsauth,
+            timeout=300,
+            use_ssl=True,
+            verify_certs=True,
+            connection_class=RequestsHttpConnection
+        )
+
+        #Create the index
         if self.index_name is None:
             # None specified, default to "vsb-<workload>"
             self.index_name = f"vsb-{name}"
@@ -116,12 +138,12 @@ class OpenSearchDB(DB):
             }
         }
         
-        if not client.indices.exists(self.index_name):
+        if not self.client.indices.exists(self.index_name):
             logger.info(
                 f"OpenSearchDB: Specified index '{self.index_name}' was not found, or the "
                 f"specified AWS Access keys cannot access it. Creating new index '{self.index_name}'."
             )
-            client.indices.create(index=self.index_name, body=index_body)
+            self.client.indices.create(index=self.index_name, body=index_body)
             self.created_index = True
             time.sleep(30)
         else:
@@ -140,7 +162,11 @@ class OpenSearchDB(DB):
         return batch_size
 
     def get_namespace(self, namespace: str) -> Namespace:
-        return OpenSearchNamespace(namespace)
+        return OpenSearchNamespace(
+            self.client,
+            self.index_name,
+            self.dimensions,
+            namespace)
 
     def initialize_population(self):
         if self.skip_populate:
@@ -171,7 +197,7 @@ class OpenSearchDB(DB):
             "  Finalize population", "  ✔ Finalize population", total=record_count
         ) as finalize_id:
             while True:
-                index_count = client.count(index=self.index_name)["count"]
+                index_count = self.client.count(index=self.index_name)["count"]
                 if vsb.progress:
                     vsb.progress.update(finalize_id, completed=index_count)
                 if index_count >= record_count:
@@ -186,4 +212,4 @@ class OpenSearchDB(DB):
         return False
 
     def get_record_count(self) -> int:
-        return client.count(index=self.index_name)["count"]
+        return self.client.count(index=self.index_name)["count"]
