@@ -111,6 +111,7 @@ class OpenSearchDB(DB):
         self.index_name = config["opensearch_index_name"]
         self.skip_populate = config["skip_populate"]
         self.overwrite = config["overwrite"]
+        self.dimensions = dimensions
 
         #Create the OpenSearch client
         awsauth = AWS4Auth(self.access_key, self.secret_key, self.region, self.service, session_token=self.token)
@@ -133,7 +134,7 @@ class OpenSearchDB(DB):
             "mappings": {
                 "properties": {
                     "vsb_vec_id": { "type": "text", "fields": { "keyword": { "type": "keyword" } } },
-                    "v_content": {"type": "knn_vector", "dimension": dimensions},
+                    "v_content": {"type": "knn_vector", "dimension": self.dimensions},
                 }
             }
         }

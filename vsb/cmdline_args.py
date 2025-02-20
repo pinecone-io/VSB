@@ -291,22 +291,43 @@ def add_vsb_cmdline_args(
         "--opensearch_index_name",
         type=str,
         default=None,
-        help="Name of OpenSearch index to connect to. One will be created if it does not exist. Default is vsb-<workload>.",
+        help="Name of OpenSearch index to connect to the OpenSearch Collection. One will be created if it does not exist. Default is vsb-<workload>.",
         env_var="VSB__OPENSEARCH_INDEX_NAME",
     )
     opensearch_group.add_argument(
         "--opensearch_host",
         type=str,
         default="localhost",
-        help="opensearch host to connect to. Default is %(default)s.",
+        help="opensearch host to connect to the OpenSearch Collection. Default is %(default)s.",
         env_var="VSB__OPENSEARCH_HOST",
     )
     opensearch_group.add_argument(
         "--opensearch_region",
         type=str,
         default="us-east-1",
-        help="opensearch region to connect to. Default is %(default)s.",
+        help="opensearch region to connect to the OpenSearch Collection. Default is %(default)s.",
         env_var="VSB__OPENSEARCH_REGION",
+    )
+    opensearch_group.add_argument(
+        "--aws_access_key",
+        type=str,
+        default=None,
+        help="AWS access key to connect to the OpenSearch Collection. Default is %(default)s.",
+        env_var="VSB__AWS_ACCESS_KEY",
+    )
+    opensearch_group.add_argument(
+        "--aws_secret_key",
+        type=str,
+        default=None,
+        help="AWS secret access key to connect to the OpenSearch Collection. Default is %(default)s.",
+        env_var="VSB__AWS_SECRET_KEY",
+    )
+    opensearch_group.add_argument(
+        "--aws_session_token",
+        type=str,
+        default=None,
+        help="AWS session token to connect to the OpenSearch Collection. Default is %(default)s.",
+        env_var="VSB__AWS_SESSION_TOKEN",
     )
 
     pgvector_group = parser.add_argument_group("Options specific to pgvector database")
