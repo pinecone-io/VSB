@@ -14,9 +14,11 @@ from requests_aws4auth import AWS4Auth
 import numpy as np
 
 # OpenSearch-specific configurations
-host = config["opensearch_host"]
-region = config["opensearch_region"]
-service = 'aoss'
+#host = config["opensearch_host"]
+#region = config["opensearch_region"]
+host = ''
+region = ''
+service = ''
 access_key = ''
 secret_key = ''
 token = ''
@@ -38,7 +40,7 @@ class OpenSearchNamespace(Namespace):
 
     def insert_batch(self, batch: RecordList):
         actions = []
-        action = {"index": {"_index": self.index_name}}
+        action = {"index": {"_index": "vsb-mnist-test"}}
         for rec in batch:
             vector_document = {
                 "vsb_vec_id": rec.id,
@@ -48,7 +50,11 @@ class OpenSearchNamespace(Namespace):
             actions.append(vector_document)
 
         # Bulk ingest documents
-        client.bulk(body=actions)
+        #logger.info(actions)
+        upload_response = client.bulk(body=actions)
+        #logger.info(upload_response)
+        logger.info(f"waiting for 20 seconds")
+        time.sleep(20)
 
     def update_batch(self, batch: list[Record]):
         self.insert_batch(batch)
@@ -62,15 +68,17 @@ class OpenSearchNamespace(Namespace):
                 "knn": {
                     "v_content": {
                         "vector": request.values,
-                        "k": len(request.values)
+                        "k": 784
                     }
                 }
             }
         }
         response = client.search(body=query, index=self.index_name)
+        #logger.info(response)
         #sending the VSB Id's of the top k results
         vsb_id = []
         [vsb_id.append(m["fields"]["vsb_vec_id"][0]) for m in response["hits"]["hits"]]
+        logger.info(vsb_id)
         return vsb_id
 
     def fetch_batch(self, request: list[str]) -> list[Record]:
@@ -115,6 +123,7 @@ class OpenSearchDB(DB):
             )
             client.indices.create(index=self.index_name, body=index_body)
             self.created_index = True
+            time.sleep(30)
         else:
             logger.info(
                 f"OpenSearchDB: Index '{self.index_name}' already exists. Skipping index creation."
@@ -149,7 +158,7 @@ class OpenSearchDB(DB):
                 f"OpenSearchDB: Deleting existing index '{self.index_name}' before "
                 f"population (--overwrite=True)"
             )
-            client.indices.delete(index=self.index_name)
+            #client.indices.delete(index=self.index_name)
             logger.info(f"Index '{self.index_name}' cleared for population")
         except Exception as e:
             logger.critical(f"Error deleting index '{self.index_name}': {e}")
