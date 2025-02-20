@@ -10,6 +10,7 @@ from ...vsb_types import Record, SearchRequest, DistanceMetric, RecordList
 
 from opensearchpy import OpenSearch, RequestsHttpConnection
 from requests_aws4auth import AWS4Auth
+from tenacity import retry, stop_after_attempt, wait_exponential_jitter, after_log
 import numpy as np
 
 
@@ -32,35 +33,37 @@ class OpenSearchNamespace(Namespace):
             actions.append(vector_document)
 
         # Bulk ingest documents
-        #logger.info(actions)
         upload_response = self.client.bulk(body=actions)
-        #logger.info(upload_response)
-        #logger.info(f"waiting for 20 seconds")
-        #time.sleep(20)
 
     def update_batch(self, batch: list[Record]):
         self.insert_batch(batch)
 
     def search(self, request: SearchRequest) -> list[str]:
-        query = {
-            "size": request.top_k,
-            "fields": ["vsb_vec_id"],
-            "_source": False,
-            "query": {
-                "knn": {
-                    "v_content": {
-                        "vector": request.values,
-                        "k": self.dimensions
+        @retry(
+            wait=wait_exponential_jitter(initial=0.1, jitter=0.1),
+            stop=stop_after_attempt(5),
+            after=after_log(logger, logging.DEBUG),
+        )
+        def do_query_with_retry():
+            query = {
+                "size": request.top_k,
+                "fields": ["vsb_vec_id"],
+                "_source": False,
+                "query": {
+                    "knn": {
+                        "v_content": {
+                            "vector": request.values,
+                            "k": self.dimensions
+                        }
                     }
                 }
             }
-        }
-        response = self.client.search(body=query, index=self.index_name)
-        #logger.info(response)
+            return self.client.search(body=query, index=self.index_name)
+        
+        response = do_query_with_retry()
         #sending the VSB Id's of the top k results
         vsb_id = []
         [vsb_id.append(m["fields"]["vsb_vec_id"][0]) for m in response["hits"]["hits"]]
-        logger.info(vsb_id)
         return vsb_id
 
     def fetch_batch(self, request: list[str]) -> list[Record]:
@@ -110,7 +113,7 @@ class OpenSearchDB(DB):
             self.index_name = f"vsb-{name}"
 
         self.create_index()
-        
+
 
     def create_index(self):
         #Create the index
@@ -173,6 +176,7 @@ class OpenSearchDB(DB):
                 )
                 self.client.indices.delete(index=self.index_name)
                 logger.info(f"Index '{self.index_name}' cleared for population")
+                time.sleep(10)
                 self.create_index()
             except Exception as e:
                 logger.critical(f"Error deleting index '{self.index_name}': {e}")
