@@ -109,6 +109,11 @@ class OpenSearchDB(DB):
             # None specified, default to "vsb-<workload>"
             self.index_name = f"vsb-{name}"
 
+        self.create_index()
+        
+
+    def create_index(self):
+        #Create the index
         index_body = {
             "settings": {"index.knn": True},
             "mappings": {
@@ -160,16 +165,18 @@ class OpenSearchDB(DB):
             )
             logger.critical(msg)
             raise StopUser()
-        try:
-            logger.info(
-                f"OpenSearchDB: Deleting existing index '{self.index_name}' before "
-                f"population (--overwrite=True)"
-            )
-            #client.indices.delete(index=self.index_name)
-            logger.info(f"Index '{self.index_name}' cleared for population")
-        except Exception as e:
-            logger.critical(f"Error deleting index '{self.index_name}': {e}")
-            raise StopUser()
+        if not self.created_index:
+            try:
+                logger.info(
+                    f"OpenSearchDB: Deleting existing index '{self.index_name}' before "
+                    f"population (--overwrite=True)"
+                )
+                self.client.indices.delete(index=self.index_name)
+                logger.info(f"Index '{self.index_name}' cleared for population")
+                self.create_index()
+            except Exception as e:
+                logger.critical(f"Error deleting index '{self.index_name}': {e}")
+                raise StopUser()
 
     def finalize_population(self, record_count: int):
         """Wait until all records are visible in the index"""
