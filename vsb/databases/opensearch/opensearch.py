@@ -12,26 +12,6 @@ from opensearchpy import OpenSearch, RequestsHttpConnection
 from requests_aws4auth import AWS4Auth
 import numpy as np
 
-# OpenSearch-specific configurations
-#host = config["opensearch_host"]
-#region = config["opensearch_region"]
-host = ''
-region = ''
-service = ''
-access_key = ''
-secret_key = ''
-token = ''
-awsauth = AWS4Auth(access_key, secret_key, region, service, session_token=token)
-
-# Initialize the OpenSearch client
-client = OpenSearch(
-    hosts=[{'host': host, 'port': 443}],
-    http_auth=awsauth,
-    timeout=300,
-    use_ssl=True,
-    verify_certs=True,
-    connection_class=RequestsHttpConnection
-)
 
 class OpenSearchNamespace(Namespace):
     def __init__(self, client: OpenSearch, index_name: str, dimensions: int, namespace: str):
