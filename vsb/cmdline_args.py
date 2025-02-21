@@ -286,7 +286,9 @@ def add_vsb_cmdline_args(
         help="JSON spec of Pinecone index to create (if it does not exist). Default is %(default)s.",
     )
 
-    opensearch_group = parser.add_argument_group("Options specific to opensearch database")
+    opensearch_group = parser.add_argument_group(
+        "Options specific to opensearch database"
+        )
     opensearch_group.add_argument(
         "--opensearch_index_name",
         type=str,

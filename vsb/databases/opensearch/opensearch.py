@@ -15,7 +15,9 @@ import numpy as np
 
 
 class OpenSearchNamespace(Namespace):
-    def __init__(self, client: OpenSearch, index_name: str, dimensions: int, namespace: str):
+    def __init__(
+            self, client: OpenSearch, index_name: str, dimensions: int, namespace: str
+            ):
         self.client = client
         self.index_name = index_name
         self.dimensions = dimensions
@@ -25,10 +27,7 @@ class OpenSearchNamespace(Namespace):
         actions = []
         action = {"index": {"_index": self.index_name}}
         for rec in batch:
-            vector_document = {
-                "vsb_vec_id": rec.id,
-                "v_content": np.array(rec.values)
-            }
+            vector_document = {"vsb_vec_id": rec.id, "v_content": np.array(rec.values)}
             actions.append(action)
             actions.append(vector_document)
 
@@ -51,17 +50,14 @@ class OpenSearchNamespace(Namespace):
                 "_source": False,
                 "query": {
                     "knn": {
-                        "v_content": {
-                            "vector": request.values,
-                            "k": self.dimensions
-                        }
+                        "v_content": {"vector": request.values, "k": self.dimensions}
                     }
-                }
+                },
             }
             return self.client.search(body=query, index=self.index_name)
         
         response = do_query_with_retry()
-        #sending the VSB Id's of the top k results
+        # sending the VSB Id's of the top k results
         vsb_id = []
         [vsb_id.append(m["fields"]["vsb_vec_id"][0]) for m in response["hits"]["hits"]]
         return vsb_id
@@ -71,7 +67,7 @@ class OpenSearchNamespace(Namespace):
         raise NotImplementedError("fetch_batch not supported for OpenSearch")
 
     def delete_batch(self, request: list[str]):
-        #deleting the records not directly supported; requires implementation of delete by vsb_vec_id in the metadata
+        # deleting the records not directly supported; requires implementation of delete by vsb_vec_id in the metadata
         raise NotImplementedError("delete_batch not supported for OpenSearch")
 
 
@@ -86,7 +82,7 @@ class OpenSearchDB(DB):
     ):
         self.host = config["opensearch_host"]
         self.region = config["opensearch_region"]
-        self.service = 'aoss'
+        self.service = "aoss"
         self.access_key = config["aws_access_key"]
         self.secret_key = config["aws_secret_key"]
         self.token = config["aws_session_token"]
@@ -96,35 +92,42 @@ class OpenSearchDB(DB):
         self.overwrite = config["overwrite"]
         self.dimensions = dimensions
 
-        #Create the OpenSearch client
-        awsauth = AWS4Auth(self.access_key, self.secret_key, self.region, self.service, session_token=self.token)
+        # Create the OpenSearch client
+        awsauth = AWS4Auth(
+            self.access_key, 
+            self.secret_key, 
+            self.region, 
+            self.service, 
+            session_token=self.token
+            )
         self.client = OpenSearch(
-            hosts=[{'host': self.host, 'port': 443}],
+            hosts=[{"host": self.host, "port": 443}],
             http_auth=awsauth,
             timeout=300,
             use_ssl=True,
             verify_certs=True,
-            connection_class=RequestsHttpConnection
+            connection_class=RequestsHttpConnection,
         )
 
-        #Create the index
+        # Create the index
         if self.index_name is None:
             # None specified, default to "vsb-<workload>"
             self.index_name = f"vsb-{name}"
 
         self.create_index()
 
-
     def create_index(self):
-        #Create the index
+        # Create the index
         index_body = {
             "settings": {"index.knn": True},
             "mappings": {
                 "properties": {
-                    "vsb_vec_id": { "type": "text", "fields": { "keyword": { "type": "keyword" } } },
+                    "vsb_vec_id": { 
+                        "type": "text", 
+                        "fields": { "keyword": { "type": "keyword" } } },
                     "v_content": {"type": "knn_vector", "dimension": self.dimensions},
                 }
-            }
+            },
         }
         
         if not self.client.indices.exists(self.index_name):
@@ -144,18 +147,16 @@ class OpenSearchDB(DB):
 
     def get_batch_size(self, sample_record: Record) -> int:
         # Similar constraints as Pinecone, OpenSearch also has limits on batch sizes
-        #max_record_size = 1024 * 40  # Estimate 40KB for each record
-        #max_batch_size = 500  # OpenSearch handles bulk requests in chunks
-        #For now, we'll use a batch size of 100
+        # max_record_size = 1024 * 40  # Estimate 40KB for each record
+        # max_batch_size = 500  # OpenSearch handles bulk requests in chunks
+        # For now, we'll use a batch size of 100
         batch_size = 100
         return batch_size
 
     def get_namespace(self, namespace: str) -> Namespace:
         return OpenSearchNamespace(
-            self.client,
-            self.index_name,
-            self.dimensions,
-            namespace)
+            self.client, self.index_name, self.dimensions, namespace
+            )
 
     def initialize_population(self):
         if self.skip_populate:
