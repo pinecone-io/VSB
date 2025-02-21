@@ -54,7 +54,9 @@ class OpenSearchNamespace(Namespace):
                     }
                 },
             }
-            return self.client.search(body=query, index=self.index_name)
+            return self.client.search(
+                body=query, index=self.index_name
+            )
         
         response = do_query_with_retry()
         # sending the VSB Id's of the top k results
@@ -124,7 +126,7 @@ class OpenSearchDB(DB):
                 "properties": {
                     "vsb_vec_id": {
                         "type": "text",
-                        "fields": { "keyword": { "type": "keyword"}},
+                        "fields": {"keyword": {"type": "keyword"}},
                     },
                     "v_content": {"type": "knn_vector", "dimension": self.dimensions},
                 }
