@@ -16,8 +16,8 @@ import numpy as np
 
 class OpenSearchNamespace(Namespace):
     def __init__(
-            self, client: OpenSearch, index_name: str, dimensions: int, namespace: str
-            ):
+        self, client: OpenSearch, index_name: str, dimensions: int, namespace: str
+    ):
         self.client = client
         self.index_name = index_name
         self.dimensions = dimensions
@@ -55,7 +55,6 @@ class OpenSearchNamespace(Namespace):
                 },
             }
             return self.client.search(body=query, index=self.index_name)
-        
         response = do_query_with_retry()
         # sending the VSB Id's of the top k results
         vsb_id = []
@@ -94,12 +93,12 @@ class OpenSearchDB(DB):
 
         # Create the OpenSearch client
         awsauth = AWS4Auth(
-            self.access_key, 
-            self.secret_key, 
-            self.region, 
-            self.service, 
+            self.access_key,
+            self.secret_key,
+            self.region,
+            self.service,
             session_token=self.token
-            )
+        )
         self.client = OpenSearch(
             hosts=[{"host": self.host, "port": 443}],
             http_auth=awsauth,
@@ -122,14 +121,14 @@ class OpenSearchDB(DB):
             "settings": {"index.knn": True},
             "mappings": {
                 "properties": {
-                    "vsb_vec_id": { 
-                        "type": "text", 
-                        "fields": { "keyword": { "type": "keyword" } } },
+                    "vsb_vec_id": {
+                        "type": "text",
+                        "fields": { "keyword": { "type": "keyword" } },
+                    },
                     "v_content": {"type": "knn_vector", "dimension": self.dimensions},
                 }
             },
-        }
-        
+        } 
         if not self.client.indices.exists(self.index_name):
             logger.info(
                 f"OpenSearchDB: Specified index '{self.index_name}' was not found, or the "
@@ -144,7 +143,6 @@ class OpenSearchDB(DB):
             )
             self.created_index = False
 
-
     def get_batch_size(self, sample_record: Record) -> int:
         # Similar constraints as Pinecone, OpenSearch also has limits on batch sizes
         # max_record_size = 1024 * 40  # Estimate 40KB for each record
@@ -156,7 +154,7 @@ class OpenSearchDB(DB):
     def get_namespace(self, namespace: str) -> Namespace:
         return OpenSearchNamespace(
             self.client, self.index_name, self.dimensions, namespace
-            )
+        )
 
     def initialize_population(self):
         if self.skip_populate:
