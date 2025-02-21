@@ -124,7 +124,7 @@ class OpenSearchDB(DB):
                 "properties": {
                     "vsb_vec_id": {
                         "type": "text",
-                        "fields": { "keyword": { "type": "keyword" }},
+                        "fields": { "keyword": { "type": "keyword"}},
                     },
                     "v_content": {"type": "knn_vector", "dimension": self.dimensions},
                 }
