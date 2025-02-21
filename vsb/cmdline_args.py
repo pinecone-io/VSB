@@ -287,7 +287,7 @@ def add_vsb_cmdline_args(
     )
 
     opensearch_group = parser.add_argument_group(
-        "Options specific to opensearch database"
+        "Options specific to OpenSearch database"
     )
     opensearch_group.add_argument(
         "--opensearch_index_name",

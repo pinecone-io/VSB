@@ -58,9 +58,7 @@ class OpenSearchNamespace(Namespace):
 
         response = do_query_with_retry()
         # sending the VSB Id's of the top k results
-        vsb_id = []
-        [vsb_id.append(m["fields"]["vsb_vec_id"][0]) for m in response["hits"]["hits"]]
-        return vsb_id
+        return [m["fields"]["vsb_vec_id"][0] for m in response["hits"]["hits"]]
 
     def fetch_batch(self, request: list[str]) -> list[Record]:
         # Fetching records not directly supported; requires implementation of metadata storage
@@ -145,9 +143,7 @@ class OpenSearchDB(DB):
             self.created_index = False
 
     def get_batch_size(self, sample_record: Record) -> int:
-        # Similar constraints as Pinecone, OpenSearch also has limits on batch sizes
-        # max_record_size = 1024 * 40  # Estimate 40KB for each record
-        # max_batch_size = 500  # OpenSearch handles bulk requests in chunks
+        # Need to investigate on the OpenSearch limits on batch sizes
         # For now, we'll use a batch size of 100
         batch_size = 100
         return batch_size
@@ -189,7 +185,7 @@ class OpenSearchDB(DB):
             "  Finalize population", "  ✔ Finalize population", total=record_count
         ) as finalize_id:
             while True:
-                index_count = self.client.count(index=self.index_name)["count"]
+                index_count = self.get_record_count()
                 if vsb.progress:
                     vsb.progress.update(finalize_id, completed=index_count)
                 if index_count >= record_count:
@@ -198,7 +194,7 @@ class OpenSearchDB(DB):
                         f"finalize is complete"
                     )
                     break
-                time.sleep(5)
+                time.sleep(1)
 
     def skip_refinalize(self):
         return False
