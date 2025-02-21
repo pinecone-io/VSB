@@ -54,10 +54,8 @@ class OpenSearchNamespace(Namespace):
                     }
                 },
             }
-            return self.client.search(
-                body=query, index=self.index_name
-            )
-        
+            return self.client.search(body=query, index=self.index_name)
+
         response = do_query_with_retry()
         # sending the VSB Id's of the top k results
         vsb_id = []
