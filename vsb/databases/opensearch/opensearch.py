@@ -55,6 +55,7 @@ class OpenSearchNamespace(Namespace):
                 },
             }
             return self.client.search(body=query, index=self.index_name)
+        
         response = do_query_with_retry()
         # sending the VSB Id's of the top k results
         vsb_id = []
@@ -97,7 +98,7 @@ class OpenSearchDB(DB):
             self.secret_key,
             self.region,
             self.service,
-            session_token=self.token
+            session_token=self.token,
         )
         self.client = OpenSearch(
             hosts=[{"host": self.host, "port": 443}],
@@ -123,12 +124,12 @@ class OpenSearchDB(DB):
                 "properties": {
                     "vsb_vec_id": {
                         "type": "text",
-                        "fields": { "keyword": { "type": "keyword" } },
+                        "fields": { "keyword": { "type": "keyword" }},
                     },
                     "v_content": {"type": "knn_vector", "dimension": self.dimensions},
                 }
             },
-        } 
+        }
         if not self.client.indices.exists(self.index_name):
             logger.info(
                 f"OpenSearchDB: Specified index '{self.index_name}' was not found, or the "
