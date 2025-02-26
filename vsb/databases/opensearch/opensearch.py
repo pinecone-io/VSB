@@ -112,7 +112,8 @@ class OpenSearchDB(DB):
             # None specified, default to "vsb-<workload>"
             self.index_name = f"vsb-{name}"
 
-        self.create_index()
+        if not self.client.indices.exists(self.index_name):
+            self.create_index()
 
     def create_index(self):
         # Create the index
@@ -143,9 +144,27 @@ class OpenSearchDB(DB):
             self.created_index = False
 
     def get_batch_size(self, sample_record: Record) -> int:
-        # Need to investigate on the OpenSearch limits on batch sizes
-        # For now, we'll use a batch size of 100
-        batch_size = 100
+        # Return the largest batch size possible, based on the following
+        # constraints:
+        # - Max id length is 512 bytes
+        # - Max index name length is 500 bytes.
+        # - Max metadata size is 40KiB. 
+        # - Maximum sparse value count is 1000
+        #   - Sparse values are made up sequence of pairs of int and float.
+        # - Maximum dense vector count is 1000.
+        # Given the above, calculate the maximum possible sized record, based
+        # on which fields are present in the sample record.
+        max_id = 512
+        max_values = len(sample_record.values) * 4
+        max_metadata = 40 * 1024 if sample_record.metadata else 0
+        # determine how many we could fit in the max message size of 3MB.
+        max_sparse_values = 0  # Todo: Add sparse values
+        max_record_size = max_id + max_metadata + max_values + max_sparse_values
+        max_namespace = 500  # Only one namespace per VectorUpsert request.
+        size_based_batch_size = ((3 * 1024 * 1024) - max_namespace) // max_record_size
+        max_batch_size = 1000
+        batch_size = min(size_based_batch_size, max_batch_size)
+        logger.debug(f"OpenSearchDB.get_batch_size() - Using batch size of {batch_size}")
         return batch_size
 
     def get_namespace(self, namespace: str) -> Namespace:
