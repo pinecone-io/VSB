@@ -89,6 +89,7 @@ class OpenSearchDB(DB):
         self.skip_populate = config["skip_populate"]
         self.overwrite = config["overwrite"]
         self.dimensions = dimensions
+        self.metric = metric
 
         # Create the OpenSearch client
         awsauth = AWS4Auth(
@@ -107,13 +108,11 @@ class OpenSearchDB(DB):
             connection_class=RequestsHttpConnection,
         )
 
-        # Create the index
+        # Generate index name if not specified
         if self.index_name is None:
             # None specified, default to "vsb-<workload>"
             self.index_name = f"vsb-{name}"
 
-        if not self.client.indices.exists(self.index_name):
-            self.create_index()
 
     def create_index(self):
         # Create the index
@@ -125,7 +124,7 @@ class OpenSearchDB(DB):
                         "type": "text",
                         "fields": {"keyword": {"type": "keyword"}},
                     },
-                    "v_content": {"type": "knn_vector", "dimension": self.dimensions},
+                    "v_content": {"type": "knn_vector", "dimension": self.dimensions, "method": {"name": "hnsw", "space_type": OpenSearchDB._get_distance_func(self.metric), "engine": OpenSearchDB._get_engine_func(self.metric)}},
                 }
             },
         }
@@ -175,6 +174,8 @@ class OpenSearchDB(DB):
     def initialize_population(self):
         if self.skip_populate:
             return
+        if not self.client.indices.exists(self.index_name):
+            self.create_index()
         if not self.created_index and not self.overwrite:
             msg = (
                 f"OpenSearchDB: Index '{self.index_name}' already exists - cowardly "
@@ -220,3 +221,25 @@ class OpenSearchDB(DB):
 
     def get_record_count(self) -> int:
         return self.client.count(index=self.index_name)["count"]
+
+    @staticmethod
+    def _get_distance_func(metric: DistanceMetric) -> str:
+        match metric:
+            case DistanceMetric.Cosine:
+                return "cosinesim"
+            case DistanceMetric.Euclidean:
+                return "l2"
+            case DistanceMetric.DotProduct:
+                return "innerproduct"
+        raise ValueError("Invalid metric:{}".format(metric))
+    
+    @staticmethod
+    def _get_engine_func(metric: DistanceMetric) -> str:
+        match metric:
+            case DistanceMetric.Cosine:
+                return "nmslib"
+            case DistanceMetric.Euclidean:
+                return "faiss"
+            case DistanceMetric.DotProduct:
+                return "faiss"
+        raise ValueError("Invalid metric:{}".format(metric))
