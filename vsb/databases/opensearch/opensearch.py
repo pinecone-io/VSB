@@ -24,15 +24,24 @@ class OpenSearchNamespace(Namespace):
         self.namespace = namespace
 
     def insert_batch(self, batch: RecordList):
-        actions = []
-        action = {"index": {"_index": self.index_name}}
-        for rec in batch:
-            vector_document = {"vsb_vec_id": rec.id, "v_content": np.array(rec.values)}
-            actions.append(action)
-            actions.append(vector_document)
-
-        # Bulk ingest documents
-        upload_response = self.client.bulk(body=actions)
+        @retry(
+            wait=wait_exponential_jitter(initial=0.1, jitter=0.1),
+            stop=stop_after_attempt(5),
+            after=after_log(logger, logging.DEBUG),
+        )
+        def do_insert_with_retry():
+            actions = []
+            action = {"index": {"_index": self.index_name}}
+            for rec in batch:
+                vector_document = {"vsb_vec_id": rec.id, "v_content": np.array(rec.values)}
+                actions.append(action)
+                actions.append(vector_document)
+            # Bulk ingest documents
+            return self.client.bulk(body=actions,request_timeout=600)
+        
+        upload_response = do_insert_with_retry()
+        if upload_response["errors"]:
+            logger.debug(f"OpenSearchDB: Error inserting batch: {upload_response['errors']}")
 
     def update_batch(self, batch: list[Record]):
         self.insert_batch(batch)
@@ -102,7 +111,7 @@ class OpenSearchDB(DB):
         self.client = OpenSearch(
             hosts=[{"host": self.host, "port": 443}],
             http_auth=awsauth,
-            timeout=300,
+            timeout=600,
             use_ssl=True,
             verify_certs=True,
             connection_class=RequestsHttpConnection,
