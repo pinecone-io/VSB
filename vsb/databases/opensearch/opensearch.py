@@ -235,7 +235,7 @@ class OpenSearchDB(DB):
     def _get_distance_func(metric: DistanceMetric) -> str:
         match metric:
             case DistanceMetric.Cosine:
-                return "cosinesim"
+                return "cosinesimil"
             case DistanceMetric.Euclidean:
                 return "l2"
             case DistanceMetric.DotProduct:
