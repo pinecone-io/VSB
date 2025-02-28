@@ -24,20 +24,19 @@ class OpenSearchNamespace(Namespace):
         self.namespace = namespace
 
     def insert_batch(self, batch: RecordList):
+        actions = []
+        action = {"index": {"_index": self.index_name}}
+        for rec in batch:
+            vector_document = {"vsb_vec_id": rec.id, "v_content": np.array(rec.values)}
+            actions.append(action)
+            actions.append(vector_document)
         @retry(
             wait=wait_exponential_jitter(initial=0.1, jitter=0.1),
             stop=stop_after_attempt(5),
             after=after_log(logger, logging.DEBUG),
         )
         def do_insert_with_retry():
-            actions = []
-            action = {"index": {"_index": self.index_name}}
-            for rec in batch:
-                vector_document = {"vsb_vec_id": rec.id, "v_content": np.array(rec.values)}
-                actions.append(action)
-                actions.append(vector_document)
-            # Bulk ingest documents
-            return self.client.bulk(body=actions,request_timeout=600)
+            return self.client.bulk(body=actions,request_timeout=900)
         
         upload_response = do_insert_with_retry()
         if upload_response["errors"]:
@@ -111,7 +110,7 @@ class OpenSearchDB(DB):
         self.client = OpenSearch(
             hosts=[{"host": self.host, "port": 443}],
             http_auth=awsauth,
-            timeout=600,
+            timeout=900,
             use_ssl=True,
             verify_certs=True,
             connection_class=RequestsHttpConnection,
@@ -166,12 +165,13 @@ class OpenSearchDB(DB):
         max_values = len(sample_record.values) * 4
         max_metadata = 40 * 1024 if sample_record.metadata else 0
         # determine how many we could fit in the max message size of 3MB.
-        max_sparse_values = 0  # Todo: Add sparse values
-        max_record_size = max_id + max_metadata + max_values + max_sparse_values
-        max_namespace = 500  # Only one namespace per VectorUpsert request.
-        size_based_batch_size = ((3 * 1024 * 1024) - max_namespace) // max_record_size
+        max_sparse_values = 0  # TODO: Add sparse values
+        max_indexname = 500  # Each record has the index name specified.
+        max_record_size = max_id + max_metadata + max_values + max_sparse_values + max_indexname
+        size_based_batch_size = (3 * 1024 * 1024) // max_record_size
         max_batch_size = 1000
-        batch_size = min(size_based_batch_size, max_batch_size)
+        #batch_size = min(size_based_batch_size, max_batch_size)
+        batch_size = 100  # TODO: Troubleshooting ingestion failures, remove it later
         logger.debug(f"OpenSearchDB.get_batch_size() - Using batch size of {batch_size}")
         return batch_size
 
