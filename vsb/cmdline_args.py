@@ -311,6 +311,13 @@ def add_vsb_cmdline_args(
         env_var="VSB__OPENSEARCH_REGION",
     )
     opensearch_group.add_argument(
+        "--opensearch_service",
+        type=str,
+        default="aoss",
+        help="opensearch service to connect. Default is %(default)s. which is for Amazon OpenSearch Serverless. For Amazon OpenSearch Managed cluster, use 'es'.",
+        env_var="VSB__OPENSEARCH_SERVICE",
+    )
+    opensearch_group.add_argument(
         "--aws_access_key",
         type=str,
         default=None,

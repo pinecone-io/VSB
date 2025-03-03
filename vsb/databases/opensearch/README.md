@@ -3,7 +3,7 @@
 This directory adds support running experiments against
 [Amazon OpenSearch](https://aws.amazon.com/opensearch-service/) - a managed vector database.
 
-It currently only supports connecting to Serverless collections. Managed cluster collections would require a nodes provisioing, cluster set up and different implementation, which would be supported in future.
+It supports connecting to both Serverless collections and Managed cluster collections. Use `--opensearch_service` to specify the service type, 'aoss' for Amazon OpenSearch Serverless and 'es' for Amazon OpenSearch Managed cluster.
 
 To run VSB against a Amazon OpenSearch collections:
 
@@ -15,6 +15,7 @@ To run VSB against a Amazon OpenSearch collections:
 vsb --database=opensearch --workload=mnist-test \
     --opensearch_host=<YOUR_OPENSEARCH_HOST> \
     --opensearch_region=<YOUR_OPENSEARCH_REGION> \
+    --opensearch_service=<YOUR_OPENSEARCH_SERVICE> \
     --aws_access_key=<YOUR_AWS_ACCESS_KEY> \
     --aws_secret_key=<YOUR_AWS_SECRET_KEY> \
     --aws_session_token=<YOUR_AWS_SESSION_TOKEN>

@@ -88,7 +88,7 @@ class OpenSearchDB(DB):
     ):
         self.host = config["opensearch_host"]
         self.region = config["opensearch_region"]
-        self.service = "aoss"
+        self.service = config["opensearch_service"]
         self.access_key = config["aws_access_key"]
         self.secret_key = config["aws_secret_key"]
         self.token = config["aws_session_token"]
