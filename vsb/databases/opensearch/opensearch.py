@@ -8,7 +8,7 @@ from vsb import logger
 from ..base import DB, Namespace
 from ...vsb_types import Record, SearchRequest, DistanceMetric, RecordList
 
-from opensearchpy import OpenSearch, RequestsHttpConnection
+from opensearchpy import OpenSearch, RequestsHttpConnection, helpers
 from requests_aws4auth import AWS4Auth
 from tenacity import retry, stop_after_attempt, wait_exponential_jitter, after_log
 import numpy as np
@@ -16,57 +16,45 @@ import numpy as np
 
 class OpenSearchNamespace(Namespace):
     def __init__(
-        self, client: OpenSearch, index_name: str, dimensions: int, namespace: str
+        self, client: OpenSearch, service: str, index_name: str, dimensions: int, namespace: str
     ):
         self.client = client
+        self.service = service
         self.index_name = index_name
         self.dimensions = dimensions
         self.namespace = namespace
 
     def insert_batch(self, batch: RecordList):
-        actions = []
-        action = {"index": {"_index": self.index_name}}
-        for rec in batch:
-            vector_document = {"vsb_vec_id": rec.id, "v_content": np.array(rec.values)}
-            actions.append(action)
-            actions.append(vector_document)
+        data = self.bulk_upload_body(batch)
         @retry(
             wait=wait_exponential_jitter(initial=0.1, jitter=0.1),
             stop=stop_after_attempt(5),
             after=after_log(logger, logging.DEBUG),
         )
         def do_insert_with_retry():
-            return self.client.bulk(body=actions,request_timeout=900)
+            return helpers.bulk(self.client, data)
         
         upload_response = do_insert_with_retry()
-        if upload_response["errors"]:
-            logger.debug(f"OpenSearchDB: Error inserting batch: {upload_response['errors']}")
+        #logger.debug(f"OpenSearchDB: response from bulk helper upload: {upload_response}")
 
     def update_batch(self, batch: list[Record]):
         self.insert_batch(batch)
 
     def search(self, request: SearchRequest) -> list[str]:
+        query = self.search_query_body(request)
         @retry(
             wait=wait_exponential_jitter(initial=0.1, jitter=0.1),
             stop=stop_after_attempt(5),
             after=after_log(logger, logging.DEBUG),
         )
         def do_query_with_retry():
-            query = {
-                "size": request.top_k,
-                "fields": ["vsb_vec_id"],
-                "_source": False,
-                "query": {
-                    "knn": {
-                        "v_content": {"vector": request.values, "k": self.dimensions}
-                    }
-                },
-            }
             return self.client.search(body=query, index=self.index_name)
 
         response = do_query_with_retry()
         # sending the VSB Id's of the top k results
-        return [m["fields"]["vsb_vec_id"][0] for m in response["hits"]["hits"]]
+        ids = self.search_response_to_record_list(response)
+        #logger.debug(f"OpenSearchDB: response IDs from search: {ids}")
+        return ids
 
     def fetch_batch(self, request: list[str]) -> list[Record]:
         # Fetching records not directly supported; requires implementation of metadata storage
@@ -75,6 +63,59 @@ class OpenSearchNamespace(Namespace):
     def delete_batch(self, request: list[str]):
         # deleting the records not directly supported; requires implementation of delete by vsb_vec_id in the metadata
         raise NotImplementedError("delete_batch not supported for OpenSearch")
+    
+    def bulk_upload_body(self, batch: RecordList) -> list[dict]:
+        match self.service:
+            case "aoss":
+                data = []
+                for rec in batch:
+                    data.append({"_index": self.index_name, "vsb_vec_id": rec.id, "v_content": np.array(rec.values)})                 
+            case "es":
+                data = []
+                for rec in batch:
+                    data.append({"_index": self.index_name, "_id": rec.id, "v_content": np.array(rec.values)})
+            case _:
+                raise ValueError(f"Invalid service: {self.service}")
+        return data
+    
+    def search_query_body(self, request: SearchRequest) -> dict:
+        match self.service:
+            case "aoss":
+                query = {
+                    "size": request.top_k,
+                    "fields": ["vsb_vec_id"],
+                    "_source": False,
+                    "query": {
+                        "knn": {
+                            "v_content": {"vector": request.values, "k": self.dimensions}
+                        }
+                    },
+                }
+            case "es":
+                query = {
+                    "size": request.top_k,
+                    "_source": False,
+                    "query": {
+                        "knn": {
+                            "v_content": {"vector": request.values, "k": self.dimensions}
+                        }
+                    },
+                }
+            case _:
+                raise ValueError(f"Invalid service: {self.service}")
+        return query
+            
+    def search_response_to_record_list(self, response: dict) -> list[Record]:
+        ids = []
+        match self.service:
+            case "aoss":
+                ids = [m["fields"]["vsb_vec_id"][0] for m in response["hits"]["hits"]]
+            case "es":
+                ids = [m["_id"] for m in response["hits"]["hits"]]
+            case _:
+                raise ValueError(f"Invalid service: {self.service}")
+        return ids
+    
 
 
 class OpenSearchDB(DB):
@@ -124,18 +165,8 @@ class OpenSearchDB(DB):
 
     def create_index(self):
         # Create the index
-        index_body = {
-            "settings": {"index.knn": True},
-            "mappings": {
-                "properties": {
-                    "vsb_vec_id": {
-                        "type": "text",
-                        "fields": {"keyword": {"type": "keyword"}},
-                    },
-                    "v_content": {"type": "knn_vector", "dimension": self.dimensions, "method": {"name": "hnsw", "space_type": OpenSearchDB._get_distance_func(self.metric), "engine": OpenSearchDB._get_engine_func(self.metric)}},
-                }
-            },
-        }
+        index_body = self.create_index_body()
+
         if not self.client.indices.exists(self.index_name):
             logger.info(
                 f"OpenSearchDB: Specified index '{self.index_name}' was not found, or the "
@@ -177,7 +208,7 @@ class OpenSearchDB(DB):
 
     def get_namespace(self, namespace: str) -> Namespace:
         return OpenSearchNamespace(
-            self.client, self.index_name, self.dimensions, namespace
+            self.client, self.service, self.index_name, self.dimensions, namespace
         )
 
     def initialize_population(self):
@@ -230,6 +261,28 @@ class OpenSearchDB(DB):
 
     def get_record_count(self) -> int:
         return self.client.count(index=self.index_name)["count"]
+    
+    def create_index_body(self) -> dict:
+        match self.service:
+            case "aoss":
+                index_body = {
+                    "settings": {"index.knn": True},
+                    "mappings": {"properties": {
+                        "v_content": {"type": "knn_vector", "dimension": self.dimensions, "method": {"name": "hnsw", "space_type": OpenSearchDB._get_distance_func(self.metric), "engine": OpenSearchDB._get_engine_func(self.metric)}},
+                        "vsb_vec_id": {"type": "text", "fields": {"keyword": {"type": "keyword"}},},
+                    },
+                },
+            }
+            case "es":
+                index_body = {
+                    "settings": {"index.knn": True},
+                    "mappings": {"properties": {"v_content": {"type": "knn_vector", "dimension": self.dimensions, "method": {"name": "hnsw", "space_type": OpenSearchDB._get_distance_func(self.metric), "engine": OpenSearchDB._get_engine_func(self.metric)}},
+                    }
+                },
+                }
+            case _:
+                raise ValueError(f"Invalid service: {self.service}")
+        return index_body
 
     @staticmethod
     def _get_distance_func(metric: DistanceMetric) -> str:
