@@ -41,7 +41,9 @@ class OpenSearchNamespace(Namespace):
         self.insert_batch(batch)
 
     def search(self, request: SearchRequest) -> list[str]:
+        logger.debug(f"OpenSearchDB: Search request format : {request}")
         query = self.search_query_body(request)
+        logger.debug(f"OpenSearchDB: Query request format : {query}")
         @retry(
             wait=wait_exponential_jitter(initial=0.1, jitter=0.1),
             stop=stop_after_attempt(5),
@@ -51,6 +53,7 @@ class OpenSearchNamespace(Namespace):
             return self.client.search(body=query, index=self.index_name)
 
         response = do_query_with_retry()
+        logger.debug(f"OpenSearchDB: Query response format : {response}")
         # sending the VSB Id's of the top k results
         ids = self.search_response_to_record_list(response)
         #logger.debug(f"OpenSearchDB: response IDs from search: {ids}")
@@ -73,7 +76,7 @@ class OpenSearchNamespace(Namespace):
             case "es":
                 data = []
                 for rec in batch:
-                    data.append({"_index": self.index_name, "_id": rec.id, "v_content": np.array(rec.values)})
+                    data.append({"_index": self.index_name, "_id": rec.id, "tags": rec.metadata['tags'], "v_content": np.array(rec.values)})
             case _:
                 raise ValueError(f"Invalid service: {self.service}")
         return data
@@ -94,16 +97,34 @@ class OpenSearchNamespace(Namespace):
             case "es":
                 query = {
                     "size": request.top_k,
+                    "fields": ["tags"],
                     "_source": False,
                     "query": {
                         "knn": {
-                            "v_content": {"vector": request.values, "k": self.dimensions}
+                            "v_content": {
+                                "vector": request.values, 
+                                "k": self.dimensions,
+                                "filter": self.filter_expression(request.filter)
+                                }
                         }
                     },
                 }
             case _:
                 raise ValueError(f"Invalid service: {self.service}")
         return query
+    
+    def filter_expression(self, filter: dict) -> dict:
+        if "$and" in filter:
+            tags_list = filter["$and"]
+            query_condition = []
+            for tag in tags_list:
+                query_condition.append({
+                    "term": {
+                        "tags": tag['tags']
+                    }
+                })
+            return {"bool": {"must": query_condition}}
+        return {"bool": {"must": {"term": {"tags": filter['tags']}}}}
             
     def search_response_to_record_list(self, response: dict) -> list[Record]:
         ids = []
@@ -277,6 +298,7 @@ class OpenSearchDB(DB):
                 index_body = {
                     "settings": {"index.knn": True},
                     "mappings": {"properties": {"v_content": {"type": "knn_vector", "dimension": self.dimensions, "method": {"name": "hnsw", "space_type": OpenSearchDB._get_distance_func(self.metric), "engine": OpenSearchDB._get_engine_func(self.metric)}},
+                                                "tags": {"type":"text","fields":{"keyword":{"type":"keyword","ignore_above":256}}},
                     }
                 },
                 }

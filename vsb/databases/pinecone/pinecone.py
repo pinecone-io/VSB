@@ -28,6 +28,7 @@ class PineconeNamespace(Namespace):
 
     def insert_batch(self, batch: RecordList):
         # Pinecone expects a list of dicts (or tuples).
+        logger.debug(f"PineconeDB: Load Record format {batch}")
         dicts = [dict(rec) for rec in batch]
         self.index.upsert(dicts)
 
@@ -36,6 +37,8 @@ class PineconeNamespace(Namespace):
         self.insert_batch(batch)
 
     def search(self, request: SearchRequest) -> list[str]:
+        logger.debug(f"PineconeDB: Search Request format {request}")
+        logger.debug(f"PineconeDB: Filter request format {request.filter}")
         @retry(
             wait=wait_exponential_jitter(initial=0.1, jitter=0.1),
             stop=stop_after_attempt(5),
