@@ -72,7 +72,7 @@ class OpenSearchNamespace(Namespace):
             case "aoss":
                 data = []
                 for rec in batch:
-                    data.append({"_index": self.index_name, "vsb_vec_id": rec.id, "v_content": np.array(rec.values)})                 
+                    data.append({"_index": self.index_name, "vsb_vec_id": rec.id, "tags": rec.metadata['tags'], "v_content": np.array(rec.values)})                 
             case "es":
                 data = []
                 for rec in batch:
@@ -86,11 +86,14 @@ class OpenSearchNamespace(Namespace):
             case "aoss":
                 query = {
                     "size": request.top_k,
-                    "fields": ["vsb_vec_id"],
+                    "fields": ["vsb_vec_id", "tags"],
                     "_source": False,
                     "query": {
                         "knn": {
-                            "v_content": {"vector": request.values, "k": self.dimensions}
+                            "v_content": {
+                                "vector": request.values, 
+                                "k": self.dimensions, 
+                                "filter": self.filter_expression(request.filter)}
                         }
                     },
                 }
@@ -291,6 +294,7 @@ class OpenSearchDB(DB):
                     "mappings": {"properties": {
                         "v_content": {"type": "knn_vector", "dimension": self.dimensions, "method": {"name": "hnsw", "space_type": OpenSearchDB._get_distance_func(self.metric), "engine": OpenSearchDB._get_engine_func(self.metric)}},
                         "vsb_vec_id": {"type": "text", "fields": {"keyword": {"type": "keyword"}},},
+                        "tags": {"type":"text","fields":{"keyword":{"type":"keyword","ignore_above":256}}},
                     },
                 },
             }
