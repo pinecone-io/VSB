@@ -269,10 +269,18 @@ class RunUser(User):
 
     def do_run(self):
         if not self.query_iter:
+            # First call to do_run, setup user.
             batch_size = self.database.get_batch_size(self.workload.get_sample_record())
             self.query_iter = self.workload.get_query_iter(
                 self.users_total, self.user_id, batch_size
             )
+            # All users are spawned at the ~same time and hence do_run() will
+            # initially be coordinated across all users. We do not want the
+            # requests from every user to hit the DB at the same time, so
+            # we introduce a random delay to spread out the start time of
+            # each user.
+            gevent.sleep(1.0 / self.target_throughput)
+
 
         tenant: str = None
         request: QueryRequest = None
