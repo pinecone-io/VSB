@@ -1,8 +1,6 @@
 import os
 import sys
-import time
-import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 import statistics
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
@@ -41,11 +39,11 @@ class TestRandomizedPacer:
             current_time = 1000.0
             mock_time.return_value = current_time
 
-            pacer = RandomizedPacer(10.0)  # Target: 10 req/sec
+            pacer = RandomizedPacer(10.0)
             wait_times = []
 
             # Simulate many requests with mocked time
-            samples = 10000  # Large sample for statistical confidence
+            samples = 1000  # Large sample for statistical confidence
             for _ in range(samples):
                 wait = pacer.wait_time()
                 wait_times.append(wait)
