@@ -15,6 +15,7 @@ import vsb.logging
 from vsb import metrics, metrics_tracker
 from vsb.databases import DB
 import vsb.metrics_tracker
+from vsb.randomized_pacer import RandomizedPacer
 from vsb.vsb_types import (
     RecordList,
     SearchRequest,
@@ -243,9 +244,10 @@ class RunUser(User):
         self.workload = environment.workload_sequence[iteration]
         self.state = RunUser.State.Active
         opts = environment.parsed_options
-        self.target_throughput = opts.requests_per_sec / float(opts.num_users)
+        target_throughput = opts.requests_per_sec / float(opts.num_users)
+        self.pacer = RandomizedPacer(target_throughput)
         logger.debug(
-            f"Initialising RunUser id:{self.user_id}, target request/sec:{self.target_throughput}"
+            f"Initialising RunUser id:{self.user_id}, target request/sec:{target_throughput}"
         )
         self.query_iter = None
 
@@ -263,23 +265,14 @@ class RunUser(User):
         """Method called by locust to control how long this task should wait between
         executions.
         """
-        if self.target_throughput > 0:
-            return constant_throughput(self.target_throughput)(self)
-        return 0
+        return self.pacer.wait_time()
 
     def do_run(self):
         if not self.query_iter:
-            # First call to do_run, setup user.
             batch_size = self.database.get_batch_size(self.workload.get_sample_record())
             self.query_iter = self.workload.get_query_iter(
                 self.users_total, self.user_id, batch_size
             )
-            # All users are spawned at the ~same time and hence do_run() will
-            # initially be coordinated across all users. We do not want the
-            # requests from every user to hit the DB at the same time, so
-            # we introduce a random delay to spread out the start time of
-            # each user.
-            gevent.sleep(1.0 / self.target_throughput)
 
         tenant: str = None
         request: QueryRequest = None
