@@ -281,7 +281,6 @@ class RunUser(User):
             # each user.
             gevent.sleep(1.0 / self.target_throughput)
 
-
         tenant: str = None
         request: QueryRequest = None
         try:
