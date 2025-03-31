@@ -10,3 +10,4 @@ jobs:
       - uses: psf/black@stable
         with:
           src: "./vsb"
+          use_pyproject: true
