@@ -39,8 +39,9 @@ class RandomizedPacer:
         wait = self.next_expected_time - now
 
         # Introduce randomization: instead of waiting the full time,
-        # we'll wait a random amount 0.5x and 1.5x wait - i.e. on average
-        # we wait for `wait` seconds, thus maintaining the target rate over time.
+        # we'll wait a random amount between 0.5x - 1.5x of wait - i.e. on
+        # average we wait for `wait` seconds, thus maintaining the target rate
+        # over time.
         # (0.5x - 1.5x is chosen instead of say 0 - 2.0x to reduce the variance
         # in the request rate, particulary for small test durations / number of
         # users - this should still be sufficiently uncorrelated for typical
