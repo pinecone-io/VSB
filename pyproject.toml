@@ -37,6 +37,13 @@ pytest = "^8.3.3"
 flake8 = "^7.2.0"
 pre-commit = "^4.2.0"
 pytest-benchmark = "^5.1.0"
+pytest-timeout = "^2.1.0"
+
+[tool.pytest.ini_options]
+# Maximum observed test runtime in CI is ~60s. Set a per-test timeout of
+# 2x (120s) to catch any stuck tests, but give some headroom in case any tests
+# slow down a bit.
+timeout = 300
 
 [build-system]
 requires = ["poetry-core"]
