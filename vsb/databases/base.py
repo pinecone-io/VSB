@@ -54,6 +54,10 @@ class DB(ABC):
     ) -> None:
         raise NotImplementedError
 
+    def close(sel):
+        """Performs any cleanup of the database at the end of the test run."""
+        pass
+
     @abstractmethod
     def get_batch_size(self, sample_record: Record) -> int:
         """Return the preferred batch size for a workload consisting of
