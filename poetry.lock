@@ -235,7 +235,7 @@ description = "Foreign Function Interface for Python calling C code."
 optional = false
 python-versions = ">=3.8"
 groups = ["main"]
-markers = "(platform_python_implementation == \"CPython\" or implementation_name == \"pypy\") and (sys_platform == \"win32\" or implementation_name == \"pypy\")"
+markers = "platform_python_implementation == \"CPython\" and sys_platform == \"win32\" or implementation_name == \"pypy\""
 files = [
     {file = "cffi-1.17.1-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:df8b1c11f177bc2313ec4b2d46baec87a5f3e71fc8b45dab2ee7cae86d9aba14"},
     {file = "cffi-1.17.1-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:8f2cdc858323644ab277e9bb925ad72ae0e67f69e804f4898c070998d50b1a67"},
@@ -1221,24 +1221,24 @@ i18n = ["Babel (>=2.7)"]
 
 [[package]]
 name = "locust"
-version = "2.32.8"
+version = "2.34.0"
 description = "Developer-friendly load testing framework"
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "locust-2.32.8-py3-none-any.whl", hash = "sha256:782ccc25e576c4af328ca40a12803b556f6ccc3ad3b073b8074e47b52049ae4b"},
-    {file = "locust-2.32.8.tar.gz", hash = "sha256:45904026bbe26471876e3f39ecab5403512491638d3974ed159b83e32e2c0f92"},
+    {file = "locust-2.34.0-py3-none-any.whl", hash = "sha256:9e9af1bab52ded67a9f0fac2ac039be18084f7e7473e3f95d04781391db854b8"},
+    {file = "locust-2.34.0.tar.gz", hash = "sha256:8761a60b1ee7af0606fb0d5ce4cbee7c8c1d2dcc1cb17215c8c994799c5f1ac6"},
 ]
 
 [package.dependencies]
-ConfigArgParse = ">=1.5.5"
+configargparse = ">=1.5.5"
 flask = ">=2.0.0"
-Flask-Cors = ">=3.0.10"
-Flask-Login = ">=0.6.3"
+flask-cors = ">=3.0.10"
+flask-login = ">=0.6.3"
 gevent = [
-    {version = ">=22.10.2", markers = "python_full_version <= \"3.12.0\""},
-    {version = ">=24.10.1", markers = "python_full_version > \"3.13.0\""},
+    {version = ">=22.10.2", markers = "python_version <= \"3.12\""},
+    {version = ">=24.10.1", markers = "python_version > \"3.13\""},
 ]
 geventhttpclient = ">=2.3.1"
 msgpack = ">=1.0.0"
@@ -1246,11 +1246,11 @@ psutil = ">=5.9.1"
 pywin32 = {version = "*", markers = "sys_platform == \"win32\""}
 pyzmq = ">=25.0.0"
 requests = [
-    {version = ">=2.26.0", markers = "python_full_version <= \"3.11.0\""},
-    {version = ">=2.32.2", markers = "python_full_version > \"3.11.0\""},
+    {version = ">=2.26.0", markers = "python_version <= \"3.11\""},
+    {version = ">=2.32.2", markers = "python_version > \"3.11\""},
 ]
 setuptools = ">=70.0.0"
-Werkzeug = ">=2.0.0"
+werkzeug = ">=2.0.0"
 
 [[package]]
 name = "locust-plugins"
@@ -2086,7 +2086,7 @@ description = "C parser in Python"
 optional = false
 python-versions = ">=3.8"
 groups = ["main"]
-markers = "(platform_python_implementation == \"CPython\" or implementation_name == \"pypy\") and (sys_platform == \"win32\" or implementation_name == \"pypy\")"
+markers = "platform_python_implementation == \"CPython\" and sys_platform == \"win32\" or implementation_name == \"pypy\""
 files = [
     {file = "pycparser-2.22-py3-none-any.whl", hash = "sha256:c3702b6d3dd8c7abc1afa565d7e63d53a1d0bd86cdc24edd75470f4de499cfcc"},
     {file = "pycparser-2.22.tar.gz", hash = "sha256:491c8be9c040f5390f5bf44a5b07752bd07f56edf992381b05c701439eec10f6"},
@@ -2851,4 +2851,4 @@ testing = ["coverage[toml]", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "7434eeca144443ecd7f1d1c25bddaa12a80f3afd3dcce7b46f08247e4d6ddbfc"
+content-hash = "fa0781c18b6bb73c672343429b2e2131a2b94d4e79a045a9eabd01351093160c"
