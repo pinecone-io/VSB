@@ -54,7 +54,10 @@ jobs:
         docker compose -f docker/pgvector/docker-compose.yml up -d
     - name: Test with pytest
       run: |
-        poetry run pytest --color=yes --durations=10 --verbose
+        # Maximum observed test runtime in CI is ~60s. Set a per-test timeout of
+        # 2x (120s) to catch any stuck tests, but give some headroom in case any tests
+        # slow down a bit.
+        poetry run pytest --color=yes --durations=10 --timeout=120 --verbose
       env:
         ENVIRONMENT: ${{ matrix.environment == 'pod' && 'us-east4-gcp' || '' }}
         SERVERLESS_REGION: us-west-2
