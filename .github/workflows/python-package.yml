@@ -54,7 +54,7 @@ jobs:
         docker compose -f docker/pgvector/docker-compose.yml up -d
     - name: Test with pytest
       run: |
-        poetry run pytest --durations=10
+        poetry run pytest --durations=10 --verbose
       env:
         ENVIRONMENT: ${{ matrix.environment == 'pod' && 'us-east4-gcp' || '' }}
         SERVERLESS_REGION: us-west-2
