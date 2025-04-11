@@ -118,6 +118,9 @@ def spawn_vsb_inner(
     if extra_args is None:
         extra_args = []
     env = os.environ.copy()
+    # Unset TERM to avoid issues with log wrapping at narrow sizes and
+    # parse_stats_to_json() failing to parse the stats.json path.
+    env.pop("TERM", None)
     if extra_env:
         env.update(extra_env)
     args = [
