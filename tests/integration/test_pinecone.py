@@ -36,7 +36,7 @@ def _create_pinecone_index(dims: int, metric: str) -> str:
                 "region": read_env_var("SERVERLESS_REGION"),
             }
         }
-    pc.create_index(index_name, dims, spec, metric)
+    pc.create_index(index_name, dimension=dims, spec=spec, metric=metric)
     return index_name
 
 
