@@ -127,7 +127,6 @@ class OpenSearchDB(DB):
         name: str,
         config: dict,
     ):
-        self.host = config["opensearch_host"]
         self.region = config["opensearch_region"]
         self.service = config["opensearch_service"]
         self.access_key = config["aws_access_key"]
@@ -141,18 +140,37 @@ class OpenSearchDB(DB):
         self.metric = metric
 
         # Create the OpenSearch client
-        awsauth = AWS4Auth(
-            self.access_key,
-            self.secret_key,
-            self.region,
-            self.service,
-            session_token=self.token,
-        )
+        if self.access_key and self.secret_key and self.region and self.service and self.token:
+            logger.info(
+                f"OpenSearchDB: Using AWS credentials for OpenSearch client, region: {self.region}, service: {self.service}"
+            )
+            auth = AWS4Auth(
+                self.access_key,
+                self.secret_key,
+                self.region,
+                self.service,
+                session_token=self.token,
+            )
+        elif config["opensearch_username"] and config["opensearch_password"]:
+            logger.info(
+                "OpenSearchDB: Using username / password credentials for OpenSearch client"
+            )
+            auth = (config["opensearch_username"], config["opensearch_password"])
+        else:
+            logger.critical(
+                "OpenSearchDB: No AWS credentials or username/password provided for "
+                "OpenSearch client. Please specify either AWS credentials or username & password."
+            )
+            raise StopUser()
+
+        use_tls = config["opensearch_use_tls"]
+
         self.client = OpenSearch(
-            hosts=[{"host": self.host, "port": 443}],
-            http_auth=awsauth,
+            hosts=[{"host": config["opensearch_host"],
+                    "port": config["opensearch_port"]}],
+            http_auth=auth,
             timeout=900,
-            use_ssl=True,
+            use_ssl=use_tls,
             verify_certs=True,
             connection_class=RequestsHttpConnection,
         )
@@ -176,9 +194,6 @@ class OpenSearchDB(DB):
             self.created_index = True
             time.sleep(30)
         else:
-            logger.info(
-                f"OpenSearchDB: Index '{self.index_name}' already exists. Skipping index creation."
-            )
             self.created_index = False
 
     def get_batch_size(self, sample_record: Record) -> int:
@@ -214,8 +229,7 @@ class OpenSearchDB(DB):
     def initialize_population(self):
         if self.skip_populate:
             return
-        if not self.client.indices.exists(self.index_name):
-            self.create_index()
+        self.create_index()
         if not self.created_index and not self.overwrite:
             msg = (
                 f"OpenSearchDB: Index '{self.index_name}' already exists - cowardly "

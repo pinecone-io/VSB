@@ -1,0 +1,22 @@
+services:
+  opensearch:
+    image: opensearchproject/opensearch:3
+    container_name: vsb_opensearch
+    environment:
+      discovery.type: single-node
+      # Necessary to be able to use non-TLS (for simplifying local testing)
+      DISABLE_SECURITY_PLUGIN: true
+    deploy:
+      resources:
+        # By default, limit to 8GB RAM & 2 CPU cores - reasonable values which
+        # should be sufficient for a range of workloads and typical commodity
+        # hardware can support.
+        # Adjust as needed for larger workloads.
+        limits:
+          memory: 8GB
+          cpus: '2'
+    shm_size: 8GB # Equal to limits.memory.
+    ports:
+      - "9200:9200"
+      - "9600:9600"
+    restart: always

@@ -304,6 +304,13 @@ def add_vsb_cmdline_args(
         env_var="VSB__OPENSEARCH_HOST",
     )
     opensearch_group.add_argument(
+        "--opensearch_port",
+        type=int,
+        default=9200,
+        help="opensearch port to connect to the OpenSearch Collection. Default is %(default)s.",
+        env_var="VSB__OPENSEARCH_PORT",
+    )
+    opensearch_group.add_argument(
         "--opensearch_region",
         type=str,
         default="us-east-1",
@@ -337,6 +344,28 @@ def add_vsb_cmdline_args(
         default=None,
         help="AWS session token to connect to the OpenSearch Collection. Default is %(default)s.",
         env_var="VSB__AWS_SESSION_TOKEN",
+    )
+    opensearch_group.add_argument(
+        "--opensearch_username",
+        type=str,
+        default=None,
+        help="Opensearch username to use. If specified then must also specify "
+             "--opensearch_password. Default is %(default)s.",
+        env_var="VSB__OPENSEARCH_USERNAME",
+    )
+    opensearch_group.add_argument(
+        "--opensearch_password",
+        type=str,
+        default=None,
+        help="Opensearch password to use. If specified then must also specify "
+             "--opensearch_username. Default is %(default)s.",
+        env_var="VSB__OPENSEARCH_PASSWORD",
+    )
+    opensearch_group.add_argument(
+        "--opensearch_use_tls",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Should Opensearch use SSL / TLS to connect to the server. Default is %(default)s.",
     )
 
     pgvector_group = parser.add_argument_group("Options specific to pgvector database")
