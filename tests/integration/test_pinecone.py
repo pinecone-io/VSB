@@ -94,9 +94,7 @@ def spawn_vsb(
 def spawn_vsb_pinecone(
     workload,
     pinecone_api_key,
-    pinecone_index_mnist,
-    pinecone_index_yfcc,
-    pinecone_index_synthetic,
+    pinecone_index,
     timeout=60,
     extra_args=None,
     **kwargs,
@@ -104,16 +102,7 @@ def spawn_vsb_pinecone(
     """Spawn an instance of pinecone vsb with the given arguments, returning the proc object,
     its stdout and stderr.
     """
-    args = []
-    match workload:
-        case "mnist-test" | "mnist-double-test":
-            args += ["--pinecone_index_name", pinecone_index_mnist]
-        case "yfcc-test":
-            args += ["--pinecone_index_name", pinecone_index_yfcc]
-        case "synthetic" | "synthetic-runbook" | "synthetic-proportional":
-            args += ["--pinecone_index_name", pinecone_index_synthetic]
-        case _:
-            raise ValueError(f"Specify an index name fixture for: {workload}")
+    args = ["--pinecone_index_name", pinecone_index]
     if extra_args:
         args += extra_args
     extra_env = {}

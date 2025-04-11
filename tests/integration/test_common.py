@@ -40,15 +40,11 @@ class TestCommon:
         spawn_vsb,
         pinecone_api_key,
         pinecone_index_mnist,
-        pinecone_index_yfcc,
-        pinecone_index_synthetic,
     ):
         # Test "-test" variant of mnist loads and runs successfully.
         (proc, stdout, stderr) = spawn_vsb(
             pinecone_api_key=pinecone_api_key,
-            pinecone_index_mnist=pinecone_index_mnist,
-            pinecone_index_yfcc=pinecone_index_yfcc,
-            pinecone_index_synthetic=pinecone_index_synthetic,
+            pinecone_index=pinecone_index_mnist,
             workload="mnist-test",
         )
         assert proc.returncode == 0
@@ -71,16 +67,12 @@ class TestCommon:
         spawn_vsb,
         pinecone_api_key,
         pinecone_index_mnist,
-        pinecone_index_yfcc,
-        pinecone_index_synthetic,
     ):
         # Test "-test" variant of mnist loads and runs successfully with
         # concurrent users
         (proc, stdout, stderr) = spawn_vsb(
             pinecone_api_key=pinecone_api_key,
-            pinecone_index_mnist=pinecone_index_mnist,
-            pinecone_index_yfcc=pinecone_index_yfcc,
-            pinecone_index_synthetic=pinecone_index_synthetic,
+            pinecone_index=pinecone_index_mnist,
             workload="mnist-test",
             extra_args=["--users=4"],
         )
@@ -107,16 +99,12 @@ class TestCommon:
         spawn_vsb,
         pinecone_api_key,
         pinecone_index_mnist,
-        pinecone_index_yfcc,
-        pinecone_index_synthetic,
     ):
         # Test "-test" variant of mnist loads and runs successfully with
         # concurrent processes and users.
         (proc, stdout, stderr) = spawn_vsb(
             pinecone_api_key=pinecone_api_key,
-            pinecone_index_mnist=pinecone_index_mnist,
-            pinecone_index_yfcc=pinecone_index_yfcc,
-            pinecone_index_synthetic=pinecone_index_synthetic,
+            pinecone_index=pinecone_index_mnist,
             workload="mnist-test",
             extra_args=["--processes=2", "--users=4"],
         )
@@ -145,15 +133,11 @@ class TestCommon:
         spawn_vsb,
         pinecone_api_key,
         pinecone_index_mnist,
-        pinecone_index_yfcc,
-        pinecone_index_synthetic,
     ):
         # Test "-double-test" variant (WorkloadSequence) of mnist loads and runs successfully.
         (proc, stdout, stderr) = spawn_vsb(
             pinecone_api_key=pinecone_api_key,
-            pinecone_index_mnist=pinecone_index_mnist,
-            pinecone_index_yfcc=pinecone_index_yfcc,
-            pinecone_index_synthetic=pinecone_index_synthetic,
+            pinecone_index=pinecone_index_mnist,
             workload="mnist-double-test",
         )
         assert proc.returncode == 0
@@ -183,16 +167,12 @@ class TestCommon:
         spawn_vsb,
         pinecone_api_key,
         pinecone_index_mnist,
-        pinecone_index_yfcc,
-        pinecone_index_synthetic,
     ):
         # Test "-double-test" variant (WorkloadSequence) of mnist loads and runs successfully with
         # concurrent users, and with a request rate limit set.
         (proc, stdout, stderr) = spawn_vsb(
             pinecone_api_key=pinecone_api_key,
-            pinecone_index_mnist=pinecone_index_mnist,
-            pinecone_index_yfcc=pinecone_index_yfcc,
-            pinecone_index_synthetic=pinecone_index_synthetic,
+            pinecone_index=pinecone_index_mnist,
             workload="mnist-double-test",
             extra_args=["--users=4", "--requests_per_sec=40"],
         )
@@ -227,16 +207,12 @@ class TestCommon:
         spawn_vsb,
         pinecone_api_key,
         pinecone_index_mnist,
-        pinecone_index_yfcc,
-        pinecone_index_synthetic,
     ):
         # Test "-double-test" variant (WorkloadSequence) of mnist loads and runs successfully with
         # concurrent processes and users.
         (proc, stdout, stderr) = spawn_vsb(
             pinecone_api_key=pinecone_api_key,
-            pinecone_index_mnist=pinecone_index_mnist,
-            pinecone_index_yfcc=pinecone_index_yfcc,
-            pinecone_index_synthetic=pinecone_index_synthetic,
+            pinecone_index=pinecone_index_mnist,
             workload="mnist-double-test",
             extra_args=["--processes=4", "--users=4"],
         )
@@ -271,8 +247,6 @@ class TestCommon:
         spawn_vsb,
         pinecone_api_key,
         pinecone_index_mnist,
-        pinecone_index_yfcc,
-        pinecone_index_synthetic,
     ):
         # Test that skip_populate doesn't re-populate data.
 
@@ -280,9 +254,7 @@ class TestCommon:
         # of that index type across tests.
         (proc, stdout, stderr) = spawn_vsb(
             pinecone_api_key=pinecone_api_key,
-            pinecone_index_mnist=pinecone_index_mnist,
-            pinecone_index_yfcc=pinecone_index_yfcc,
-            pinecone_index_synthetic=pinecone_index_synthetic,
+            pinecone_index=pinecone_index_mnist,
             workload="mnist-test",
             extra_args=["--pgvector_index_type=ivfflat"],
         )
@@ -299,9 +271,7 @@ class TestCommon:
         # Run again without population
         (proc, stdout, stderr) = spawn_vsb(
             pinecone_api_key=pinecone_api_key,
-            pinecone_index_mnist=pinecone_index_mnist,
-            pinecone_index_yfcc=pinecone_index_yfcc,
-            pinecone_index_synthetic=pinecone_index_synthetic,
+            pinecone_index=pinecone_index_mnist,
             workload="mnist-test",
             extra_args=["--pgvector_index_type=ivfflat", "--skip_populate"],
         )
@@ -322,16 +292,12 @@ class TestCommon:
         self,
         spawn_vsb,
         pinecone_api_key,
-        pinecone_index_mnist,
         pinecone_index_yfcc,
-        pinecone_index_synthetic,
     ):
         # Tests a workload with metadata and filtering (such as YFCC-test).
         (proc, stdout, stderr) = spawn_vsb(
             pinecone_api_key=pinecone_api_key,
-            pinecone_index_mnist=pinecone_index_mnist,
-            pinecone_index_yfcc=pinecone_index_yfcc,
-            pinecone_index_synthetic=pinecone_index_synthetic,
+            pinecone_index=pinecone_index_yfcc,
             workload="yfcc-test",
             extra_args=["--users=10"],
         )
@@ -356,15 +322,11 @@ class TestCommon:
         self,
         spawn_vsb,
         pinecone_api_key,
-        pinecone_index_mnist,
-        pinecone_index_yfcc,
         pinecone_index_synthetic,
     ):
         (proc, stdout, stderr) = spawn_vsb(
             pinecone_api_key=pinecone_api_key,
-            pinecone_index_mnist=pinecone_index_mnist,
-            pinecone_index_yfcc=pinecone_index_yfcc,
-            pinecone_index_synthetic=pinecone_index_synthetic,
+            pinecone_index=pinecone_index_synthetic,
             workload="synthetic",
             extra_args=["--users=10", "--processes=2"],
         )
@@ -386,15 +348,11 @@ class TestCommon:
         self,
         spawn_vsb,
         pinecone_api_key,
-        pinecone_index_mnist,
-        pinecone_index_yfcc,
         pinecone_index_synthetic,
     ):
         (proc, stdout, stderr) = spawn_vsb(
             pinecone_api_key=pinecone_api_key,
-            pinecone_index_mnist=pinecone_index_mnist,
-            pinecone_index_yfcc=pinecone_index_yfcc,
-            pinecone_index_synthetic=pinecone_index_synthetic,
+            pinecone_index=pinecone_index_synthetic,
             workload="synthetic-runbook",
             extra_args=[
                 "--users=2",
@@ -422,15 +380,11 @@ class TestCommon:
         self,
         spawn_vsb,
         pinecone_api_key,
-        pinecone_index_mnist,
-        pinecone_index_yfcc,
         pinecone_index_synthetic,
     ):
         (proc, stdout, stderr) = spawn_vsb(
             pinecone_api_key=pinecone_api_key,
-            pinecone_index_mnist=pinecone_index_mnist,
-            pinecone_index_yfcc=pinecone_index_yfcc,
-            pinecone_index_synthetic=pinecone_index_synthetic,
+            pinecone_index=pinecone_index_synthetic,
             workload="synthetic-proportional",
             extra_args=[
                 "--users=4",
