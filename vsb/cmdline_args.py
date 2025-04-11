@@ -350,7 +350,7 @@ def add_vsb_cmdline_args(
         type=str,
         default=None,
         help="Opensearch username to use. If specified then must also specify "
-             "--opensearch_password. Default is %(default)s.",
+        "--opensearch_password. Default is %(default)s.",
         env_var="VSB__OPENSEARCH_USERNAME",
     )
     opensearch_group.add_argument(
@@ -358,7 +358,7 @@ def add_vsb_cmdline_args(
         type=str,
         default=None,
         help="Opensearch password to use. If specified then must also specify "
-             "--opensearch_username. Default is %(default)s.",
+        "--opensearch_username. Default is %(default)s.",
         env_var="VSB__OPENSEARCH_PASSWORD",
     )
     opensearch_group.add_argument(
