@@ -1,9 +1,25 @@
 # Amazon OpenSearch
 
-This directory adds support running experiments against
+This directory adds support running experiments against Opensearch or 
 [Amazon OpenSearch](https://aws.amazon.com/opensearch-service/) - a managed vector database.
 
 It supports connecting to both Serverless collections and Managed cluster collections. Use `--opensearch_service` to specify the service type, 'aoss' for Amazon OpenSearch Serverless and 'es' for Amazon OpenSearch Managed cluster.
+
+To run VSB against a local Opensearch instance:
+
+1. Start a local Opensearch instance using Docker:
+```shell
+cd docker/opensearch
+docker-compose up -d
+```
+2. Invoke VSB with `--database=opensearch` and the default username and port to VSB. 
+   Note for the local Docker container, TLS is disabled:
+```shell
+vsb --database=opensearch --workload=mnist-test \
+    --no-opensearch_use_tls \ 
+    --opensearch_username=admin \
+    --opensearch_password=opensearch \
+```
 
 To run VSB against a Amazon OpenSearch collections:
 

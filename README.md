@@ -110,6 +110,7 @@ The following databases are currently supported by VSB:
 
 * [Pinecone](vsb/databases/pinecone/README.md)
 * [pgvector](vsb/databases/pgvector/README.md)
+* [OpenSearch](vsb/databases/opensearch/README.md)
 
 > [!TIP]
 > You can also display the list of supported databases using the following command: 
