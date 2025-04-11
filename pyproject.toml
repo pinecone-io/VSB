@@ -43,7 +43,7 @@ pytest-timeout = "^2.1.0"
 # Maximum observed test runtime in CI is ~60s. Set a per-test timeout of
 # 2x (120s) to catch any stuck tests, but give some headroom in case any tests
 # slow down a bit.
-timeout = 300
+timeout = 120
 
 [build-system]
 requires = ["poetry-core"]
