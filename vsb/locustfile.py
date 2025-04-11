@@ -98,9 +98,11 @@ def setup_listeners(environment, **_kwargs):
     if not isinstance(environment.runner, MasterRunner):
         environment.runner.register_message("spawn_setup", spawn_setup)
 
+
 @events.quitting.add_listener
 def shutdown_worker_database(environment, **_kwargs):
     environment.database.close()
+
 
 def setup_environment(environment, **_kwargs):
     env = environment
