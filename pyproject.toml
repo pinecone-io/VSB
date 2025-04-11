@@ -32,7 +32,7 @@ vsb = "vsb.main:main"
 
 [tool.poetry.group.dev.dependencies]
 # NOTE: When updating this version, also update `tool.black.required-version`.
-black = "^24.4.2"
+black = "=24.4.2"
 pytest = "^8.3.3"
 flake8 = "^7.2.0"
 pre-commit = "^4.2.0"
