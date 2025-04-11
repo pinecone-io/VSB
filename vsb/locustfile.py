@@ -14,6 +14,7 @@ from locust.exception import StopUser
 import vsb
 from vsb.cmdline_args import add_vsb_cmdline_args
 from vsb.databases import Database
+from vsb.metrics_tracker import print_metrics_on_quitting
 from vsb.workloads import (
     Workload,
     WorkloadSequence,
@@ -97,6 +98,12 @@ def setup_listeners(environment, **_kwargs):
     # to workers to start setup once it is ready.
     if not isinstance(environment.runner, MasterRunner):
         environment.runner.register_message("spawn_setup", spawn_setup)
+
+
+@events.quitting.add_listener
+def qutting_listener(environment, **_kwargs):
+    print_metrics_on_quitting(environment)
+    environment.database.close()
 
 
 def setup_environment(environment, **_kwargs):
