@@ -34,7 +34,7 @@ vsb = "vsb.main:main"
 # NOTE: When updating this version, also update `tool.black.required-version`.
 black = "^24.4.2"
 pytest = "^8.3.3"
-flake8 = "^7.1.1"
+flake8 = "^7.2.0"
 pre-commit = "^4.2.0"
 pytest-benchmark = "^5.1.0"
 
