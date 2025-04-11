@@ -180,6 +180,8 @@ class OpenSearchDB(DB):
             # None specified, default to "vsb-<workload>"
             self.index_name = f"vsb-{name}"
 
+    def close(self):
+        self.client.close()
 
     def create_index(self):
         # Create the index
