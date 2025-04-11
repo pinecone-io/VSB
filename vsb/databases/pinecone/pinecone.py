@@ -111,6 +111,10 @@ class PineconeDB(DB):
                 f"PineconeDB index '{self.index_name}' has incorrect metric - expected:{metric.value}, found:{index_metric}"
             )
 
+    def close(self):
+        print("Closing PineconeDB")
+        self.index.close()
+
     def get_batch_size(self, sample_record: Record) -> int:
         # Return the largest batch size possible, based on the following
         # constraints:
