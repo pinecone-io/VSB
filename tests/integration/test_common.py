@@ -26,9 +26,9 @@ from test_pinecone import (
     spawn_vsb_pinecone,
 )
 from test_pgvector import spawn_vsb_pgvector
+from test_opensearch import spawn_vsb_opensearch
 
-
-@pytest.mark.parametrize("spawn_vsb", [spawn_vsb_pgvector, spawn_vsb_pinecone])
+@pytest.mark.parametrize("spawn_vsb", [spawn_vsb_pgvector, spawn_vsb_pinecone, spawn_vsb_opensearch])
 class TestCommon:
 
     # Unfortunately pytest won't let us selectively parametrize with fixtures, so
