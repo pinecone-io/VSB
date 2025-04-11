@@ -112,7 +112,6 @@ class PineconeDB(DB):
             )
 
     def close(self):
-        print("Closing PineconeDB")
         self.index.close()
 
     def get_batch_size(self, sample_record: Record) -> int:
