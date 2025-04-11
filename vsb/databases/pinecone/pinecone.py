@@ -1,11 +1,10 @@
 import logging
 
 from locust.exception import StopUser
-from pinecone.core.openapi.shared.exceptions import UnauthorizedException
 
 import vsb
 from vsb import logger
-from pinecone import PineconeException, NotFoundException
+from pinecone import PineconeException, NotFoundException, UnauthorizedException
 from pinecone.grpc import PineconeGRPC, GRPCIndex
 from tenacity import retry, stop_after_attempt, wait_exponential_jitter, after_log
 import grpc.experimental.gevent as grpc_gevent
