@@ -180,6 +180,9 @@ class PgvectorDB(DB):
         maintenance_work_mem = config.get("pgvector_maintenance_work_mem")
         self.conn.execute(f"SET maintenance_work_mem = '{maintenance_work_mem}'")
 
+    def close(self):
+        self.conn.close()
+
     def get_batch_size(self, sample_record: Record) -> int:
         # Initially use a fixed batch size of 1000; this seems to be
         # a reasonable trade-off between network / protocol overhead

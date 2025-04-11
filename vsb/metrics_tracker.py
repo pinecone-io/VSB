@@ -281,7 +281,6 @@ def get_metrics_stats_summary(stats: RequestStats) -> rich.table.Table:
     return table
 
 
-@events.quitting.add_listener
 def print_metrics_on_quitting(environment: locust.env.Environment):
     # Emit stats once on the master (if running in distributed mode) or
     # once on the LocalRunner (if running in single-process mode).
