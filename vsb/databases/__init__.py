@@ -7,6 +7,7 @@ class Database(Enum):
     specify via --database="""
 
     Pinecone = "pinecone"
+    OpenSearch = "opensearch"
     PGVector = "pgvector"
 
     def get_class(self) -> type[DB]:
@@ -16,6 +17,10 @@ class Database(Enum):
                 from .pinecone.pinecone import PineconeDB
 
                 return PineconeDB
+            case Database.OpenSearch:
+                from .opensearch.opensearch import OpenSearchDB
+
+                return OpenSearchDB
             case Database.PGVector:
                 from .pgvector.pgvector import PgvectorDB
 

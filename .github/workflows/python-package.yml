@@ -19,7 +19,7 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -52,6 +52,7 @@ jobs:
     - name: Set up Docker Compose
       run: |
         docker compose -f docker/pgvector/docker-compose.yml up -d
+        docker compose -f docker/opensearch/docker-compose.yml up -d
     - name: Test with pytest
       run: |
         # Maximum observed test runtime in CI is ~60s. Set a per-test timeout of
@@ -76,3 +77,4 @@ jobs:
       if: always()
       run: |
         docker compose -f docker/pgvector/docker-compose.yml down
+        docker compose -f docker/opensearch/docker-compose.yml down

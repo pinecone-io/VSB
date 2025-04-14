@@ -286,6 +286,89 @@ def add_vsb_cmdline_args(
         help="JSON spec of Pinecone index to create (if it does not exist). Default is %(default)s.",
     )
 
+    opensearch_group = parser.add_argument_group(
+        "Options specific to OpenSearch database"
+    )
+    opensearch_group.add_argument(
+        "--opensearch_index_name",
+        type=str,
+        default=None,
+        help="Name of OpenSearch index to connect to the OpenSearch Collection. One will be created if it does not exist. Default is vsb-<workload>.",
+        env_var="VSB__OPENSEARCH_INDEX_NAME",
+    )
+    opensearch_group.add_argument(
+        "--opensearch_host",
+        type=str,
+        default="localhost",
+        help="opensearch host to connect to the OpenSearch Collection. Default is %(default)s.",
+        env_var="VSB__OPENSEARCH_HOST",
+    )
+    opensearch_group.add_argument(
+        "--opensearch_port",
+        type=int,
+        default=9200,
+        help="opensearch port to connect to the OpenSearch Collection. Default is %(default)s.",
+        env_var="VSB__OPENSEARCH_PORT",
+    )
+    opensearch_group.add_argument(
+        "--opensearch_region",
+        type=str,
+        default="us-east-1",
+        help="opensearch region to connect to the OpenSearch Collection. Default is %(default)s.",
+        env_var="VSB__OPENSEARCH_REGION",
+    )
+    opensearch_group.add_argument(
+        "--opensearch_service",
+        type=str,
+        default="aoss",
+        help="opensearch service to connect. Default is %(default)s. which is for Amazon OpenSearch Serverless. For Amazon OpenSearch Managed cluster, use 'es'.",
+        env_var="VSB__OPENSEARCH_SERVICE",
+    )
+    opensearch_group.add_argument(
+        "--aws_access_key",
+        type=str,
+        default=None,
+        help="AWS access key to connect to the OpenSearch Collection. Default is %(default)s.",
+        env_var="VSB__AWS_ACCESS_KEY",
+    )
+    opensearch_group.add_argument(
+        "--aws_secret_key",
+        type=str,
+        default=None,
+        help="AWS secret access key to connect to the OpenSearch Collection. Default is %(default)s.",
+        env_var="VSB__AWS_SECRET_KEY",
+    )
+    opensearch_group.add_argument(
+        "--aws_session_token",
+        type=str,
+        default=None,
+        help="AWS session token to connect to the OpenSearch Collection. Default is %(default)s.",
+        env_var="VSB__AWS_SESSION_TOKEN",
+    )
+    opensearch_group.add_argument(
+        "--opensearch_username",
+        type=str,
+        default=None,
+        help="Opensearch username to use. If specified then must also specify "
+        "--opensearch_password. Default is %(default)s.",
+        env_var="VSB__OPENSEARCH_USERNAME",
+    )
+    opensearch_group.add_argument(
+        "--opensearch_password",
+        type=str,
+        default=None,
+        help="Opensearch password to use. If specified then must also specify "
+        "--opensearch_username. Default is %(default)s.",
+        env_var="VSB__OPENSEARCH_PASSWORD",
+    )
+    opensearch_group.add_argument(
+        "--opensearch_use_tls",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Should Opensearch use SSL / TLS to connect to the server. Default is %(default)s.",
+        env_var="VSB__OPENSEARCH_USE_TLS",
+    )
+
     pgvector_group = parser.add_argument_group("Options specific to pgvector database")
     pgvector_group.add_argument(
         "--pgvector_host",
@@ -399,6 +482,8 @@ def validate_parsed_args(
                     "The following arguments must be specified when --database is "
                     "'pinecone'" + formatter.format_help(),
                 )
+        case "opensearch":
+            pass
         case "pgvector":
             pass
         case _:
