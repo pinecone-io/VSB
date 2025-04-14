@@ -1,6 +1,6 @@
 services:
   opensearch:
-    image: opensearchproject/opensearch:3
+    image: opensearchproject/opensearch:2
     container_name: vsb_opensearch
     environment:
       discovery.type: single-node

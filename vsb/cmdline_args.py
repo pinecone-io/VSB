@@ -366,6 +366,7 @@ def add_vsb_cmdline_args(
         action=argparse.BooleanOptionalAction,
         default=True,
         help="Should Opensearch use SSL / TLS to connect to the server. Default is %(default)s.",
+        env_var="VSB__OPENSEARCH_USE_TLS",
     )
 
     pgvector_group = parser.add_argument_group("Options specific to pgvector database")
