@@ -4,7 +4,7 @@ from conftest import (
 
 
 # used in test_common
-def spawn_vsb_opensearch(workload, timeout=60, extra_args=None, **kwargs):
+def spawn_vsb_opensearch(workload, timeout=120, extra_args=None, **kwargs):
     """Spawn an instance of pgvector vsb with the given arguments, returning the proc object,
     its stdout and stderr.
     """

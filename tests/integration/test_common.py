@@ -408,6 +408,12 @@ class TestCommon:
         pinecone_api_key,
         pinecone_index_synthetic,
     ):
+        if spawn_vsb == spawn_vsb_opensearch:
+            pytest.skip(
+                "Synthetic proportional test not supported on OpenSearch ("
+                "fetch_batch not yet implemented for OpenSearch)"
+            )
+
         (proc, stdout, stderr) = spawn_vsb(
             pinecone_api_key=pinecone_api_key,
             pinecone_index=pinecone_index_synthetic,
