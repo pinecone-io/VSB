@@ -110,7 +110,6 @@ The following databases are currently supported by VSB:
 
 * [Pinecone](vsb/databases/pinecone/README.md)
 * [pgvector](vsb/databases/pgvector/README.md)
-* [OpenSearch](vsb/databases/opensearch/README.md)
 
 > [!TIP]
 > You can also display the list of supported databases using the following command: 
@@ -158,6 +157,7 @@ Common parameters include the following:
 * `--users=<int>`: Specify the number of concurrent users (connections) to simulate.
 * `--skip_populate`: Skip populating the database with data and immediately perform the Run 
   phase.
+* `--namespace_name`: Which namespace to write into (defaults to "")
 
 ## Use cases
 
@@ -174,28 +174,12 @@ range of vector databases. It can be used to perform a range of tasks, including
 ### Synthetic Workloads
 
 Sometimes the workload you want to model doesn't exist in any provided dataset, or you want
-to test a specific aspect of a database's performance. In these cases, you can use 
-a _synthetic_ workload to generate custom workloads with specific 
-characteristics.
-
-There are three modes of synthetic workloads, however the most common is the 
-`synthetic-proportional` workload: 
-
-* `synthetic-proportional` workloads populate the database with an initial set of 
-records, then run a series of assorted request operations (inserts, queries, deletes, updates) in proportion to the given ratios.
-
-* `synthetic` workloads generate a fixed number of records and queries with the given 
-distribution, then runs population and query phases in sequence.
-
-* `synthetic-runbook` workloads generate a fixed number of records and queries, and 
-splits them into a series of multiple 'populate -> run' steps. This is useful 
-  for testing how a database performs when data is loaded incrementally.
-
-Some important parameters for synthetic workloads include:
+to test a specific aspect of a database's performance. In these cases, you can use the `synthetic`, `synthetic-runbook`, 
+and `synthetic-proportional` workloads to generate custom workloads with specific characteristics. Some
+important parameters for synthetic workloads include:
 
 * `--synthetic_records`: The number of records to generate for the synthetic workload.
-* `--synthetic_requests`: The number of requests to generate for the run phase of 
-  the synthetic workload.
+* `--synthetic_requests`: The number of requests to generate for the synthetic workload.
 * `--synthetic_dimensions`: The dimensionality of generated vectors.
 * `--synthetic_query_distribution`: The distribution of query/fetch IDs for synthetic proportional workloads.
 * `--synthetic_record_ratio`: The distribution of record vectors in space for synthetic proportional workloads.
@@ -203,39 +187,34 @@ Some important parameters for synthetic workloads include:
 * `--synthetic_query_ratio`: The proportion of query operations for synthetic proportional workloads.
 * `--synthetic_metadata`: The metadata schema to use for each record.
 
-#### **Defining Synthetic Metadata**
+Metadata is specified by providing multiple `--synthetic_metadata` flags describing a metadata field
+with a key and supported value. Values can be `<# digits>n` for a random integer, `<# chars>s` for a
+random string, `<# chars>s<# strings>l` for a random list of strings, or `b` for a random boolean.
 
-Metadata can optionally be generated for each record in a synthetic workload. 
-Metadata is specified using one or more `--synthetic_metadata` flags. Each flag 
-defines a *metadata field* with a *name* and a *format specification*.
-
-##### **Supported Metadata Types**
-| Type | Format Spec            | Example |
-|------|------------------------|---------|
-| Random integer with `#` digits | `<# digits>n`          | `id:10n` → `{"id": 1234567890}` |
-| Random alphanumeric string of `#` characters | `<# chars>s`           | `username:8s` → `{"username": "aZb3Xy91"}` |
-| List of `<# items>` strings, each of length `<# chars>` | `<# chars>s<# items>l` | `tags:5s10l` → `{"tags": ["apple", "delta", "omega", ...]}` |
-| Random boolean (`true` or `false`) | `b`                    | `active:b` → `{"active": true}` |
-
-##### **Example Metadata Usage**
-- `--synthetic_metadata=id:10n` → Generates a numeric `id` with 10 random digits*
-- `--synthetic_metadata=tags:5s10l` → Generates a `tags` field containing a list of 10 random words, each 5 characters long.
-- `--synthetic_metadata=username:8s` → Generates a random username with 8 characters.
-- `--synthetic_metadata=active:b` → Generates an active/inactive flag as `true` or `false`.
+For example, `--synthetic_metadata=id:10n` generates a metadata field `id` with a random 10-digit integer.
+`--synthetic_metadata=tags:5s10l` generates a metadata field `tags` with a list of 10 ranodm strings, each 
+5 characters long. `--synthetic_metadata=active:b` generates a metadata field `active` with a random boolean.
 
 You can see the full list of parameters by running `vsb --help`.
 
+`synthetic` workloads generate a fixed number of records and queries with the given distribution, then
+runs population and query phases in sequence.
+
+`synthetic-runbook` workloads generate a fixed number of records and queries, and splits them into a series of 
+'populate -> run' steps. This is useful for testing how a database performs when data is loaded incrementally.
+
+`synthetic-proportional` workloads populate the database with an initial set of records, then run a series of
+assorted request operations (inserts, queries, deletes, updates) in proportion to the given ratios.
 
 **Example**
 
-The following command runs a synthetic workload against Pinecone, with 1,000 initial records,
-then performs 100 requests in a zipfian query distribution, made up of 30% inserts, 
-50% queries, 10% deletes, and 10% updates:
+The following command runs a synthetic workload against Pinecone, with 10,000 initial records,
+a zipfian query distribution, and 30% inserts, 50% queries, 10% deletes, and 10% updates:
 
 ```shell
 vsb --database=pinecone --pinecone_api_key=<API_KEY> \
     --workload=synthetic-proportional \
-    --synthetic_records=1000 --synthetic_requests=100 \
+    --synthetic_records=10000 --synthetic_queries=1000000 \
     --synthetic_insert_ratio=0.3 --synthetic_query_ratio=0.5 \
     --synthetic_delete_ratio=0.1 --synthetic_update_ratio=0.1 \
     --synthetic_dimensions=768 --synthetic_query_distribution=zipfian \
