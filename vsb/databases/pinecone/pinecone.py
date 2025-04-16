@@ -4,7 +4,7 @@ from locust.exception import StopUser
 
 import vsb
 from vsb import logger
-from pinecone import PineconeException, NotFoundException, UnauthorizedException
+from pinecone import PineconeException, NotFoundException
 from pinecone.grpc import PineconeGRPC, GRPCIndex
 from tenacity import retry, stop_after_attempt, wait_exponential_jitter, after_log
 import grpc.experimental.gevent as grpc_gevent
@@ -24,17 +24,18 @@ class PineconeNamespace(Namespace):
     def __init__(self, index: GRPCIndex, namespace: str):
         # TODO: Support multiple namespaces
         self.index = index
+        self.namespace = Namespace
 
-    def insert_batch(self, batch: RecordList):
+    def insert_batch(self, batch: RecordList,namespace):
         # Pinecone expects a list of dicts (or tuples).
         dicts = [dict(rec) for rec in batch]
-        self.index.upsert(dicts)
+        self.index.upsert(dicts,namespace=namespace)
 
-    def update_batch(self, batch: list[Record]):
+    def update_batch(self, batch: list[Record],namespace):
         # Pinecone treats insert and update as the same operation.
-        self.insert_batch(batch)
+        self.insert_batch(batch,namespace=namespace)
 
-    def search(self, request: SearchRequest) -> list[str]:
+    def search(self, request: SearchRequest,namespace) -> list[str]:
         @retry(
             wait=wait_exponential_jitter(initial=0.1, jitter=0.1),
             stop=stop_after_attempt(5),
@@ -42,18 +43,18 @@ class PineconeNamespace(Namespace):
         )
         def do_query_with_retry():
             return self.index.query(
-                vector=request.values, top_k=request.top_k, filter=request.filter
+                vector=request.values, top_k=request.top_k, filter=request.filter,namespace=namespace
             )
 
         result = do_query_with_retry()
         matches = [m["id"] for m in result["matches"]]
         return matches
 
-    def fetch_batch(self, request: list[str]) -> list[Record]:
-        return self.index.fetch(request).vectors.values
+    def fetch_batch(self, request: list[str],namespace) -> list[Record]:
+        return self.index.fetch(request,namespace=namespace).vectors.values
 
-    def delete_batch(self, request: list[str]):
-        self.index.delete(request)
+    def delete_batch(self, request: list[str],namespace):
+        self.index.delete(request,namespace=namespace)
 
 
 class PineconeDB(DB):
@@ -68,51 +69,36 @@ class PineconeDB(DB):
         self.pc = PineconeGRPC(config["pinecone_api_key"])
         self.skip_populate = config["skip_populate"]
         self.overwrite = config["overwrite"]
-        self.index_name = config["pinecone_index_name"]
-        if self.index_name is None:
+        index_name = config["pinecone_index_name"]
+        if index_name is None:
             # None specified, default to "vsb-<workload>"
-            self.index_name = f"vsb-{name}"
+            index_name = f"vsb-{name}"
         spec = config["pinecone_index_spec"]
         try:
-            self.index = self.pc.Index(name=self.index_name)
+            self.index = self.pc.Index(name=index_name)
             self.created_index = False
-        except UnauthorizedException:
-            api_key = config["pinecone_api_key"]
-            masked_api_key = api_key[:4] + "*" * (len(api_key) - 8) + api_key[-4:]
-            logger.critical(
-                f"PineconeDB: Got UnauthorizedException when attempting to connect "
-                f"to index '{self.index_name}' using API key '{masked_api_key}' - check "
-                f"your API key and permissions"
-            )
-            raise StopUser()
         except NotFoundException:
             logger.info(
-                f"PineconeDB: Specified index '{self.index_name}' was not found, or the "
-                f"specified API key cannot access it. Creating new index '{self.index_name}'."
+                f"PineconeDB: Specified index '{index_name}' was not found, or the "
+                f"specified API key cannot access it. Creating new index '{index_name}'."
             )
             self.pc.create_index(
-                name=self.index_name,
-                dimension=dimensions,
-                metric=metric.value,
-                spec=spec,
+                name=index_name, dimension=dimensions, metric=metric.value, spec=spec
             )
-            self.index = self.pc.Index(name=self.index_name)
+            self.index = self.pc.Index(name=index_name)
             self.created_index = True
 
-        info = self.pc.describe_index(self.index_name)
+        info = self.pc.describe_index(index_name)
         index_dims = info["dimension"]
         if dimensions != index_dims:
             raise ValueError(
-                f"PineconeDB index '{self.index_name}' has incorrect dimensions - expected:{dimensions}, found:{index_dims}"
+                f"PineconeDB index '{index_name}' has incorrect dimensions - expected:{dimensions}, found:{index_dims}"
             )
         index_metric = info["metric"]
         if metric.value != index_metric:
             raise ValueError(
-                f"PineconeDB index '{self.index_name}' has incorrect metric - expected:{metric.value}, found:{index_metric}"
+                f"PineconeDB index '{index_name}' has incorrect metric - expected:{metric.value}, found:{index_metric}"
             )
-
-    def close(self):
-        self.index.close()
 
     def get_batch_size(self, sample_record: Record) -> int:
         # Return the largest batch size possible, based on the following
@@ -149,15 +135,15 @@ class PineconeDB(DB):
             return
         if not self.created_index and not self.overwrite:
             msg = (
-                f"PineconeDB: Index '{self.index_name}' already exists - cowardly "
+                f"PineconeDB: Index '{self.index.name}' already exists - cowardly "
                 f"refusing to overwrite existing data. Specify --overwrite to "
-                f"delete it, or specify --skip_populate to skip population phase."
+                f"delete it, or specify --skip-populate to skip population phase."
             )
             logger.critical(msg)
             raise StopUser()
         try:
             logger.info(
-                f"PineconeDB: Deleting existing index '{self.index_name}' before "
+                f"PineconeDB: Deleting existing index '{self.index.name}' before "
                 f"population (--overwrite=True)"
             )
             self.index.delete(delete_all=True)
