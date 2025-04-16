@@ -15,7 +15,6 @@ import vsb.logging
 from vsb import metrics, metrics_tracker
 from vsb.databases import DB
 import vsb.metrics_tracker
-from vsb.randomized_pacer import RandomizedPacer
 from vsb.vsb_types import (
     RecordList,
     SearchRequest,
@@ -75,20 +74,6 @@ class SetupUser(User):
                     # Nothing more to do, but sleep briefly here to prevent
                     # us busy-looping in this state.
                     gevent.sleep(0.1)
-        except StopUser:
-            # Explicit stop, assume callee already logged the reason; exit with
-            # non-zero:
-            logger.debug("Stopping user due to StopUser exception")
-            self.environment.runner.send_message(
-                "update_progress",
-                {
-                    "user": 0,
-                    "phase": "setup",
-                    "error": "Stopping user due to StopUser exception",
-                },
-            )
-            self.state = self.State.Done
-
         except Exception as e:
             traceback.print_exception(e)
             locust.log.unhandled_greenlet_exception = True
@@ -244,10 +229,9 @@ class RunUser(User):
         self.workload = environment.workload_sequence[iteration]
         self.state = RunUser.State.Active
         opts = environment.parsed_options
-        target_throughput = opts.requests_per_sec / float(opts.num_users)
-        self.pacer = RandomizedPacer(target_throughput)
+        self.target_throughput = opts.requests_per_sec / float(opts.num_users)
         logger.debug(
-            f"Initialising RunUser id:{self.user_id}, target request/sec:{target_throughput}"
+            f"Initialising RunUser id:{self.user_id}, target request/sec:{self.target_throughput}"
         )
         self.query_iter = None
 
@@ -265,7 +249,9 @@ class RunUser(User):
         """Method called by locust to control how long this task should wait between
         executions.
         """
-        return self.pacer.wait_time()
+        if self.target_throughput > 0:
+            return constant_throughput(self.target_throughput)(self)
+        return 0
 
     def do_run(self):
         if not self.query_iter:
@@ -288,18 +274,19 @@ class RunUser(User):
             return
         try:
             index = self.database.get_namespace(tenant)
+            namespace = self.environment.parsed_options.namespace_name or ""
             start = time.perf_counter()
             match request:
                 case SearchRequest():
-                    results = index.search(request)
+                    results = index.search(request,namespace)
                 case InsertRequest():
-                    results = index.insert_batch(request.records)
+                    results = index.insert_batch(request.records,namespace)
                 case UpdateRequest():
-                    results = index.update_batch(request.records)
+                    results = index.update_batch(request.records,namespace)
                 case FetchRequest():
-                    results = index.fetch_batch(request.ids)
+                    results = index.fetch_batch(request.ids,namespace)
                 case DeleteRequest():
-                    results = index.delete_batch(request.ids)
+                    results = index.delete_batch(request.ids,namespace)
                 case _:
                     raise ValueError(f"Unknown request type:{request}")
             stop = time.perf_counter()
@@ -389,9 +376,6 @@ class LoadShape(LoadTestShape):
         """Issue requests (queries) to the database and recording the results."""
         Done = auto()
         """Final phase when all Run Users have completed"""
-        DoneFailed = auto()
-        """Final phase when all a fatal error occurred and we want to stop down, 
-        signalling an unsuccessful run"""
 
     def __init__(self):
         super().__init__()
@@ -486,10 +470,6 @@ class LoadShape(LoadTestShape):
                 return self.num_users, self.num_users, [RunUser]
             case LoadShape.Phase.Done:
                 return None
-            case LoadShape.Phase.DoneFailed:
-                # Set exit status to 2 to indicate a failure
-                locust.log.unhandled_greenlet_exception = True
-                return None
             case _:
                 raise ValueError(f"Invalid phase:{self.phase}")
 
@@ -507,11 +487,9 @@ class LoadShape(LoadTestShape):
         ]
         if vsb.progress is not None:
             self._update_progress_bar(mark_completed=True)
-            if new == LoadShape.Phase.DoneFailed:
-                msg = f"✘ {self.phase.name} cancelled"
-            else:
-                msg = f"✔ {self.phase.name} complete"
-            vsb.progress.update(self.progress_task_id, description=msg)
+            vsb.progress.update(
+                self.progress_task_id, description=f"✔ {self.phase.name} complete"
+            )
             vsb.progress.stop()
             vsb.progress = None
         if hasattr(self.runner.environment, "workload_sequence"):
@@ -537,10 +515,7 @@ class LoadShape(LoadTestShape):
         else:
             phase_display_name = self.phase.name
         if self.phase in tracked_phases:
-            # Skip reporting phase end on a fatal error; it adds noise after
-            # the important fatal error message.
-            if new != LoadShape.Phase.DoneFailed:
-                metrics_tracker.record_phase_end(phase_display_name)
+            metrics_tracker.record_phase_end(phase_display_name)
         self.phase = new
         if hasattr(self.runner.environment, "workload_sequence"):
             workload = self.runner.environment.workload_sequence[
@@ -565,7 +540,9 @@ class LoadShape(LoadTestShape):
     def on_update_progress(self, msg, **kwargs):
         # Fired when VSBLoadShape (running on the master) receives an
         # "update_progress" message.
-        logger.debug(f"VSBLoadShape.on_update_progress() - {msg.data}")
+        logger.debug(
+            f"VSBLoadShape.update_progress() - user:{msg.data['user']}, phase:{msg.data['phase']}"
+        )
         match self.phase:
             case LoadShape.Phase.Setup:
                 assert msg.data["phase"] == "setup"
@@ -581,11 +558,7 @@ class LoadShape(LoadTestShape):
                     f"{self.request_count} - "
                     f"moving to TransitionFromSetup phase"
                 )
-                if "error" in msg.data:
-                    # Setup signalled an error; cancel the benchmark
-                    self._transition_phase(LoadShape.Phase.DoneFailed)
-                else:
-                    self._transition_phase(LoadShape.Phase.TransitionFromSetup)
+                self._transition_phase(LoadShape.Phase.TransitionFromSetup)
             case LoadShape.Phase.TransitionFromSetup:
                 logger.error(
                     f"VSBLoadShape.update_progress() - Unexpected progress update in "
