@@ -95,8 +95,8 @@ class TurbopufferDB(DB):
         self.index = tpuf.Namespace(self.index_name)
 
         # Check if index exists
-        namespaces = tpuf.namespaces()
-        if self.index_name in namespaces:
+        #namespaces = tpuf.namespaces()
+        if self.index_name.exists():
             self.schema = self.index.schema()
             logger.info(f"TurbopufferDB: Index '{self.index_name}' already exists, and Schema for this index is '{self.schema}'")
             self.index_exists = True
@@ -126,7 +126,7 @@ class TurbopufferDB(DB):
         max_record_size = max_id + max_metadata + max_values + max_sparse_values
         max_namespace = 500  # Only one namespace per VectorUpsert request.
         size_based_batch_size = ((256 * 1024 * 1024) - max_namespace) // max_record_size
-        max_batch_size = 100000 # TODO: Optimize this after testing
+        max_batch_size = 1000 # TODO: Optimize this after testing
         batch_size = min(size_based_batch_size, max_batch_size)
         logger.info(f"TurbopufferDB.get_batch_size() - Using batch size of {batch_size}") # TODO: Change this to debug after testing
         return batch_size
