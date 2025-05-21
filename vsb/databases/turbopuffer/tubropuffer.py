@@ -37,10 +37,10 @@ class TurbopufferNamespace(Namespace):
             after=after_log(logger, logging.DEBUG),
         )
         def do_insert_with_retry():
-            return self.index.write(upsert_rows=dicts, distance_metric=self.metric)
+            return self.index.write(upsert_rows=dicts, distance_metric=TurbopufferDB._get_distance_func(self.metric))
         
         upload_response = do_insert_with_retry()
-        logger.debug(f"TurbopufferDB: response from data upload API: {upload_response}")
+        logger.info(f"TurbopufferDB: response from data upload API: {upload_response}") # TODO: Change this to debug after testing
 
     def update_batch(self, batch: list[Record]):
         # Turbopuffer treats insert and update as the same operation.
@@ -59,6 +59,7 @@ class TurbopufferNamespace(Namespace):
 
         result = do_query_with_retry()
         matches = [m.id for m in result.rows]
+        logger.info(f"TurbopufferDB: response from search API: {matches}") # TODO: Delete this after testing
         return matches
 
     def fetch_batch(self, request: list[str]) -> list[Record]:
@@ -78,6 +79,7 @@ class TurbopufferNamespace(Namespace):
     '''
 
 class TurbopufferDB(DB):
+    import turbopuffer as tpuf
     def __init__(
         self,
         record_count: int,
@@ -86,7 +88,6 @@ class TurbopufferDB(DB):
         name: str,
         config: dict,
     ):
-        #self.pc = PineconeGRPC(config["pinecone_api_key"])
         self.metric = metric
         self.tpuf.api_key = config["turbopuffer_api_key"]
         self.skip_populate = config["skip_populate"]
@@ -149,8 +150,8 @@ class TurbopufferDB(DB):
             )
         '''
 
-    def close(self):
-        self.index.close()
+    #def close(self):
+    #    self.index.close()
 
     def get_batch_size(self, sample_record: Record) -> int:
         # Return the largest batch size possible, based on the following
@@ -173,7 +174,7 @@ class TurbopufferDB(DB):
         size_based_batch_size = ((256 * 1024 * 1024) - max_namespace) // max_record_size
         max_batch_size = 10000
         batch_size = min(size_based_batch_size, max_batch_size)
-        logger.debug(f"TurbopufferDB.get_batch_size() - Using batch size of {batch_size}")
+        logger.info(f"TurbopufferDB.get_batch_size() - Using batch size of {batch_size}") # TODO: Change this to debug after testing
         return batch_size
 
     def get_namespace(self, namespace: str) -> Namespace:
@@ -209,13 +210,13 @@ class TurbopufferDB(DB):
     def finalize_population(self, record_count: int):
         """Wait until all records are visible in the index"""
         logger.debug(f"TurbopufferDB: Waiting for record count to reach {record_count}")
-        time.sleep(30) # TODO: Remove this after we get the API to get the record count from Turbopuffer index
         with vsb.logging.progress_task(
             "  Finalize population", "  ✔ Finalize population", total=record_count
         ) as finalize_id:
             while True:
                 #index_count = self.index.describe_index_stats()["total_vector_count"]
-                index_count = record_count # TODO: Remove this after we get the API to get the record count from Turbopuffer index
+                index_count = self.get_record_count()
+                logger.info(f"TurbopufferDB: Index vector count is {index_count}") # TODO: Remove this after testing
                 if vsb.progress:
                     vsb.progress.update(finalize_id, completed=index_count)
                 if index_count >= record_count:
@@ -229,5 +230,14 @@ class TurbopufferDB(DB):
     #def skip_refinalize(self):
     #    return False
 
-    #def get_record_count(self) -> int:
-    #    return self.index.describe_index_stats()["total_vector_count"]
+    def get_record_count(self) -> int:
+        return self.index.approx_count()
+    
+    @staticmethod
+    def _get_distance_func(metric: DistanceMetric) -> str:
+        match metric:
+            case DistanceMetric.Cosine:
+                return "cosine_distance"
+            case DistanceMetric.Euclidean:
+                return "euclidean_squared"
+        raise ValueError("Invalid metric:{}".format(metric))

@@ -498,19 +498,7 @@ def validate_parsed_args(
                     "'pinecone'" + formatter.format_help(),
                 )
         case "turbopuffer":
-            required = (
-                "turbopuffer_api_key"
-            )
-            missing = list()
-            for name in required:
-                if not getattr(args, name):
-                    missing.append(name)
-            if missing:
-                formatter = configargparse.HelpFormatter(".")
-                formatter.start_section("")
-                formatter.add_text("")
-                for name in missing:
-                    formatter.add_argument(get_action(parser, name))
+            pass
         case "opensearch":
             pass
         case "pgvector":
