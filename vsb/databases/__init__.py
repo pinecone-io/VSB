@@ -7,6 +7,7 @@ class Database(Enum):
     specify via --database="""
 
     Pinecone = "pinecone"
+    Turbopuffer = "turbopuffer"
     OpenSearch = "opensearch"
     PGVector = "pgvector"
 
@@ -17,6 +18,10 @@ class Database(Enum):
                 from .pinecone.pinecone import PineconeDB
 
                 return PineconeDB
+            case Database.Turbopuffer:
+                from .turbopuffer.tubropuffer import TurbopufferDB
+
+                return TurbopufferDB
             case Database.OpenSearch:
                 from .opensearch.opensearch import OpenSearchDB
 

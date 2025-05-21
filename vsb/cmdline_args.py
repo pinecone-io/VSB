@@ -286,6 +286,21 @@ def add_vsb_cmdline_args(
         help="JSON spec of Pinecone index to create (if it does not exist). Default is %(default)s.",
     )
 
+    turbopuffer_group = parser.add_argument_group("Options specific to turbopuffer database")
+    turbopuffer_group.add_argument(
+        "--turbopuffer_api_key",
+        type=str,
+        help="API Key to connect to Turbopuffer index",
+        env_var="VSB__TURBOPUFFER_API_KEY",
+    )
+    turbopuffer_group.add_argument(
+        "--turbopuffer_index_name",
+        type=str,
+        default=None,
+        help="Name of Turbopuffer index to connect to. One will be created if it does not exist. Default is vsb-<workload>.",
+        env_var="VSB__TURBOPUFFER_INDEX_NAME",
+    )
+
     opensearch_group = parser.add_argument_group(
         "Options specific to OpenSearch database"
     )
@@ -482,6 +497,20 @@ def validate_parsed_args(
                     "The following arguments must be specified when --database is "
                     "'pinecone'" + formatter.format_help(),
                 )
+        case "turbopuffer":
+            required = (
+                "turbopuffer_api_key"
+            )
+            missing = list()
+            for name in required:
+                if not getattr(args, name):
+                    missing.append(name)
+            if missing:
+                formatter = configargparse.HelpFormatter(".")
+                formatter.start_section("")
+                formatter.add_text("")
+                for name in missing:
+                    formatter.add_argument(get_action(parser, name))
         case "opensearch":
             pass
         case "pgvector":
