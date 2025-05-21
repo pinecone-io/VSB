@@ -14,12 +14,6 @@ import time
 from ..base import DB, Namespace
 from ...vsb_types import Record, SearchRequest, DistanceMetric, RecordList
 
-# patch grpc so that it uses gevent instead of asyncio. This is required to
-# allow the multiple coroutines used by locust to run concurrently. Without it
-# (using default asyncio) will block the whole Locust/Python process,
-# in practice limiting to running a single User per worker process.
-#grpc_gevent.init_gevent()
-
 
 class TurbopufferNamespace(Namespace):
     def __init__(self, index, namespace, metric):
@@ -59,7 +53,7 @@ class TurbopufferNamespace(Namespace):
 
         result = do_query_with_retry()
         matches = [m.id for m in result.rows]
-        logger.info(f"TurbopufferDB: response from search API: {matches}") # TODO: Delete this after testing
+        #logger.info(f"TurbopufferDB: response from search API: {matches}") # TODO: Delete this after testing
         return matches
 
     def fetch_batch(self, request: list[str]) -> list[Record]:
@@ -93,7 +87,7 @@ class TurbopufferDB(DB):
         self.skip_populate = config["skip_populate"]
         self.overwrite = config["overwrite"]
         self.index_name = config["turbopuffer_index_name"]
-        self.tpuf.api_base_url = "https://gcp-us-central1.turbopuffer.com"
+        self.tpuf.api_base_url = f"https://{config['turbopuffer_region']}.turbopuffer.com"
 
         if self.index_name is None:
             # None specified, default to "vsb-<workload>"
@@ -109,46 +103,6 @@ class TurbopufferDB(DB):
         else:
             logger.info(f"TurbopufferDB: Index '{self.index_name}' does not exist, will be created during data population")
             self.index_exists = False
-
-        '''
-        try:
-            self.index = self.pc.Index(name=self.index_name)
-            self.created_index = False
-        except UnauthorizedException:
-            api_key = config["pinecone_api_key"]
-            masked_api_key = api_key[:4] + "*" * (len(api_key) - 8) + api_key[-4:]
-            logger.critical(
-                f"PineconeDB: Got UnauthorizedException when attempting to connect "
-                f"to index '{self.index_name}' using API key '{masked_api_key}' - check "
-                f"your API key and permissions"
-            )
-            raise StopUser()
-        except NotFoundException:
-            logger.info(
-                f"PineconeDB: Specified index '{self.index_name}' was not found, or the "
-                f"specified API key cannot access it. Creating new index '{self.index_name}'."
-            )
-            self.pc.create_index(
-                name=self.index_name,
-                dimension=dimensions,
-                metric=metric.value,
-                spec=spec,
-            )
-            self.index = self.pc.Index(name=self.index_name)
-            self.created_index = True
-
-        info = self.pc.describe_index(self.index_name)
-        index_dims = info["dimension"]
-        if dimensions != index_dims:
-            raise ValueError(
-                f"PineconeDB index '{self.index_name}' has incorrect dimensions - expected:{dimensions}, found:{index_dims}"
-            )
-        index_metric = info["metric"]
-        if metric.value != index_metric:
-            raise ValueError(
-                f"PineconeDB index '{self.index_name}' has incorrect metric - expected:{metric.value}, found:{index_metric}"
-            )
-        '''
 
     #def close(self):
     #    self.index.close()
@@ -172,7 +126,7 @@ class TurbopufferDB(DB):
         max_record_size = max_id + max_metadata + max_values + max_sparse_values
         max_namespace = 500  # Only one namespace per VectorUpsert request.
         size_based_batch_size = ((256 * 1024 * 1024) - max_namespace) // max_record_size
-        max_batch_size = 10000
+        max_batch_size = 100000 # TODO: Optimize this after testing
         batch_size = min(size_based_batch_size, max_batch_size)
         logger.info(f"TurbopufferDB.get_batch_size() - Using batch size of {batch_size}") # TODO: Change this to debug after testing
         return batch_size

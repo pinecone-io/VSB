@@ -294,6 +294,13 @@ def add_vsb_cmdline_args(
         env_var="VSB__TURBOPUFFER_API_KEY",
     )
     turbopuffer_group.add_argument(
+        "--turbopuffer_region",
+        type=str,
+        default="aws-us-east-1",
+        help="Region to connect to Turbopuffer index. Default is %(default)s.",
+        env_var="VSB__TURBOPUFFER_REGION",
+    )
+    turbopuffer_group.add_argument(
         "--turbopuffer_index_name",
         type=str,
         default=None,
