@@ -96,7 +96,7 @@ class TurbopufferDB(DB):
 
         # Check if index exists
         #namespaces = tpuf.namespaces()
-        if self.index_name.exists():
+        if self.index.exists():
             self.schema = self.index.schema()
             logger.info(f"TurbopufferDB: Index '{self.index_name}' already exists, and Schema for this index is '{self.schema}'")
             self.index_exists = True
