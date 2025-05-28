@@ -53,7 +53,7 @@ class TurbopufferNamespace(Namespace):
         )
         def do_query_with_retry():
             return self.index.query(
-                rank_by=["vector", "ANN", request.values], top_k=request.top_k, filters=request.filter
+                rank_by=["vector", "ANN", request.values], top_k=request.top_k, filters=self.filter_expression(request.filter)
             )
 
         result = do_query_with_retry()
@@ -66,16 +66,17 @@ class TurbopufferNamespace(Namespace):
 
     def delete_batch(self, request: list[str]):
         self.index.delete(request)
-    '''
-    def data_upload_body(self, batch: RecordList) -> list[dict]:
-        data = []
-        for record in batch:
-            data.append({
-                "id": record.id,
-                "vector": record.values
-            }) # TODO: Add metadata to the data upload body with Keys unnested
-        return data
-    '''
+
+    def filter_expression(self, filter: dict) -> list[str, list[str, str, str]] | list[str, str, str] | None:
+        if filter is not None:
+            if "$and" in filter:
+                filters = []
+                for condition in filter["$and"]:
+                    filters.append([condition.key, 'Eq', condition.value])
+                return ['And', filters]
+            else:
+                return [filter.key, 'Eq', filter.value] # TODO: Add support for other operators and filters (e.g. $or, $not, $exists, etc.)
+        return None # TODO: Add support for no filter
 
 class TurbopufferDB(DB):
     import turbopuffer as tpuf
