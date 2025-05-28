@@ -72,10 +72,12 @@ class TurbopufferNamespace(Namespace):
             if "$and" in filter:
                 filters = []
                 for condition in filter["$and"]:
-                    filters.append([condition.key, 'Eq', condition.value])
+                    key, value = next(iter(condition.items()))
+                    filters.append([key, 'In', value])
                 return ['And', filters]
             else:
-                return [filter.key, 'Eq', filter.value] # TODO: Add support for other operators and filters (e.g. $or, $not, $exists, etc.)
+                key, value = next(iter(filter.items()))
+                return [key, 'In', value] # TODO: Add support for other operators and filters (e.g. $or, $not, $exists, etc.)
         return None # TODO: Add support for no filter
 
 class TurbopufferDB(DB):
