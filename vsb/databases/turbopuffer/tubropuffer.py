@@ -24,7 +24,12 @@ class TurbopufferNamespace(Namespace):
     def insert_batch(self, batch: RecordList):
         # Turbopuffer expects a list of dicts (or tuples).
         #dicts = self.data_upload_body(batch)
-        dicts = [{"id": rec.id, "vector": rec.values} for rec in batch]
+        #dicts = [{"id": rec.id, "vector": rec.values} for rec in batch]
+        dicts = [{
+                "id": rec.id, 
+                "vector": rec.values,
+                **(rec.metadata if hasattr(rec, "metadata") and isinstance(rec.metadata, dict) else {})
+                } for rec in batch]
         @retry(
             wait=wait_exponential_jitter(initial=0.1, jitter=0.1),
             stop=stop_after_attempt(5),
