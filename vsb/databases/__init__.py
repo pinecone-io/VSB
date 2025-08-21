@@ -21,6 +21,10 @@ class Database(Enum):
                 from .opensearch.opensearch import OpenSearchDB
 
                 return OpenSearchDB
+            case Database.S3Vectors:
+                from .s3vectors.s3vectors import S3VectorsDB
+
+                return S3VectorsDB
             case Database.PGVector:
                 from .pgvector.pgvector import PgvectorDB
 

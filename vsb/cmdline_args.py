@@ -369,6 +369,52 @@ def add_vsb_cmdline_args(
         env_var="VSB__OPENSEARCH_USE_TLS",
     )
 
+    s3vectors_group = parser.add_argument_group(
+        "Options specific to S3Vectors database"
+    )
+    s3vectors_group.add_argument(
+        "--s3vectors_bucket_name",
+        type=str,
+        default=None,
+        help="Name of S3 bucket to connect to the AWS S3 service",
+        env_var="VSB__S3VECTORS_BUCKET_NAME",
+    )
+    s3vectors_group.add_argument(
+        "--s3vectors_index_name",
+        type=str,
+        default=None,
+        help="Name of S3 vectors index to connect to the AWS S3 service. Default is vsb-<workload>.",
+        env_var="VSB__S3VECTORS_INDEX_NAME",
+    )
+    s3vectors_group.add_argument(
+        "--s3vectors_region",
+        type=str,
+        default="us-east-1",
+        help="S3 vectors region to connect to the AWS S3 service. Default is %(default)s.",
+        env_var="VSB__S3VECTORS_REGION",
+    )
+    s3vectors_group.add_argument(
+        "--aws_access_key",
+        type=str,
+        default=None,
+        help="AWS access key to connect to the OpenSearch Collection. Default is %(default)s.",
+        env_var="VSB__AWS_ACCESS_KEY",
+    )
+    s3vectors_group.add_argument(
+        "--aws_secret_key",
+        type=str,
+        default=None,
+        help="AWS secret access key to connect to the OpenSearch Collection. Default is %(default)s.",
+        env_var="VSB__AWS_SECRET_KEY",
+    )
+    s3vectors_group.add_argument(
+        "--aws_session_token",
+        type=str,
+        default=None,
+        help="AWS session token to connect to the OpenSearch Collection. Default is %(default)s.",
+        env_var="VSB__AWS_SESSION_TOKEN",
+    )
+
     pgvector_group = parser.add_argument_group("Options specific to pgvector database")
     pgvector_group.add_argument(
         "--pgvector_host",
