@@ -112,9 +112,9 @@ class S3VectorsDB(DB):
     ):
         self.region = config["s3vectors_region"]
         self.bucket_name = config["s3vectors_bucket_name"]
-        self.access_key = config["aws_access_key"]
-        self.secret_key = config["aws_secret_key"]
-        self.token = config["aws_session_token"]
+        self.access_key = config["s3vectors_aws_access_key"]
+        self.secret_key = config["s3vectors_aws_secret_key"]
+        self.token = config["s3vectors_aws_session_token"]
 
         self.index_name = config["s3vectors_index_name"]
         self.skip_populate = config["skip_populate"]
@@ -158,14 +158,18 @@ class S3VectorsDB(DB):
 
     def create_index(self):
         # Create the index
-        index_body = self.create_index_body()
-
         if not self.client.get_index(vectorBucketName=self.bucket_name,indexName=self.index_name):
             logger.info(
                 f"S3VectorsDB: Specified index '{self.index_name}' was not found, or the "
                 f"specified AWS Access keys cannot access it. Creating new index '{self.index_name}'."
             )
-            self.client.create_index(vectorBucketName=self.bucket_name,indexName=self.index_name,dataType="float32",dimension=self.dimensions,distanceMetric=S3VectorsDB._get_distance_func(self.metric))
+            self.client.create_index(
+                vectorBucketName=self.bucket_name,
+                indexName=self.index_name,
+                dataType="float32",
+                dimension=self.dimensions,
+                distanceMetric=S3VectorsDB._get_distance_func(self.metric)
+            )
             self.created_index = True
             time.sleep(30)
         else:

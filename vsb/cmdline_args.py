@@ -394,25 +394,25 @@ def add_vsb_cmdline_args(
         env_var="VSB__S3VECTORS_REGION",
     )
     s3vectors_group.add_argument(
-        "--aws_access_key",
+        "--s3vectors_aws_access_key",
         type=str,
         default=None,
         help="AWS access key to connect to the OpenSearch Collection. Default is %(default)s.",
-        env_var="VSB__AWS_ACCESS_KEY",
+        env_var="VSB__S3VECTORS_AWS_ACCESS_KEY",
     )
     s3vectors_group.add_argument(
-        "--aws_secret_key",
+        "--s3vectors_aws_secret_key",
         type=str,
         default=None,
         help="AWS secret access key to connect to the OpenSearch Collection. Default is %(default)s.",
-        env_var="VSB__AWS_SECRET_KEY",
+        env_var="VSB__S3VECTORS_AWS_SECRET_KEY",
     )
     s3vectors_group.add_argument(
-        "--aws_session_token",
+        "--s3vectors_aws_session_token",
         type=str,
         default=None,
         help="AWS session token to connect to the OpenSearch Collection. Default is %(default)s.",
-        env_var="VSB__AWS_SESSION_TOKEN",
+        env_var="VSB__S3VECTORS_AWS_SESSION_TOKEN",
     )
 
     pgvector_group = parser.add_argument_group("Options specific to pgvector database")
