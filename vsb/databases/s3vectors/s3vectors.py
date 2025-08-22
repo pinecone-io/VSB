@@ -66,9 +66,9 @@ class S3VectorsNamespace(Namespace):
             return self.client.query_vectors(
                 vectorBucketName=self.bucket_name,
                 indexName=self.index_name,
-                queryVector={"float32": request.values},
-                topK=request.top_k,
-                filter=request.filter,
+                queryVector={"float32": [float(x) for x in request.values]},
+                topK=30,   # S3Vectors only supports topK=30
+                #filter=request.filter,
                 returnDistance=True,
                 returnMetadata=True
             )
@@ -93,8 +93,8 @@ class S3VectorsNamespace(Namespace):
             data.append(
                 {
                     "key": rec.id,
-                    "data": {"float32": np.array(rec.values)},
-                    "metadata": rec.metadata,
+                    "data": {"float32": [float(x) for x in rec.values]},
+                    #"metadata": rec.metadata,  # TODO: Add metadata for the workload supporting it
                 }
             )
         return data
@@ -158,6 +158,18 @@ class S3VectorsDB(DB):
 
     def create_index(self):
         # Create the index
+        self.client.create_index(
+            vectorBucketName=self.bucket_name,
+            indexName=self.index_name,
+            dataType="float32",
+            dimension=self.dimensions,
+            distanceMetric=S3VectorsDB._get_distance_func(self.metric)
+        )
+        self.created_index = True
+        time.sleep(30)
+
+        # TODO: Identify the command to check if the index is created and then enable the below code
+        '''
         if not self.client.get_index(vectorBucketName=self.bucket_name,indexName=self.index_name):
             logger.info(
                 f"S3VectorsDB: Specified index '{self.index_name}' was not found, or the "
@@ -174,6 +186,7 @@ class S3VectorsDB(DB):
             time.sleep(30)
         else:
             self.created_index = False
+        '''
 
     def get_batch_size(self, sample_record: Record) -> int:
         # Return the largest batch size possible, based on the following
@@ -198,7 +211,7 @@ class S3VectorsDB(DB):
         size_based_batch_size = (3 * 1024 * 1024) // max_record_size
         max_batch_size = 1000
         # batch_size = min(size_based_batch_size, max_batch_size)
-        batch_size = 1000  # TODO: Troubleshooting ingestion failures, remove it later
+        batch_size = 500  # TODO: Troubleshooting ingestion failures, remove it later
         logger.debug(
             f"S3VectorsDB.get_batch_size() - Using batch size of {batch_size}"
         )
