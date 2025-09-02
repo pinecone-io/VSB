@@ -26,7 +26,8 @@ class Recall(Metric):
 
     @staticmethod
     def measure(request: SearchRequest, results: list[str]) -> float:
-        return Recall._calculate(results, request.neighbors[: request.top_k])
+        #return Recall._calculate(results, request.neighbors[: request.top_k])
+        return Recall._calculate(results, request.neighbors[: 30])  #TODO: S3 vectors only support topk=30, change to request.top_k when using for Pinecone
 
     @staticmethod
     def _calculate(actual: list[str], expected: list[str]) -> float:
