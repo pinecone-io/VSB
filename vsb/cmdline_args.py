@@ -436,6 +436,28 @@ def add_vsb_cmdline_args(
         ),
     )
 
+    solr_group = parser.add_argument_group("Options specific to Solr database")
+    solr_group.add_argument(
+        "--solr_url",
+        type=str,
+        help="URL to connect to Solr",
+        env_var="VSB__SOLR_URL",
+    )
+    solr_group.add_argument(
+        "--solr_index_name",
+        type=str,
+        default=None,
+        help="Name of Solr index to connect to. One will be created if it does not exist. Default is vsb-<workload>.",
+        env_var="VSB__SOLR_INDEX_NAME",
+    )
+    solr_group.add_argument(
+        "--solr_index_config",
+        type=str,
+        default=None,
+        help="Configuration for Solr index.",
+        env_var="VSB__SOLR_INDEX_CONFIG",
+    )
+
 
 def get_action(parser, argument_name):
     """Helper to lookup the named Action from the parser."""

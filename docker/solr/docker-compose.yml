@@ -1,0 +1,10 @@
+services:
+  solr:
+    image: solr:9.6.0
+    container_name: solr
+    restart: unless-stopped
+    ports: ["8983:8983"]
+    volumes:
+      - solr_data:/var/solr
+volumes:
+  solr_data:
