@@ -457,6 +457,27 @@ def add_vsb_cmdline_args(
         help="Configuration for Solr index.",
         env_var="VSB__SOLR_INDEX_CONFIG",
     )
+    solr_group.add_argument(
+        "--start_from",
+        type=int,
+        default=0,
+        help="Start from this record number. Default is %(default)s.",
+        env_var="VSB__START_FROM",
+    )
+    solr_group.add_argument(
+        "--solr_max_retries",
+        type=int,
+        default=3,
+        help="Maximum number of retries for Solr operations. Default is %(default)s.",
+        env_var="VSB__SOLR_MAX_RETRIES",
+    )
+    solr_group.add_argument(
+        "--solr_retry_delay",
+        type=int,
+        default=300,
+        help="Delay between retries for Solr operations. Default is %(default)s.",
+        env_var="VSB__SOLR_RETRY_DELAY",
+    )
 
 
 def get_action(parser, argument_name):
