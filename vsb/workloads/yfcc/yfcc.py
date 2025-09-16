@@ -95,7 +95,7 @@ class YFCCHoles(YFCCBase):
     @staticmethod
     def request_count() -> int:
         return 100_000
-    
+
     @staticmethod
     def metric() -> DistanceMetric:
         return DistanceMetric.Euclidean

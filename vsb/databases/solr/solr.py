@@ -14,19 +14,31 @@ import requests
 import numpy as np
 import json
 
+
 # Exceptions
 class SolrException(Exception): ...
+
+
 class NotFoundException(SolrException): ...
+
+
 class UnauthorizedException(SolrException): ...
 
 
 class SolrClient:
-    def __init__(self, base_url: str, core: str | None = None, *, skip_populate: bool = False, **kwargs):
+    def __init__(
+        self,
+        base_url: str,
+        core: str | None = None,
+        *,
+        skip_populate: bool = False,
+        **kwargs,
+    ):
         """
         base_url: 'http://localhost:8983/solr'
         core:     optional core name; base_url becomes '<base>/<core>' if provided.
         """
-        self._root = base_url.rstrip('/')
+        self._root = base_url.rstrip("/")
         self._core = core
         self.base_url = f"{self._root}/{core}" if core else self._root
         self.skip_populate = skip_populate
@@ -39,10 +51,12 @@ class SolrClient:
         # Set up persistent session
         self._sess = requests.Session()
         retry = Retry(
-            total=3, connect=3, read=3,
+            total=3,
+            connect=3,
+            read=3,
             backoff_factor=0.5,
             status_forcelist=(502, 503, 504),
-            allowed_methods=frozenset(['GET','POST'])
+            allowed_methods=frozenset(["GET", "POST"]),
         )
         self._sess.mount("http://", HTTPAdapter(pool_maxsize=64, max_retries=retry))
 
@@ -54,7 +68,9 @@ class SolrClient:
     def _core_get(self, path: str, **kw):
         return self._sess.get(f"{self._root}/{self._core}{path}", timeout=30, **kw)
 
-    def _core_post_json(self, path: str, payload: dict, *, params: dict | None = None, timeout: int = 30):
+    def _core_post_json(
+        self, path: str, payload: dict, *, params: dict | None = None, timeout: int = 30
+    ):
         return self._sess.post(
             f"{self._root}/{self._core}{path}",
             params=params,
@@ -64,13 +80,15 @@ class SolrClient:
         )
 
     def _core_admin(self, timeout: int = 30, **params):
-        return self._sess.get(f"{self._root}/admin/cores", params=params, timeout=timeout)
+        return self._sess.get(
+            f"{self._root}/admin/cores", params=params, timeout=timeout
+        )
 
     def _expect_ok(self, resp, where: str):
         if resp.status_code != 200:
             raise SolrException(f"{where} failed {resp.status_code}: {resp.text}")
-    
-    def _parse_dim_sim(self,attrs):
+
+    def _parse_dim_sim(self, attrs):
         # attrs can be dict or list of "k=v" strings
         dim = sim = None
         if isinstance(attrs, dict):
@@ -82,8 +100,10 @@ class SolrClient:
                     dim = a.split("=", 1)[1]
                 if isinstance(a, str) and a.startswith("similarityFunction="):
                     sim = a.split("=", 1)[1]
-        return (int(dim) if dim is not None else None,
-                str(sim) if sim is not None else None)
+        return (
+            int(dim) if dim is not None else None,
+            str(sim) if sim is not None else None,
+        )
 
     def _get_fieldtype(self, name: str = "knn_vector"):
         r = self._core_get(f"/schema/fieldtypes/{name}?wt=json")
@@ -98,27 +118,33 @@ class SolrClient:
         if exists:
             curr_dim, curr_sim = self._parse_dim_sim(ft.get("attributes", {}))
             if curr_dim != int(dim) or (curr_sim and curr_sim != sim):
-                r = self._core_post_json("/schema", {
-                    "replace-field-type": {
-                        "name": "knn_vector",
-                        "class": "solr.DenseVectorField",
-                        "vectorDimension": int(dim),
-                        "similarityFunction": sim
-                    }
-                })
+                r = self._core_post_json(
+                    "/schema",
+                    {
+                        "replace-field-type": {
+                            "name": "knn_vector",
+                            "class": "solr.DenseVectorField",
+                            "vectorDimension": int(dim),
+                            "similarityFunction": sim,
+                        }
+                    },
+                )
                 self._expect_ok(r, "replace-field-type")
             return
         # Not present → add
-        r = self._core_post_json("/schema", {
-            "add-field-type": {
-                "name": "knn_vector",
-                "class": "solr.DenseVectorField",
-                "vectorDimension": int(dim),
-                "similarityFunction": sim
-            }
-        })
+        r = self._core_post_json(
+            "/schema",
+            {
+                "add-field-type": {
+                    "name": "knn_vector",
+                    "class": "solr.DenseVectorField",
+                    "vectorDimension": int(dim),
+                    "similarityFunction": sim,
+                }
+            },
+        )
         self._expect_ok(r, "add-field-type")
-    
+
     def _set_resume_offset_from_index(self):
         """Prime resume offset from current index count."""
         try:
@@ -126,7 +152,7 @@ class SolrClient:
         except Exception as e:
             logger.warning(f"RTG: Error getting record count: {e}")
             self.resume_offset = 0
-    
+
     def _apply_resume_skip(self, docs: list[dict]) -> list[dict]:
         """Drop the first `resume_offset` docs; decrement offset atomically."""
         if self.resume_offset <= 0 or not docs:
@@ -135,10 +161,10 @@ class SolrClient:
             self.resume_offset -= len(docs)
             return []
         # partial consume
-        out = docs[self.resume_offset:]
+        out = docs[self.resume_offset :]
         self.resume_offset = 0
         return out
-    
+
     def _already_exists(self, resp) -> bool:
         return resp.status_code in (400, 500) and "already exists" in resp.text.lower()
 
@@ -170,7 +196,7 @@ class SolrClient:
                 "name": "knn_vector",
                 "class": "solr.DenseVectorField",
                 "vectorDimension": int(dim),
-                "similarityFunction": sim
+                "similarityFunction": sim,
             }
         }
         r = self._core_post_json("/schema", add_payload)
@@ -178,14 +204,11 @@ class SolrClient:
             return
         # If the type already exists (e.g., polluted _default), replace it in place.
         if r.status_code in (400, 409) and "already exists" in r.text.lower():
-            rep_payload = {
-                "replace-field-type": add_payload["add-field-type"]
-            }
+            rep_payload = {"replace-field-type": add_payload["add-field-type"]}
             rr = self._core_post_json("/schema", rep_payload)
             self._expect_ok(rr, "replace-field-type")
         else:
             self._expect_ok(r, "add-field-type")
-
 
     def _rtg_ids(self, ids: list[str]) -> set[str]:
         """Return the subset of ids that already exist in the core (fast RTG)."""
@@ -194,13 +217,9 @@ class SolrClient:
         # chunk to keep URLs/bodies sane
         CHUNK = 512
         for i in range(0, len(ids), CHUNK):
-            chunk = ids[i:i+CHUNK]
+            chunk = ids[i : i + CHUNK]
             # Prefer POST with JSON to avoid long query strings
-            params = {
-                ("fl","id"),
-                ("wt","json"),
-                [("id", i) for i in chunk]
-            }
+            params = {("fl", "id"), ("wt", "json"), [("id", i) for i in chunk]}
             r = self._core_get("/select", params=params)
             if r.status_code != 200:
                 raise SolrException(f"RTG failed {r.status_code}: {r.text}")
@@ -241,13 +260,18 @@ class SolrClient:
 
     def _unload_hard(self):
         return self._core_admin(
-            action="UNLOAD", core=self._core,
-            deleteIndex="true", deleteDataDir="true", deleteInstanceDir="true"
+            action="UNLOAD",
+            core=self._core,
+            deleteIndex="true",
+            deleteDataDir="true",
+            deleteInstanceDir="true",
         )
 
     def _recreate_core(self):
         self._unload_hard()
-        r = self._core_admin(action="CREATE", name=self._core, configSet="_default", wt="json")
+        r = self._core_admin(
+            action="CREATE", name=self._core, configSet="_default", wt="json"
+        )
         self._expect_ok(r, "CREATE")
         self._wait_for_core_loaded()
 
@@ -256,12 +280,21 @@ class SolrClient:
     def _ensure_field(self, name: str, ftype: str, extra: dict | None = None):
         r = self._core_get(f"/schema/fields/{name}")
         if r.status_code == 404:
-            payload = {"add-field": {"name": name, "type": ftype, "stored": True, "indexed": True}}
+            payload = {
+                "add-field": {
+                    "name": name,
+                    "type": ftype,
+                    "stored": True,
+                    "indexed": True,
+                }
+            }
             if name == "id":
                 payload["add-field"]["required"] = True
             if extra:
                 payload["add-field"].update(extra)
-            self._expect_ok(self._core_post_json("/schema", payload), f"add-field {name}")
+            self._expect_ok(
+                self._core_post_json("/schema", payload), f"add-field {name}"
+            )
         elif r.status_code != 200:
             raise SolrException(f"GET field {name} failed {r.status_code}: {r.text}")
 
@@ -275,7 +308,9 @@ class SolrClient:
                 elif key == "values":
                     ndoc["values"] = [float(x) for x in value]
                 else:
-                    flat = self._flatten(key, value)       # dict of {field_name: field_value}
+                    flat = self._flatten(
+                        key, value
+                    )  # dict of {field_name: field_value}
                     for fname, fval in flat.items():
                         tname, is_multi = self._infer_solr_type(fval)
                         self._ensure_field_exists(fname, tname, is_multi)
@@ -292,7 +327,9 @@ class SolrClient:
             return "boolean", is_multi
         # treat ints before floats to avoid ints becoming pfloat
         try:
-            if isinstance(sample, (int,)) or (isinstance(sample, str) and sample.isdigit()):
+            if isinstance(sample, (int,)) or (
+                isinstance(sample, str) and sample.isdigit()
+            ):
                 return "pint", is_multi
             float(sample)  # raises if not numeric
             return "pfloat", is_multi
@@ -307,7 +344,9 @@ class SolrClient:
             self._ensured_fields.add(field_name)
             return
         if r.status_code != 404:
-            raise SolrException(f"GET field {field_name} failed {r.status_code}: {r.text}")
+            raise SolrException(
+                f"GET field {field_name} failed {r.status_code}: {r.text}"
+            )
 
         payload = {
             "add-field": {
@@ -320,16 +359,42 @@ class SolrClient:
         }
         rr = self._core_post_json("/schema", payload)
         if rr.status_code != 200:
-            raise SolrException(f"add-field {field_name} failed {rr.status_code}: {rr.text}")
+            raise SolrException(
+                f"add-field {field_name} failed {rr.status_code}: {rr.text}"
+            )
         self._ensured_fields.add(field_name)
 
     def _ensure_dynamic_fields(self):
         """Ensure typed, multiValued dynamic fields exist. One-time per core."""
         want = [
-            {"name": "*_s", "type": "string",  "indexed": True, "stored": True, "multiValued": True},
-            {"name": "*_i", "type": "pint",    "indexed": True, "stored": True, "multiValued": True},
-            {"name": "*_f", "type": "pfloat",  "indexed": True, "stored": True, "multiValued": True},
-            {"name": "*_b", "type": "boolean", "indexed": True, "stored": True, "multiValued": True},
+            {
+                "name": "*_s",
+                "type": "string",
+                "indexed": True,
+                "stored": True,
+                "multiValued": True,
+            },
+            {
+                "name": "*_i",
+                "type": "pint",
+                "indexed": True,
+                "stored": True,
+                "multiValued": True,
+            },
+            {
+                "name": "*_f",
+                "type": "pfloat",
+                "indexed": True,
+                "stored": True,
+                "multiValued": True,
+            },
+            {
+                "name": "*_b",
+                "type": "boolean",
+                "indexed": True,
+                "stored": True,
+                "multiValued": True,
+            },
         ]
         r = self._core_get("/schema/dynamicfields?wt=json")
         if r.status_code != 200:
@@ -362,21 +427,26 @@ class SolrClient:
                 out[prefix] = value
         else:
             out[prefix] = value
-        return out 
+        return out
 
     def _to_solr_fq(self, filters: dict) -> str:
         """Turn {"tags":[851,769], "author":"alice"} into Solr fq."""
         clauses = []
         for key, val in filters.items():
+
             def clause(field_base, value):
                 if isinstance(value, bool):
-                    field = f"{field_base}_b"; return f"{field}:{str(value).lower()}"
+                    field = f"{field_base}_b"
+                    return f"{field}:{str(value).lower()}"
                 if isinstance(value, int):
-                    field = f"{field_base}_i"; return f"{field}:{value}"
+                    field = f"{field_base}_i"
+                    return f"{field}:{value}"
                 if isinstance(value, float):
-                    field = f"{field_base}_f"; return f"{field}:{value}"
+                    field = f"{field_base}_f"
+                    return f"{field}:{value}"
                 # strings or fallback
-                field = f"{field_base}_s"; return f'{field}:"{value}"'
+                field = f"{field_base}_s"
+                return f'{field}:"{value}"'
 
             if isinstance(val, list):
                 if not val:
@@ -401,23 +471,21 @@ class SolrClient:
         ids = [str(d["id"]) for d in docs]
         # Build an id:( "a" "b" ... ) query safely via JSON body
         terms = " ".join(f'"{i}"' for i in ids)
-        payload = {
-            "query": f"id:({terms})", 
-            "fields": "id", 
-            "limit": len(ids) 
-        }
+        payload = {"query": f"id:({terms})", "fields": "id", "limit": len(ids)}
         r = self._core_post_json("/select", payload, params={"wt": "json"})
         if r.status_code != 200:
-            raise SolrException(f"Failed to filter existing ids: {r.status_code} {r.text}")
+            raise SolrException(
+                f"Failed to filter existing ids: {r.status_code} {r.text}"
+            )
         existing = {d["id"] for d in r.json()["response"]["docs"]}
         logger.debug(f"RTG: {len(existing)} ids already exist")
         return [d for d in docs if str(d["id"]) not in existing]
 
-
-
     # -------------------- Public: index creation --------------------
 
-    def create_index(self, name: str, dimension: int, metric: str, spec: dict | None = None):
+    def create_index(
+        self, name: str, dimension: int, metric: str, spec: dict | None = None
+    ):
         if not self._core:
             self._core = name
         if self.skip_populate:
@@ -430,7 +498,9 @@ class SolrClient:
             raise SolrException(f"Core '{self._core}' already exists")
 
         # 2) Create
-        cr = self._core_admin(action="CREATE", name=self._core, configSet="_default", wt="json")
+        cr = self._core_admin(
+            action="CREATE", name=self._core, configSet="_default", wt="json"
+        )
         if cr.status_code != 200:
             # If a parallel creator raced us, treat as "exists" since our contract says 'shouldn't have been called'
             if "already exists" in cr.text.lower():
@@ -461,8 +531,10 @@ class SolrClient:
         # Clean up any accidental 'vector' field if it exists
         rv = self._core_get("/schema/fields/vector")
         if rv.status_code == 200:
-            self._expect_ok(self._core_post_json("/schema", {"delete-field": {"name": "vector"}}),
-                            "delete-field vector")
+            self._expect_ok(
+                self._core_post_json("/schema", {"delete-field": {"name": "vector"}}),
+                "delete-field vector",
+            )
 
         # Point client at this core
         self.base_url = f"{self._root}/{self._core}"
@@ -485,10 +557,10 @@ class SolrClient:
         if not documents:
             return
         # Get the list of ids that already exist
-        #existing_ids = self._rtg_ids([str(d["id"]) for d in documents])
-        #logger.debug(f"RTG: {len(existing_ids)} ids already exist")
+        # existing_ids = self._rtg_ids([str(d["id"]) for d in documents])
+        # logger.debug(f"RTG: {len(existing_ids)} ids already exist")
         # Filter out the documents that already exist
-        #docs = [d for d in documents if str(d["id"]) not in existing_ids]
+        # docs = [d for d in documents if str(d["id"]) not in existing_ids]
         documents = self._filter_existing_ids(documents)
         if not documents:
             return
@@ -507,25 +579,31 @@ class SolrClient:
             try:
                 r = self._core_post_json(
                     "/update",
-                    {'add': docs},
-                    params = {"commitWithin": 60000, "wt": "json"},
+                    {"add": docs},
+                    params={"commitWithin": 60000, "wt": "json"},
                     timeout=(10, 300),
                 )
                 if r.status_code != 200:
-                    raise SolrException(f"Failed to add documents: {r.status_code} {r.text}")
+                    raise SolrException(
+                        f"Failed to add documents: {r.status_code} {r.text}"
+                    )
                 return
             except requests.exceptions.ConnectionError as e:
                 logger.warning(f"Connection error on attempt {attempt + 1}: {e}")
                 if attempt < max_retries - 1:
                     time.sleep(300)
                 else:
-                    raise SolrException("Failed to add documents after multiple attempts due to connection errors.")
+                    raise SolrException(
+                        "Failed to add documents after multiple attempts due to connection errors."
+                    )
             except Exception as e:
                 logger.warning(f"Error on attempt {attempt + 1}: {e}")
                 if attempt < max_retries - 1:
                     time.sleep(300)
                 else:
-                    raise SolrException("Failed to add documents after multiple attempts due to errors.")
+                    raise SolrException(
+                        "Failed to add documents after multiple attempts due to errors."
+                    )
 
     def search(self, q, rows=10, fq=None, ef=200):
         vector_query = ",".join(map(str, q))
@@ -557,9 +635,11 @@ class SolrClient:
         r = self._core_post_json("/update", {"delete": {"query": "*:*"}})
         if r.status_code != 200:
             raise SolrException(f"Failed to delete all documents: {r.text}")
-    
+
     def delete_index(self):
-        r = self._core_admin(action="UNLOAD", core=self._core, deleteIndex="true", deleteDataDir="true")
+        r = self._core_admin(
+            action="UNLOAD", core=self._core, deleteIndex="true", deleteDataDir="true"
+        )
         if r.status_code != 200:
             raise SolrException(f"Failed to delete index: {r.text}")
 
@@ -570,15 +650,22 @@ class SolrClient:
         return r.json()["response"]["numFound"]
 
     def close(self): ...
-    
+
 
 class SolrNamespace(Namespace):
-    def __init__(self, client: SolrClient, namespace: str, skip_populate: bool = False, start_from: int = 0, overwrite: bool = False):
+    def __init__(
+        self,
+        client: SolrClient,
+        namespace: str,
+        skip_populate: bool = False,
+        start_from: int = 0,
+        overwrite: bool = False,
+    ):
         self.client = client
         self.skip_populate = skip_populate
         self.start_from = start_from
         self.overwrite = overwrite
-    
+
     def insert_batch(self, batch: RecordList):
         if self.skip_populate:
             return
@@ -598,6 +685,7 @@ class SolrNamespace(Namespace):
             return self.client.search(
                 q=request.values, rows=request.top_k, fq=request.filter
             )
+
         result = do_query_with_retry()
         return [m["id"] for m in result["response"]["docs"]]
 
@@ -638,7 +726,9 @@ class SolrDB(DB):
 
         if not self.skip_populate:
             if exists and self.overwrite:
-                logger.info(f"SolrDB: Overwrite=True → dropping core '{self.index_name}'")
+                logger.info(
+                    f"SolrDB: Overwrite=True → dropping core '{self.index_name}'"
+                )
                 self.client.drop_core(self.index_name)
                 self.client.create_index(
                     name=self.index_name,
@@ -657,7 +747,9 @@ class SolrDB(DB):
                 )
                 self.created_index = True
             else:
-                logger.info(f"SolrDB: Core '{self.index_name}' exists → resume (no recreate)")
+                logger.info(
+                    f"SolrDB: Core '{self.index_name}' exists → resume (no recreate)"
+                )
                 self.created_index = False
 
     def close(self):
@@ -695,7 +787,9 @@ class SolrDB(DB):
             return
         logger.debug(f"SolrDB: Waiting for record count to reach {record_count}")
         with vsb.logging.progress_task(
-            "  Finalize population", "  \x1b[32m\x1b[1m\x1b[4m\x1b[0m Finalize population", total=record_count
+            "  Finalize population",
+            "  \x1b[32m\x1b[1m\x1b[4m\x1b[0m Finalize population",
+            total=record_count,
         ) as finalize_id:
             while True:
                 index_count = self.client.get_record_count()

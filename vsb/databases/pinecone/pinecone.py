@@ -98,7 +98,9 @@ class PineconeDB(DB):
                     spec=spec,
                 )
             except UnauthorizedException as e:
-                logger.critical(f"PineconeDB: Failed to create index '{self.index_name}' - {e}")
+                logger.critical(
+                    f"PineconeDB: Failed to create index '{self.index_name}' - {e}"
+                )
                 raise StopUser()
             self.index = self.pc.Index(name=self.index_name)
             self.created_index = True
