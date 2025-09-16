@@ -24,8 +24,7 @@ class TestSolr:
         (proc, stdout, stderr) = spawn_vsb_solr(workload="mnist-test")
         assert proc.returncode == 2
         assert (
-            "The following arguments must be specified when --database is "
-            "'solr':"
+            "The following arguments must be specified when --database is " "'solr':"
         ) in stderr
 
     def test_invalid_index(self):
