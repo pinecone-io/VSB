@@ -12,13 +12,16 @@ def main():
     """
     parser = argparse.ArgumentParser()
     parser.add_argument("--index-name", type=str, required=False, default=os.getenv("PINECONE_INDEX_NAME"), help="Name of the index to import to. If not provided, it will be inferred from the environment variable PINECONE_INDEX_NAME.")
-    parser.add_argument("--root", type=str, required=True, help="Root of the bucket to import from. This should be in the format s3://<bucket-name>/<path-to-data>.")
+    parser.add_argument("--root", type=str, required=True, help="Root of the bucket to import from. Provide either s3://<bucket-name>/<path-to-data> or <bucket-name>/<path-to-data>.")
     parser.add_argument("--integration-id", type=str, required=True, help="Integration ID for the bucket. This can be found in the Pinecone console.")
     args = parser.parse_args()
 
     pc = Pinecone()
     index_name = args.index_name or f"vsb-{os.getenv('VSB_WORKLOAD')}"
-    root = f's3://{args.root}'
+    if args.root.startswith("s3://"):
+        root = args.root
+    else:
+        root = f's3://{args.root}'
     if os.getenv("PINECONE_HOST") is None:
         index = pc.Index(name=index_name)
     else:
