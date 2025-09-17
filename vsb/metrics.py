@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 
 from vsb.vsb_types import SearchRequest
-
+from vsb import logger
 
 class Metric(ABC):
     """Generic abstraction for a metric against a Vector Search request"""
@@ -105,8 +105,19 @@ METRICS = (Recall, AveragePrecision, ReciprocalRank)
 
 
 def calculate_metrics(request: SearchRequest, results: list[str]) -> dict[str, float]:
-    metrics = dict()
+    # Ensure IDs are strings for consistent comparison
+    actual = [str(r) for r in results]
+    expected = [str(n) for n in request.neighbors[: request.top_k]] if hasattr(request, 'neighbors') and request.neighbors else []
+    logger.debug(f"Actual: {actual}")
+    logger.debug(f"Expected: {expected}")
+    metrics_dict = {}
     for metric in METRICS:
-        value = metric.measure(request, results)
-        metrics[metric.name()] = value
-    return metrics
+        # Some metrics expect the SearchRequest object; override its neighbors/top_k
+        if metric.name() == 'Recall':
+            # Use string-typed lists for recall
+            value = metric._calculate(actual, expected)
+        else:
+            value = metric.measure(request, results)
+        metrics_dict[metric.name()] = value
+    return metrics_dict
+
