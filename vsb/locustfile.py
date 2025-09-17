@@ -103,7 +103,9 @@ def setup_listeners(environment, **_kwargs):
 @events.quitting.add_listener
 def qutting_listener(environment, **_kwargs):
     print_metrics_on_quitting(environment)
-    environment.database.close()
+    # Close database if it was initialized
+    if hasattr(environment, "database") and environment.database is not None:
+        environment.database.close()
 
 
 def setup_environment(environment, **_kwargs):
@@ -123,11 +125,15 @@ def setup_environment(environment, **_kwargs):
             cache_dir=options.cache_dir,
             options=options,
             load_on_init=False,
+            query_limit=options.query_limit,
         )
 
     else:
         environment.workload_sequence = build_workload_sequence(
-            options.workload, cache_dir=options.cache_dir, options=options
+            options.workload,
+            cache_dir=options.cache_dir,
+            options=options,
+            query_limit=options.query_limit,
         )
 
     # Reset distributors for new Populate -> Run iteration
