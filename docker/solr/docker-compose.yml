@@ -5,6 +5,28 @@ services:
     restart: unless-stopped
     ports: ["8983:8983"]
     volumes:
-      - solr_data:/var/solr
+      # Persist only the Solr data directory to allow clean core removal
+      - solr_data:/var/solr/data
+      - ./docker/solr/configsets:/opt/solr/server/solr/configsets
+    # Constrain container resources for better performance
+    mem_limit: 8g
+    cpus: 2.0
+    # Tune JVM heap and GC for better query performance
+    environment:
+      - SOLR_JAVA_MEM=-Xms6g -Xmx6g
+      - SOLR_OPTS=-XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:InitiatingHeapOccupancyPercent=35
+    # Allow more open file handles for high-throughput queries
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: "8g"
+        reservations:
+          cpus: "1.0"
+          memory: "4g"
 volumes:
   solr_data:
