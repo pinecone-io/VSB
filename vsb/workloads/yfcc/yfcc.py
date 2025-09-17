@@ -17,11 +17,13 @@ class YFCCBase(ParquetWorkload, ABC):
 
 class YFCC(YFCCBase):
     def __init__(self, name: str, cache_dir: str, load_on_init: bool = True, **kwargs):
+        # Pass through any query_limit or other kwargs to base workload
         super().__init__(
             name,
             "yfcc-10M-filter-euclidean-formatted-multipart",
             cache_dir=cache_dir,
             load_on_init=load_on_init,
+            **kwargs,
         )
 
     @staticmethod
@@ -44,6 +46,8 @@ class YFCCTest(ParquetSubsetWorkload, YFCCBase):
             limit=10_000,
             query_limit=500,
             cache_dir=cache_dir,
+            load_on_init=load_on_init,
+            **kwargs,
         )
 
     @staticmethod
@@ -59,12 +63,13 @@ class YFCCCheese(YFCCBase):
     """A subset of YFCC with only the records that do not exist in
     the top-k neighbors of any query."""
 
-    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True):
+    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True, **kwargs):
         super().__init__(
             name,
             "yfcc-10M-filter-euclidean-formatted-multipart-cheese",
             cache_dir=cache_dir,
             load_on_init=load_on_init,
+            **kwargs,
         )
 
     @staticmethod
@@ -80,12 +85,13 @@ class YFCCHoles(YFCCBase):
     """A subset of YFCC with only the records that exist in
     the top-k neighbors of any query."""
 
-    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True):
+    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True, **kwargs):
         super().__init__(
             name,
             "yfcc-10M-filter-euclidean-formatted-multipart-holes",
             cache_dir=cache_dir,
             load_on_init=load_on_init,
+            **kwargs,
         )
 
     @staticmethod
