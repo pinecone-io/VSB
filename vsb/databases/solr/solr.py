@@ -45,18 +45,21 @@ class SolrClient:
         self.start_from = kwargs.get("start_from", 0)
         self.overwrite = kwargs.get("overwrite", False)
         self.max_retries = kwargs.get("max_retries", 3)
+        self.retry_delay = kwargs.get("retry_delay", 0.5)
         self.resume_offset = 0
         self._ensured_fields: set[str] = set()
 
         # Set up persistent session
         self._sess = requests.Session()
         retry = Retry(
-            total=3,
-            connect=3,
-            read=3,
-            backoff_factor=0.5,
+            total=self.max_retries,
+            connect=self.max_retries,
+            read=self.max_retries,
+            status=self.max_retries,
+            backoff_factor=self.retry_delay,
             status_forcelist=(502, 503, 504),
             allowed_methods=frozenset(["GET", "POST"]),
+            raise_on_status=False,
         )
         self._sess.mount("http://", HTTPAdapter(pool_maxsize=64, max_retries=retry))
 
@@ -246,15 +249,34 @@ class SolrClient:
 
     def _wait_for_core_loaded(self, deadline_s: int = 60):
         t0 = time.time()
-        while time.time() - t0 < deadline_s:
+        luke, schema = False, False
+        while time.time() - t0 < deadline_s and not (luke and schema):
             try:
-                r = self._core_get("/admin/luke?wt=json")
-                if r.status_code == 200:
-                    return
+                if not luke:
+                    r = self._core_get("/admin/luke?wt=json")
+                    if r.status_code == 200:
+                        luke = True
+                        continue
+            except requests.RequestException:
+                pass
+            try:
+                if not schema:
+                    r = self._core_get("/schema?wt=json")
+                    if r.status_code == 200:
+                        schema = True
+                        continue
             except requests.RequestException:
                 pass
             time.sleep(0.5)
-        raise SolrException(f"Core '{self._core}' did not load (no /admin/luke)")
+        if not (luke or schema):
+            missing = []
+            if not luke:
+                missing.append('luke')
+            if not schema:
+                missing.append('schema')
+            raise StopUser(
+                f"Core '{self._core}' did not load (missing: {', '.join(missing)})"
+            )
 
     # -------------------- Core ops --------------------
 
@@ -265,6 +287,8 @@ class SolrClient:
             deleteIndex="true",
             deleteDataDir="true",
             deleteInstanceDir="true",
+            open="false",
+            wt="json",
         )
 
     def _recreate_core(self):
@@ -274,6 +298,30 @@ class SolrClient:
         )
         self._expect_ok(r, "CREATE")
         self._wait_for_core_loaded()
+
+    def drop_core(self, timeout_s: int = 60):
+        """
+        Unload and delete a Solr core by name, removing all index data and awaiting removal.
+        """
+        r = self._unload_hard()
+        if r.status_code == 400 and r.text.contains("Cannot unload non-existent core"):
+            return
+        elif r.status_code != 200:
+            raise StopUser(f"DROP core '{self._core}' failed {r.status_code}: {r.text}")
+        # Wait for core to disappear
+        t0 = time.time()
+        while time.time() - t0 < timeout_s:
+            try:
+                # use STATUS to check existence
+                st = self._core_admin(action="STATUS", core=self._core, wt="json")
+                if st.status_code == 200 and self._core not in st.json().get("status", {}):
+                    return
+            except Exception:
+                # ignore transient failures
+                pass
+            time.sleep(0.5)
+        # warn if core still exists after timeout
+        logger.warning(f"SolrClient: core '{self._core}' not removed after {timeout_s}s")
 
     # -------------------- Schema helpers --------------------
 
@@ -307,6 +355,14 @@ class SolrClient:
                     ndoc["id"] = str(value)
                 elif key == "values":
                     ndoc["values"] = [float(x) for x in value]
+                elif key == "metadata":
+                    # flatten metadata dict children as top-level fields
+                    if isinstance(value, dict):
+                        for mkey, mval in value.items():
+                            tname, is_multi = self._infer_solr_type(mval)
+                            self._ensure_field_exists(mkey, tname, is_multi)
+                            ndoc[mkey] = mval
+                    continue
                 else:
                     flat = self._flatten(
                         key, value
@@ -354,6 +410,7 @@ class SolrClient:
                 "type": type_name,
                 "stored": True,
                 "indexed": True,
+                "docValues": True,
                 "multiValued": bool(multi),
             }
         }
@@ -434,37 +491,32 @@ class SolrClient:
         clauses = []
         for key, val in filters.items():
 
-            def clause(field_base, value):
-                if isinstance(value, bool):
-                    field = f"{field_base}_b"
-                    return f"{field}:{str(value).lower()}"
-                if isinstance(value, int):
-                    field = f"{field_base}_i"
-                    return f"{field}:{value}"
-                if isinstance(value, float):
-                    field = f"{field_base}_f"
-                    return f"{field}:{value}"
-                # strings or fallback
-                field = f"{field_base}_s"
-                return f'{field}:"{value}"'
-
             if isinstance(val, list):
                 if not val:
                     continue
-                parts = [clause(key, v) for v in val]
-                # AND all values by default; change to OR if that’s your contract
-                clauses.append("(" + " AND ".join(parts) + ")")
+                # Handle list of filter dicts (e.g., $and) by combining their sub-clauses
+                if all(isinstance(v, dict) for v in val):
+                    sub_parts = []
+                    for sub_filter in val:
+                        for sub_key, sub_val in sub_filter.items():
+                            sub_parts.append(f'{sub_key}:"{sub_val}"')
+                    clauses.append("(" + " AND ".join(sub_parts) + ")")
+                else:
+                    parts = [f'{key}:"{v}"' for v in val]
+                    # AND all values by default
+                    clauses.append("(" + " AND ".join(parts) + ")")
+                continue
             elif isinstance(val, dict):
                 # flatten inline: key_subKey …
                 for sub_k, sub_v in val.items():
                     base = f"{key}_{sub_k}"
                     if isinstance(sub_v, list):
-                        parts = [clause(base, v) for v in sub_v]
+                        parts = [f'{base}:"{v}"' for v in sub_v]
                         clauses.append("(" + " AND ".join(parts) + ")")
                     else:
-                        clauses.append(clause(base, sub_v))
+                        clauses.append(f'{base}:"{sub_v}"')
             else:
-                clauses.append(clause(key, val))
+                clauses.append(f'{key}:"{val}"')
         return " AND ".join(clauses) if clauses else "*:*"
 
     def _filter_existing_ids(self, docs: list[dict]) -> list[dict]:
@@ -486,58 +538,77 @@ class SolrClient:
     def create_index(
         self, name: str, dimension: int, metric: str, spec: dict | None = None
     ):
+        logger.info(f"SolrClient.create_index start: core={name}, dimension={dimension}, metric={metric}, skip_populate={self.skip_populate}")
         if not self._core:
             self._core = name
         if self.skip_populate:
+            logger.info("SolrClient.create_index: skip_populate=True, skipping index creation")
             return
 
-        self._wait_for_solr()
+        logger.debug("SolrClient.create_index: waiting for Solr to be available")
+        try:
+            logger.debug("SolrClient.create_index: calling _wait_for_solr()")
+            self._wait_for_solr()
 
-        # 1) Must not exist
-        if self._core_exists():
-            raise SolrException(f"Core '{self._core}' already exists")
-
-        # 2) Create
-        cr = self._core_admin(
-            action="CREATE", name=self._core, configSet="_default", wt="json"
-        )
-        if cr.status_code != 200:
-            # If a parallel creator raced us, treat as "exists" since our contract says 'shouldn't have been called'
-            if "already exists" in cr.text.lower():
+            logger.debug(f"SolrClient.create_index: checking if core '{self._core}' exists")
+            # 1) Must not exist
+            if self._core_exists():
+                logger.error(f"SolrClient.create_index: core '{self._core}' already exists, cannot create")
                 raise SolrException(f"Core '{self._core}' already exists")
-            raise SolrException(f"CREATE failed {cr.status_code}: {cr.text}")
 
-        # 3) Wait for it to be live
-        self._wait_for_core_loaded()
-
-        # 4) Vector type + fields
-        sim = {
-            "cosine": "cosine",
-            "dot": "dot_product",
-            "dot_product": "dot_product",
-            "ip": "dot_product",
-            "euclidean": "euclidean",
-            "l2": "euclidean",
-        }.get(str(metric).lower(), "cosine")
-
-        # Add or replace field type (handles polluted _default cleanly)
-        self._add_or_replace_knn(dimension, sim)
-        self._ensure_dynamic_fields()
-
-        # Fields (one vector field only)
-        self._ensure_field("id", "string")
-        self._ensure_field("values", "knn_vector")
-
-        # Clean up any accidental 'vector' field if it exists
-        rv = self._core_get("/schema/fields/vector")
-        if rv.status_code == 200:
-            self._expect_ok(
-                self._core_post_json("/schema", {"delete-field": {"name": "vector"}}),
-                "delete-field vector",
+            logger.info(f"SolrClient.create_index: creating core '{self._core}'")
+            # 2) Create
+            cr = self._core_admin(
+                action="CREATE", name=self._core, configSet="_default", wt="json"
             )
+            logger.debug(f"SolrClient.create_index: CREATE response status={cr.status_code}")
+            if cr.status_code != 200:
+                # If a parallel creator raced us, treat as "exists"
+                logger.error(f"SolrClient.create_index: CREATE failed {cr.status_code}: {cr.text}")
+                if "already exists" in cr.text.lower():
+                    logger.warning(f"SolrClient.create_index: create raced, core '{self._core}' exists")
+                    raise SolrException(f"Core '{self._core}' already exists")
+                raise StopUser(f"CREATE failed {cr.status_code}: {cr.text}")
 
-        # Point client at this core
-        self.base_url = f"{self._root}/{self._core}"
+            logger.debug("SolrClient.create_index: waiting for core loaded (luke+schema)")
+            # 3) Wait for it to be live
+            self._wait_for_core_loaded()
+
+            logger.debug("SolrClient.create_index: core loaded, proceeding with schema setup")
+            # 4) Vector type + fields
+            sim = {
+                "cosine": "cosine",
+                "dot": "dot_product",
+                "dot_product": "dot_product",
+                "ip": "dot_product",
+                "euclidean": "euclidean",
+                "l2": "euclidean",
+            }.get(str(metric).lower(), "cosine")
+
+            # Add or replace field type (handles polluted _default cleanly)
+            self._add_or_replace_knn(dimension, sim)
+            self._ensure_dynamic_fields()
+
+            # Fields (one vector field only)
+            self._ensure_field("id", "string")
+            self._ensure_field("values", "knn_vector")
+
+            # Clean up any accidental 'vector' field if it exists
+            rv = self._core_get("/schema/fields/vector")
+            if rv.status_code == 200:
+                self._expect_ok(
+                    self._core_post_json("/schema", {"delete-field": {"name": "vector"}}),
+                    "delete-field vector",
+                )
+
+            # Point client at this core
+            self.base_url = f"{self._root}/{self._core}"
+        except StopUser as e:
+            # Propagate intentional stop
+            raise e
+        except Exception as e:
+            # Wrap any other exception as StopUser for clean exit
+            raise StopUser(f"SolrClient.create_index failed: {e}")
 
     # -------------------- Data ops --------------------
 
@@ -605,7 +676,7 @@ class SolrClient:
                         "Failed to add documents after multiple attempts due to errors."
                     )
 
-    def search(self, q, rows=10, fq=None, ef=200):
+    def search(self, q, rows=10, fq=None, ef=25):
         vector_query = ",".join(map(str, q))
         params = {
             "q": f"{{!knn f=values topK={rows}}}[{vector_query}]",
@@ -616,6 +687,7 @@ class SolrClient:
         }
         if fq:
             params["fq"] = self._to_solr_fq(fq)
+        logger.debug(f"SolrClient.search: q={q}, rows={rows}, fq={fq}, ef={ef}")
         r = self._core_get("/select", params=params)
         if r.status_code == 404:
             raise NotFoundException(f"Document not found: {r.url} {r.text}")
@@ -676,6 +748,7 @@ class SolrNamespace(Namespace):
         self.insert_batch(batch)
 
     def search(self, request: SearchRequest) -> list[str]:
+        request.neighbors = [str(n) for n in request.neighbors]
         @retry(
             wait=wait_exponential_jitter(initial=0.1, jitter=0.1),
             stop=stop_after_attempt(5),
@@ -686,7 +759,11 @@ class SolrNamespace(Namespace):
                 q=request.values, rows=request.top_k, fq=request.filter
             )
 
+        # Execute the kNN query
         result = do_query_with_retry()
+        logger.debug(f"SolrDB.search: result={result}")
+        logger.debug(f"SolrDB.search: docs ={result['response']['docs'][:request.top_k]}")
+        logger.debug(f"SolrDB.search: ids={[{m['id'] for m in result['response']['docs'][:request.top_k]}]}")
         return [m["id"] for m in result["response"]["docs"]]
 
     def fetch_batch(self, request: list[str]) -> list[Record]:
@@ -706,12 +783,12 @@ class SolrDB(DB):
         config: dict,
     ):
         self.skip_populate = config["skip_populate"]
-        self.index_name = config["solr_index_name"] or f"vsb-{name}"
+        self._core = config["solr_index_name"] or f"vsb-{name}"
 
         # FIX: pass args by name so skip_populate isn't mis-slotted
         self.client = SolrClient(
             config["solr_url"],
-            core=self.index_name,
+            core=self._core,
             skip_populate=self.skip_populate,
             start_from=config["start_from"],
             overwrite=config["overwrite"],
@@ -722,25 +799,25 @@ class SolrDB(DB):
         self.overwrite = config["overwrite"]
         spec = config["solr_index_config"]
 
-        exists = self.client.core_exists(self.index_name)
+        exists = self.client.core_exists(self._core)
 
         if not self.skip_populate:
             if exists and self.overwrite:
                 logger.info(
-                    f"SolrDB: Overwrite=True → dropping core '{self.index_name}'"
+                    f"SolrDB: Overwrite=True → dropping core '{self._core}'"
                 )
-                self.client.drop_core(self.index_name)
+                self.client.drop_core(self._core)
                 self.client.create_index(
-                    name=self.index_name,
+                    name=self._core,
                     dimension=dimensions,
                     metric=metric.value,
                     spec=spec,
                 )
                 self.created_index = True
             elif not exists:
-                logger.info(f"SolrDB: Creating core '{self.index_name}'")
+                logger.info(f"SolrDB: Creating core '{self._core}'")
                 self.client.create_index(
-                    name=self.index_name,
+                    name=self._core,
                     dimension=dimensions,
                     metric=metric.value,
                     spec=spec,
@@ -748,7 +825,7 @@ class SolrDB(DB):
                 self.created_index = True
             else:
                 logger.info(
-                    f"SolrDB: Core '{self.index_name}' exists → resume (no recreate)"
+                    f"SolrDB: Core '{self._core}' exists → resume (no recreate)"
                 )
                 self.created_index = False
 
@@ -774,7 +851,7 @@ class SolrDB(DB):
         if self.skip_populate:
             return
         if self.overwrite:
-            logger.info(f"SolrDB: Clearing '{self.index_name}' before load")
+            logger.info(f"SolrDB: Clearing '{self._core}' before load")
             try:
                 self.client.delete_all()
             except SolrException:
