@@ -109,6 +109,13 @@ def add_vsb_cmdline_args(
         "then the target will be distributed across all users. "
         "Specify 0 for unlimited. Default is %(default)s.",
     )
+    general_group.add_argument(
+        "--query-limit",
+        dest="query_limit",
+        type=int,
+        default=0,
+        help="Limit the number of queries for the workload (overrides workload.request_count()). Default is no limit.",
+    )
 
     if include_locust_args:
         general_group.add_argument(
