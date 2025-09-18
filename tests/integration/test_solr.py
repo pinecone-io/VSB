@@ -1,4 +1,4 @@
-import pytest
+import os, pytest
 from conftest import (
     check_request_counts,
     spawn_vsb_inner,
@@ -11,8 +11,8 @@ def spawn_vsb_solr(workload, timeout=60, extra_args=None, **kwargs):
     its stdout and stderr.
     """
     extra_env = {
-        "VSB__SOLR_USERNAME": "solr",
-        "VSB__SOLR_PASSWORD": "solr",
+        "VSB__SOLR_USERNAME": os.environ.get("VSB__SOLR_USERNAME"),
+        "VSB__SOLR_PASSWORD": os.environ.get("VSB__SOLR_PASSWORD"),
     }
     return spawn_vsb_inner("solr", workload, timeout, extra_args, extra_env)
 
