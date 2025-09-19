@@ -28,16 +28,18 @@ class ParquetWorkload(VectorWorkload, ABC):
         dataset_name: str,
         cache_dir: str,
         limit: int = 0,
-        query_limit: int = 0,
         load_on_init: bool = True,
         **kwargs,
     ):
+        query_limit = kwargs.get("query_limit", 0)
         super().__init__(name)
         self.dataset = Dataset(dataset_name, cache_dir=cache_dir, limit=limit)
 
         if load_on_init:
+            # Load up to query_limit if specified
             self.dataset.setup_queries(query_limit=query_limit)
-            self.queries = self.dataset.queries
+            df = self.dataset.queries
+            self.queries = df if query_limit <= 0 else df.iloc[:query_limit]
         else:
             self.queries = None
             self.query_limit = query_limit
@@ -99,8 +101,7 @@ class ParquetWorkload(VectorWorkload, ABC):
                 # neighbors are nested inside a `blob` field, need to unnest them
                 # to pass to SearchRequest.
                 args = query._asdict()
-                assert "values" in args
-                assert args["values"] is not None
+                assert "values" in args and args["values"] is not None
                 args.update(args.pop("blob"))
                 # TODO: Add multiple tenant support.
                 yield "", SearchRequest(**args)

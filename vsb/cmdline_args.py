@@ -109,6 +109,13 @@ def add_vsb_cmdline_args(
         "then the target will be distributed across all users. "
         "Specify 0 for unlimited. Default is %(default)s.",
     )
+    general_group.add_argument(
+        "--query-limit",
+        dest="query_limit",
+        type=int,
+        default=0,
+        help="Limit the number of queries for the workload (overrides workload.request_count()). Default is no limit.",
+    )
 
     if include_locust_args:
         general_group.add_argument(
@@ -434,6 +441,49 @@ def add_vsb_cmdline_args(
             "at least as large as the index size. Specify as a string with size "
             "suffix (e.g. '2GB'). Default is %(default)s."
         ),
+    )
+
+    solr_group = parser.add_argument_group("Options specific to Solr database")
+    solr_group.add_argument(
+        "--solr_url",
+        type=str,
+        help="URL to connect to Solr",
+        env_var="VSB__SOLR_URL",
+    )
+    solr_group.add_argument(
+        "--solr_index_name",
+        type=str,
+        default=None,
+        help="Name of Solr index to connect to. One will be created if it does not exist. Default is vsb-<workload>.",
+        env_var="VSB__SOLR_INDEX_NAME",
+    )
+    solr_group.add_argument(
+        "--solr_index_config",
+        type=str,
+        default=None,
+        help="Configuration for Solr index.",
+        env_var="VSB__SOLR_INDEX_CONFIG",
+    )
+    solr_group.add_argument(
+        "--start_from",
+        type=int,
+        default=0,
+        help="Start from this record number. Default is %(default)s.",
+        env_var="VSB__START_FROM",
+    )
+    solr_group.add_argument(
+        "--solr_max_retries",
+        type=int,
+        default=3,
+        help="Maximum number of retries for Solr operations. Default is %(default)s.",
+        env_var="VSB__SOLR_MAX_RETRIES",
+    )
+    solr_group.add_argument(
+        "--solr_retry_delay",
+        type=int,
+        default=300,
+        help="Delay between retries for Solr operations. Default is %(default)s.",
+        env_var="VSB__SOLR_RETRY_DELAY",
     )
 
 

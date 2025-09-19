@@ -90,12 +90,18 @@ class PineconeDB(DB):
                 f"PineconeDB: Specified index '{self.index_name}' was not found, or the "
                 f"specified API key cannot access it. Creating new index '{self.index_name}'."
             )
-            self.pc.create_index(
-                name=self.index_name,
-                dimension=dimensions,
-                metric=metric.value,
-                spec=spec,
-            )
+            try:
+                self.pc.create_index(
+                    name=self.index_name,
+                    dimension=dimensions,
+                    metric=metric.value,
+                    spec=spec,
+                )
+            except UnauthorizedException as e:
+                logger.critical(
+                    f"PineconeDB: Failed to create index '{self.index_name}' - {e}"
+                )
+                raise StopUser()
             self.index = self.pc.Index(name=self.index_name)
             self.created_index = True
 
