@@ -28,10 +28,10 @@ class ParquetWorkload(VectorWorkload, ABC):
         dataset_name: str,
         cache_dir: str,
         limit: int = 0,
-        query_limit: int = 0,
         load_on_init: bool = True,
         **kwargs,
     ):
+        query_limit = kwargs.get("query_limit", 0)
         super().__init__(name)
         self.dataset = Dataset(dataset_name, cache_dir=cache_dir, limit=limit)
 

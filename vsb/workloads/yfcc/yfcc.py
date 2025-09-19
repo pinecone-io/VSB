@@ -39,16 +39,26 @@ class YFCCTest(ParquetSubsetWorkload, YFCCBase):
     """Reduced, "test" variant of YFCC; with ~0.1% of the full dataset / 0.5%
     of queries"""
 
-    def __init__(self, name: str, cache_dir: str, load_on_init: bool = True, **kwargs):
+    def __init__(
+        self,
+        name: str,
+        cache_dir: str,
+        load_on_init: bool = True,
+        query_limit: int = 0,
+        **kwargs,
+    ):
+        # Pass through query_limit and other kwargs to base workload
         super().__init__(
             name,
             "yfcc-100K-filter-euclidean-formatted",
             limit=10_000,
-            query_limit=500,
+            query_limit=query_limit,
             cache_dir=cache_dir,
             load_on_init=load_on_init,
             **kwargs,
         )
+        # Store the query limit for potential use downstream
+        self.query_limit = query_limit
 
     @staticmethod
     def record_count() -> int:

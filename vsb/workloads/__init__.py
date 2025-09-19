@@ -108,6 +108,7 @@ class WorkloadSequence(Enum):
     Nq768Split = "nq768-split"
     Cohere768Split = "cohere768-split"
     YFCCSplit = "yfcc-split"
+    YFCCTest = "yfcc-test"
     SyntheticRunbook = "synthetic-runbook"
 
     def build(self, **kwargs) -> VectorWorkloadSequence:
