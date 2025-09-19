@@ -27,6 +27,7 @@ from test_pinecone import (
 )
 from test_pgvector import spawn_vsb_pgvector
 from test_opensearch import spawn_vsb_opensearch
+from test_solr import spawn_vsb_solr
 
 
 @pytest.mark.parametrize(
