@@ -28,7 +28,7 @@ class PineconeNamespace(Namespace):
     def insert_batch(self, batch: RecordList):
         # Pinecone expects a list of dicts (or tuples).
         dicts = [dict(rec) for rec in batch]
-        self.index.upsert(dicts)
+        self.index.upsert(vectors=dicts, namespace=self.namespace)
 
     def update_batch(self, batch: list[Record]):
         # Pinecone treats insert and update as the same operation.
@@ -42,7 +42,7 @@ class PineconeNamespace(Namespace):
         )
         def do_query_with_retry():
             return self.index.query(
-                vector=request.values, top_k=request.top_k, filter=request.filter
+                vector=request.values, top_k=request.top_k, filter=request.filter, namespace=self.namespace
             )
 
         result = do_query_with_retry()
@@ -50,10 +50,10 @@ class PineconeNamespace(Namespace):
         return matches
 
     def fetch_batch(self, request: list[str]) -> list[Record]:
-        return self.index.fetch(request).vectors.values
+        return self.index.fetch(ids=request, namespace=self.namespace).vectors.values
 
     def delete_batch(self, request: list[str]):
-        self.index.delete(request)
+        self.index.delete(ids=request, namespace=self.namespace)
 
 
 class PineconeDB(DB):
@@ -69,6 +69,7 @@ class PineconeDB(DB):
         self.skip_populate = config["skip_populate"]
         self.overwrite = config["overwrite"]
         self.index_name = config["pinecone_index_name"]
+        self.namespace = config["pinecone_namespace_name"]
         if self.index_name is None:
             # None specified, default to "vsb-<workload>"
             self.index_name = f"vsb-{name}"
