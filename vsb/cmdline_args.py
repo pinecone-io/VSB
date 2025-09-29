@@ -281,7 +281,7 @@ def add_vsb_cmdline_args(
     pinecone_group.add_argument(
         "--pinecone_namespace_name",
         type=str,
-        default='__default__',
+        default="__default__",
         help="Name of Pinecone namespace to connect to. Default is __default__.",
         env_var="VSB__PINECONE_NAMESPACE_NAME",
     )
