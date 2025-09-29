@@ -42,7 +42,10 @@ class PineconeNamespace(Namespace):
         )
         def do_query_with_retry():
             return self.index.query(
-                vector=request.values, top_k=request.top_k, filter=request.filter, namespace=self.namespace
+                vector=request.values,
+                top_k=request.top_k,
+                filter=request.filter,
+                namespace=self.namespace,
             )
 
         result = do_query_with_retry()
