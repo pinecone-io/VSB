@@ -24,6 +24,7 @@ class PineconeNamespace(Namespace):
     def __init__(self, index: GRPCIndex, namespace: str):
         # TODO: Support multiple namespaces
         self.index = index
+        self.namespace = namespace
 
     def insert_batch(self, batch: RecordList):
         # Pinecone expects a list of dicts (or tuples).
