@@ -17,7 +17,9 @@ vsb --database=pinecone --workload=mnist-test \
 
 If you wish to configure the created index or use an already existing one,
 specify the name and/or spec with `--pinecone_index_name` and `--pinecone_index_spec`.
+
 The `--pinecone_index_spec` option takes a JSON string described in the [Pinecone docs](https://docs.pinecone.io/reference/api/control-plane/create_index).
+
 You can specify a [Namespace](https://docs.pinecone.io/guides/index-data/indexing-overview#namespaces) using `--pinecone_namespace_name`. If no namespace is provided, the data will be loaded into the `__default__` namespace.
 
 ```shell
