@@ -227,4 +227,3 @@ class PineconeDB(DB):
                 f"PineconeDB: Error while listing namespaces in index '{self.index_name}' - {e}"
             )
             return False
-
