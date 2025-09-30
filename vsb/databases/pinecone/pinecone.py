@@ -202,7 +202,9 @@ class PineconeDB(DB):
         return False
 
     def get_record_count(self) -> int:
-        return int(self.index.describe_namespace(namespace=self.namespace)["record_count"])
+        return int(
+            self.index.describe_namespace(namespace=self.namespace)["record_count"]
+            )
 
     def check_namespace_exists(self, namespace: str) -> bool:
         """Check if a namespace exists inside the current index using list_namespaces generator."""
@@ -210,13 +212,19 @@ class PineconeDB(DB):
             # list_namespaces returns a generator of dicts with 'name' and 'record_count'
             for ns in self.index.list_namespaces():
                 if ns["name"] == namespace:
-                    logger.info(f"PineconeDB: Namespace '{namespace}' exists in index '{self.index_name}'.")
+                    logger.info(
+                        f"PineconeDB: Namespace '{namespace}' exists in index '{self.index_name}'."
+                        )
                     return True
 
-            logger.info(f"PineconeDB: Namespace '{namespace}' does not exist in index '{self.index_name}'.")
+            logger.info(
+                f"PineconeDB: Namespace '{namespace}' does not exist in index '{self.index_name}'."
+                )
             return False
 
         except PineconeException as e:
-            logger.error(f"PineconeDB: Error while listing namespaces in index '{self.index_name}' - {e}")
+            logger.error(
+                f"PineconeDB: Error while listing namespaces in index '{self.index_name}' - {e}"
+                )
             return False
 
