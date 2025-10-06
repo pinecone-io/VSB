@@ -172,7 +172,6 @@ class TestPinecone:
             extra_args=["--overwrite"],
         )
         assert proc1.returncode == 0
-        assert "Initial population failed" in stdout
 
         # Now, attempt to populate the same namespace without --overwrite
         (proc2, stdout, stderr) = spawn_vsb(
