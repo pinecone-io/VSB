@@ -24,11 +24,12 @@ class PineconeNamespace(Namespace):
     def __init__(self, index: GRPCIndex, namespace: str):
         # TODO: Support multiple namespaces
         self.index = index
+        self.namespace = namespace
 
     def insert_batch(self, batch: RecordList):
         # Pinecone expects a list of dicts (or tuples).
         dicts = [dict(rec) for rec in batch]
-        self.index.upsert(dicts)
+        self.index.upsert(vectors=dicts, namespace=self.namespace)
 
     def update_batch(self, batch: list[Record]):
         # Pinecone treats insert and update as the same operation.
@@ -42,7 +43,10 @@ class PineconeNamespace(Namespace):
         )
         def do_query_with_retry():
             return self.index.query(
-                vector=request.values, top_k=request.top_k, filter=request.filter
+                vector=request.values,
+                top_k=request.top_k,
+                filter=request.filter,
+                namespace=self.namespace,
             )
 
         result = do_query_with_retry()
@@ -50,10 +54,10 @@ class PineconeNamespace(Namespace):
         return matches
 
     def fetch_batch(self, request: list[str]) -> list[Record]:
-        return self.index.fetch(request).vectors.values
+        return self.index.fetch(ids=request, namespace=self.namespace).vectors.values
 
     def delete_batch(self, request: list[str]):
-        self.index.delete(request)
+        self.index.delete(ids=request, namespace=self.namespace)
 
 
 class PineconeDB(DB):
@@ -69,6 +73,7 @@ class PineconeDB(DB):
         self.skip_populate = config["skip_populate"]
         self.overwrite = config["overwrite"]
         self.index_name = config["pinecone_index_name"]
+        self.namespace = config["pinecone_namespace_name"]
         if self.index_name is None:
             # None specified, default to "vsb-<workload>"
             self.index_name = f"vsb-{name}"
@@ -139,47 +144,55 @@ class PineconeDB(DB):
         return batch_size
 
     def get_namespace(self, namespace: str) -> Namespace:
-        return PineconeNamespace(self.index, namespace)
+        return PineconeNamespace(self.index, self.namespace)
 
     def initialize_population(self):
-        # If the index already existed before VSB (we didn't create it) and
+        # If the namespace already existed before VSB (we didn't create it) and
         # user didn't specify skip_populate; require --overwrite before
-        # deleting the existing index.
+        # deleting the existing namespace.
         if self.skip_populate:
             return
-        if not self.created_index and not self.overwrite:
+
+        # Check if the namespace exists
+        self.namespace_exists = self.check_namespace_exists(self.namespace)
+
+        # If the namespace exists and user didn't specify --overwrite, raise an error
+        if self.namespace_exists and not self.overwrite:
             msg = (
-                f"PineconeDB: Index '{self.index_name}' already exists - cowardly "
+                f"PineconeDB: Namespace '{self.namespace}' already exists - cowardly "
                 f"refusing to overwrite existing data. Specify --overwrite to "
                 f"delete it, or specify --skip_populate to skip population phase."
             )
             logger.critical(msg)
             raise StopUser()
-        try:
-            logger.info(
-                f"PineconeDB: Deleting existing index '{self.index_name}' before "
-                f"population (--overwrite=True)"
-            )
-            self.index.delete(delete_all=True)
-        except PineconeException as e:
-            # Serverless indexes can throw a "Namespace not found" exception for
-            # delete_all if there are no documents in the index. Simply ignore,
-            # as the post-condition is the same.
-            pass
+
+        # If the namespace exists and user specified --overwrite, delete the namespace
+        if self.namespace_exists and self.overwrite:
+            try:
+                logger.info(
+                    f"PineconeDB: Deleting existing namespace '{self.namespace}' before "
+                    f"population (--overwrite=True)"
+                )
+                self.index.delete_namespace(namespace=self.namespace)
+            except PineconeException as e:
+                # Serverless indexes can throw a "Namespace not found" exception for
+                # delete_namespace if there are no documents in the index. Simply ignore,
+                # as the post-condition is the same.
+                pass
 
     def finalize_population(self, record_count: int):
-        """Wait until all records are visible in the index"""
+        """Wait until all records are visible in the namespace"""
         logger.debug(f"PineconeDB: Waiting for record count to reach {record_count}")
         with vsb.logging.progress_task(
             "  Finalize population", "  ✔ Finalize population", total=record_count
         ) as finalize_id:
             while True:
-                index_count = self.index.describe_index_stats()["total_vector_count"]
+                namespace_rec_count = self.get_record_count()
                 if vsb.progress:
-                    vsb.progress.update(finalize_id, completed=index_count)
-                if index_count >= record_count:
+                    vsb.progress.update(finalize_id, completed=namespace_rec_count)
+                if namespace_rec_count >= record_count:
                     logger.debug(
-                        f"PineconeDB: Index vector count reached {index_count}, "
+                        f"PineconeDB: Namespace vector count reached {namespace_rec_count}, "
                         f"finalize is complete"
                     )
                     break
@@ -189,4 +202,28 @@ class PineconeDB(DB):
         return False
 
     def get_record_count(self) -> int:
-        return self.index.describe_index_stats()["total_vector_count"]
+        return int(
+            self.index.describe_namespace(namespace=self.namespace)["record_count"]
+        )
+
+    def check_namespace_exists(self, namespace: str) -> bool:
+        """Check if a namespace exists inside the current index using list_namespaces generator."""
+        try:
+            # list_namespaces returns a generator of dicts with 'name' and 'record_count'
+            for ns in self.index.list_namespaces():
+                if ns["name"] == namespace:
+                    logger.info(
+                        f"PineconeDB: Namespace '{namespace}' exists in index '{self.index_name}'."
+                    )
+                    return True
+
+            logger.info(
+                f"PineconeDB: Namespace '{namespace}' does not exist in index '{self.index_name}'."
+            )
+            return False
+
+        except PineconeException as e:
+            logger.error(
+                f"PineconeDB: Error while listing namespaces in index '{self.index_name}' - {e}"
+            )
+            return False

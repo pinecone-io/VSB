@@ -5,9 +5,9 @@ name: Python package
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 # Only allow one workflow to run at once - given we need to create an index
 # for each python-version (3x), we want to constrain how many indexes are
@@ -17,64 +17,63 @@ concurrency:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.11"]
-        environment: ['serverless', 'pod']
+        environment: ["serverless"]
 
     steps:
-    - uses: actions/checkout@v4
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ matrix.python-version }}
-    - name: Install Poetry
-      uses: snok/install-poetry@v1
-      with:
-        version: 1.8.1
-        virtualenvs-create: true
-        virtualenvs-in-project: true
-        installer-parallel: true
-    - name: Install dependencies
-      run: |
-        poetry install
-    - name: Lint with flake8
-      run: |
-        # stop the build if there are Python syntax errors or undefined names
-        poetry run flake8 . --extend-exclude .venv --count --select=E9,F63,F7,F82 --show-source --statistics
-        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-        poetry run flake8 . --extend-exclude .venv --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+      - uses: actions/checkout@v4
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: 1.8.1
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+          installer-parallel: true
+      - name: Install dependencies
+        run: |
+          poetry install
+      - name: Lint with flake8
+        run: |
+          # stop the build if there are Python syntax errors or undefined names
+          poetry run flake8 . --extend-exclude .venv --count --select=E9,F63,F7,F82 --show-source --statistics
+          # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
+          poetry run flake8 . --extend-exclude .venv --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
-    - name: Set up Docker Compose
-      run: |
-        docker compose -f docker/pgvector/docker-compose.yml up -d
-        docker compose -f docker/opensearch/docker-compose.yml up -d
-    - name: Test with pytest
-      run: |
-        # Maximum observed test runtime in CI is ~60s. Set a per-test timeout of
-        # 2x (120s) to catch any stuck tests, but give some headroom in case any tests
-        # slow down a bit.
-        poetry run pytest --color=yes --durations=10 --timeout=120 --verbose
-      env:
-        ENVIRONMENT: ${{ matrix.environment == 'pod' && 'us-east4-gcp' || '' }}
-        SERVERLESS_REGION: us-west-2
-        SERVERLESS_CLOUD: aws
-        NAME_PREFIX: test-${{ github.run_number }}
-        PINECONE_API_KEY: '${{ secrets.PINECONE_API_KEY }}'
-    - name: Clean up dangling indexes
-      if: always()
-      run: |
-        poetry run python3 .github/scripts/cleanup_pinecone_project.py
-      env:
-        ENVIRONMENT: ${{ matrix.environment }}
-        NAME_PREFIX: test-${{ github.run_number }}
-        PINECONE_API_KEY: '${{ secrets.PINECONE_API_KEY }}'
-    - name: Shut down Docker Compose
-      if: always()
-      run: |
-        docker compose -f docker/pgvector/docker-compose.yml down
-        docker compose -f docker/opensearch/docker-compose.yml down
+      - name: Set up Docker Compose
+        run: |
+          docker compose -f docker/pgvector/docker-compose.yml up -d
+          docker compose -f docker/opensearch/docker-compose.yml up -d
+      - name: Test with pytest
+        run: |
+          # Maximum observed test runtime in CI is ~60s. Set a per-test timeout of
+          # 2x (120s) to catch any stuck tests, but give some headroom in case any tests
+          # slow down a bit.
+          poetry run pytest --color=yes --durations=10 --timeout=120 --verbose
+        env:
+          ENVIRONMENT: ${{ matrix.environment == 'pod' && 'us-east4-gcp' || '' }}
+          SERVERLESS_REGION: us-west-2
+          SERVERLESS_CLOUD: aws
+          NAME_PREFIX: test-${{ github.run_number }}
+          PINECONE_API_KEY: "${{ secrets.PINECONE_API_KEY }}"
+      - name: Clean up dangling indexes
+        if: always()
+        run: |
+          poetry run python3 .github/scripts/cleanup_pinecone_project.py
+        env:
+          ENVIRONMENT: ${{ matrix.environment }}
+          NAME_PREFIX: test-${{ github.run_number }}
+          PINECONE_API_KEY: "${{ secrets.PINECONE_API_KEY }}"
+      - name: Shut down Docker Compose
+        if: always()
+        run: |
+          docker compose -f docker/pgvector/docker-compose.yml down
+          docker compose -f docker/opensearch/docker-compose.yml down

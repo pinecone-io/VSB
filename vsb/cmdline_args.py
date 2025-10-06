@@ -278,6 +278,13 @@ def add_vsb_cmdline_args(
         help="Name of Pinecone index to connect to. One will be created if it does not exist. Default is vsb-<workload>.",
         env_var="VSB__PINECONE_INDEX_NAME",
     )
+    pinecone_group.add_argument(
+        "--pinecone_namespace_name",
+        type=str,
+        default="__default__",
+        help="Name of Pinecone namespace to connect to. Default is __default__.",
+        env_var="VSB__PINECONE_NAMESPACE_NAME",
+    )
 
     pinecone_group.add_argument(
         "--pinecone_index_spec",

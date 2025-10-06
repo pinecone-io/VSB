@@ -235,7 +235,7 @@ description = "Foreign Function Interface for Python calling C code."
 optional = false
 python-versions = ">=3.8"
 groups = ["main"]
-markers = "(platform_python_implementation == \"CPython\" or implementation_name == \"pypy\") and (sys_platform == \"win32\" or implementation_name == \"pypy\")"
+markers = "platform_python_implementation == \"CPython\" and sys_platform == \"win32\" or implementation_name == \"pypy\""
 files = [
     {file = "cffi-1.17.1-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:df8b1c11f177bc2313ec4b2d46baec87a5f3e71fc8b45dab2ee7cae86d9aba14"},
     {file = "cffi-1.17.1-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:8f2cdc858323644ab277e9bb925ad72ae0e67f69e804f4898c070998d50b1a67"},
@@ -1653,7 +1653,7 @@ version = "24.2"
 description = "Core utilities for Python packages"
 optional = false
 python-versions = ">=3.8"
-groups = ["dev"]
+groups = ["main", "dev"]
 files = [
     {file = "packaging-24.2-py3-none-any.whl", hash = "sha256:09abb1bccd265c01f4a3aa3f7a7db064b36514d2cba19a2f694fe6150451a759"},
     {file = "packaging-24.2.tar.gz", hash = "sha256:c228a6dc5e932d346bc5739379109d49e8853dd8223571c7c5b55260edc0b97f"},
@@ -1786,14 +1786,14 @@ numpy = "*"
 
 [[package]]
 name = "pinecone"
-version = "6.0.2"
+version = "7.3.0"
 description = "Pinecone client and SDK"
 optional = false
 python-versions = "<4.0,>=3.9"
 groups = ["main"]
 files = [
-    {file = "pinecone-6.0.2-py3-none-any.whl", hash = "sha256:a85fa36d7d1451e7b7563ccfc7e3e2dadd39b33e5d53b2882468db8514ab8847"},
-    {file = "pinecone-6.0.2.tar.gz", hash = "sha256:9c2e74be8b3abe76909da9b4dae61bced49aade51f6fc39b87edb97a1f8df0e4"},
+    {file = "pinecone-7.3.0-py3-none-any.whl", hash = "sha256:315b8fef20320bef723ecbb695dec0aafa75d8434d86e01e5a0e85933e1009a8"},
+    {file = "pinecone-7.3.0.tar.gz", hash = "sha256:307edc155621d487c20dc71b76c3ad5d6f799569ba42064190d03917954f9a7b"},
 ]
 
 [package.dependencies]
@@ -1804,6 +1804,7 @@ grpcio = [
     {version = ">=1.68.0", optional = true, markers = "python_version >= \"3.13\" and python_version < \"4.0\" and extra == \"grpc\""},
 ]
 lz4 = {version = ">=3.1.3", optional = true, markers = "extra == \"grpc\""}
+pinecone-plugin-assistant = ">=1.6.0,<2.0.0"
 pinecone-plugin-interface = ">=0.0.7,<0.0.8"
 protobuf = {version = ">=5.29,<6.0", optional = true, markers = "extra == \"grpc\""}
 protoc-gen-openapiv2 = {version = ">=0.0.1,<0.0.2", optional = true, markers = "extra == \"grpc\""}
@@ -1815,8 +1816,24 @@ urllib3 = [
 ]
 
 [package.extras]
-asyncio = ["aiohttp (>=3.9.0)"]
+asyncio = ["aiohttp (>=3.9.0)", "aiohttp-retry (>=2.9.1,<3.0.0)"]
 grpc = ["googleapis-common-protos (>=1.66.0)", "grpcio (>=1.44.0) ; python_version >= \"3.8\" and python_version < \"3.11\"", "grpcio (>=1.59.0) ; python_version >= \"3.11\" and python_version < \"4.0\"", "grpcio (>=1.68.0) ; python_version >= \"3.13\" and python_version < \"4.0\"", "lz4 (>=3.1.3)", "protobuf (>=5.29,<6.0)", "protoc-gen-openapiv2 (>=0.0.1,<0.0.2)"]
+
+[[package]]
+name = "pinecone-plugin-assistant"
+version = "1.8.0"
+description = "Assistant plugin for Pinecone SDK"
+optional = false
+python-versions = "<4.0,>=3.9"
+groups = ["main"]
+files = [
+    {file = "pinecone_plugin_assistant-1.8.0-py3-none-any.whl", hash = "sha256:71ae42c3b4478d23138cbc4fe3505db561319a826f5aff4ef2e306a25ac56686"},
+    {file = "pinecone_plugin_assistant-1.8.0.tar.gz", hash = "sha256:8e8682cff30f9bae9243b384021aba71c91f4e6ef1650e9d63ee64aab83cba87"},
+]
+
+[package.dependencies]
+packaging = ">=24.2,<25.0"
+requests = ">=2.32.3,<3.0.0"
 
 [[package]]
 name = "pinecone-plugin-interface"
@@ -2105,7 +2122,7 @@ description = "C parser in Python"
 optional = false
 python-versions = ">=3.8"
 groups = ["main"]
-markers = "(platform_python_implementation == \"CPython\" or implementation_name == \"pypy\") and (sys_platform == \"win32\" or implementation_name == \"pypy\")"
+markers = "platform_python_implementation == \"CPython\" and sys_platform == \"win32\" or implementation_name == \"pypy\""
 files = [
     {file = "pycparser-2.22-py3-none-any.whl", hash = "sha256:c3702b6d3dd8c7abc1afa565d7e63d53a1d0bd86cdc24edd75470f4de499cfcc"},
     {file = "pycparser-2.22.tar.gz", hash = "sha256:491c8be9c040f5390f5bf44a5b07752bd07f56edf992381b05c701439eec10f6"},
@@ -2881,4 +2898,4 @@ testing = ["coverage[toml]", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "99c374b9cd3d4fb5a891131e711c3b67a788c18ff73b4454ed5f6c36ac748b45"
+content-hash = "235c75d0b5372c8f69e48a99c34fe716578e13a806c834ca99382dc71968f730"

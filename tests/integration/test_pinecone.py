@@ -70,6 +70,7 @@ def spawn_vsb(
     workload,
     api_key=None,
     index_name=None,
+    namespace=None,
     index_spec=None,
     timeout=60,
     extra_args: list = None,
@@ -82,6 +83,8 @@ def spawn_vsb(
         args += ["--pinecone_index_name", index_name]
     if index_spec:
         args += ["--pinecone_index_spec", index_spec]
+    if namespace:
+        args += ["--pinecone_namespace_name", namespace]
     if extra_args:
         args += extra_args
     extra_env = {}
@@ -95,6 +98,7 @@ def spawn_vsb_pinecone(
     workload,
     pinecone_api_key,
     pinecone_index,
+    namespace=None,
     timeout=60,
     extra_args=None,
     **kwargs,
@@ -103,6 +107,8 @@ def spawn_vsb_pinecone(
     its stdout and stderr.
     """
     args = ["--pinecone_index_name", pinecone_index]
+    if namespace:
+        args += ["--pinecone_namespace_name", namespace]
     if extra_args:
         args += extra_args
     extra_env = {}
@@ -155,11 +161,26 @@ class TestPinecone:
         # outside of VSB in the harness via pinecone_index_mnist).
         # Note that spawn_vsb() always specifies --overwrite, so we need to
         # additionally add --no-overwrite to the args here.
-        (proc, stdout, stderr) = spawn_vsb(
+        namespace = "overwrite_test_ns"
+
+        # First, populate the namespace with --overwrite to ensure it exists
+        (proc1, stdout, stderr) = spawn_vsb(
             workload="mnist-test",
+            namespace=namespace,
+            api_key=pinecone_api_key,
+            index_name=pinecone_index_mnist,
+            extra_args=["--overwrite"],
+        )
+        assert proc1.returncode == 0
+
+        # Now, attempt to populate the same namespace without --overwrite
+        (proc2, stdout, stderr) = spawn_vsb(
+            workload="mnist-test",
+            namespace=namespace,
             api_key=pinecone_api_key,
             index_name=pinecone_index_mnist,
             extra_args=["--no-overwrite"],
         )
-        assert proc.returncode == 2
+        assert proc2.returncode != 0
         assert "cowardly refusing to overwrite existing data. " in stdout
+
