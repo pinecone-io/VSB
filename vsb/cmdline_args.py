@@ -292,6 +292,30 @@ def add_vsb_cmdline_args(
         default={"serverless": {"cloud": "aws", "region": "us-east-1"}},
         help="JSON spec of Pinecone index to create (if it does not exist). Default is %(default)s.",
     )
+    pinecone_group.add_argument(
+        "--pinecone_dedicated_read_nodes",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Enable dedicated read nodes for Pinecone serverless indexes. Default is %(default)s.",
+    )
+    pinecone_group.add_argument(
+        "--pinecone_dedicated_node_type",
+        type=str,
+        default="b1",
+        help="Node type for dedicated read nodes (e.g., b1, b2). Default is %(default)s.",
+    )
+    pinecone_group.add_argument(
+        "--pinecone_dedicated_shards",
+        type=int,
+        default=1,
+        help="Number of shards for dedicated read nodes. Default is %(default)s.",
+    )
+    pinecone_group.add_argument(
+        "--pinecone_dedicated_replicas",
+        type=int,
+        default=1,
+        help="Number of replicas for dedicated read nodes. Default is %(default)s.",
+    )
 
     opensearch_group = parser.add_argument_group(
         "Options specific to OpenSearch database"

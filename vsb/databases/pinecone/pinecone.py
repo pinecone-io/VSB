@@ -1,4 +1,7 @@
+import json
 import logging
+import os
+import requests
 
 from locust.exception import StopUser
 
@@ -18,6 +21,99 @@ from ...vsb_types import Record, SearchRequest, DistanceMetric, RecordList
 # (using default asyncio) will block the whole Locust/Python process,
 # in practice limiting to running a single User per worker process.
 grpc_gevent.init_gevent()
+
+
+def _create_index_with_dedicated_read_nodes(
+    api_key: str,
+    index_name: str,
+    dimension: int,
+    metric: str,
+    spec: dict,
+    node_type: str,
+    shards: int,
+    replicas: int,
+    api_version: str = "2025-10",
+):
+    """Create a Pinecone index with dedicated read nodes using the REST API.
+
+    Args:
+        api_key: Pinecone API key
+        index_name: Name of the index to create
+        dimension: Vector dimension
+        metric: Distance metric (cosine, euclidean, or dotproduct)
+        spec: Base index spec (should contain serverless config)
+        node_type: Node type for dedicated read nodes (e.g., b1, b2)
+        shards: Number of shards for dedicated read nodes
+        replicas: Number of replicas for dedicated read nodes
+        api_version: Pinecone API version that supports dedicated read nodes
+    """
+    # Ensure spec contains serverless config
+    if "serverless" not in spec:
+        raise ValueError(
+            "Dedicated read nodes are only supported for serverless indexes. "
+            "Spec must contain 'serverless' configuration."
+        )
+
+    # Build the spec with dedicated read capacity
+    serverless_config = spec["serverless"].copy()
+    serverless_config["read_capacity"] = {
+        "mode": "Dedicated",
+        "dedicated": {
+            "node_type": node_type,
+            "scaling": "Manual",
+            "manual": {
+                "shards": shards,
+                "replicas": replicas
+            }
+        }
+    }
+
+    body = {
+        "name": index_name,
+        "dimension": dimension,
+        "metric": metric,
+        "vector_type": "dense",
+        "deletion_protection": "disabled",
+        "tags": {},
+        "spec": {
+            "serverless": serverless_config
+        }
+    }
+
+    headers = {
+        "Api-Key": api_key,
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "X-Pinecone-API-Version": api_version,
+    }
+
+    # Add additional headers from environment variable if present
+    additional_headers_json = os.environ.get("PINECONE_ADDITIONAL_HEADERS")
+    if additional_headers_json:
+        try:
+            additional_headers = json.loads(additional_headers_json)
+            headers.update(additional_headers)
+        except json.JSONDecodeError:
+            logger.warning(
+                f"Failed to parse PINECONE_ADDITIONAL_HEADERS: {additional_headers_json}"
+            )
+
+    # Use controller host from environment or default to production
+    controller_host = os.environ.get("PINECONE_CONTROLLER_HOST", "https://api.pinecone.io")
+    api_url = f"{controller_host}/indexes"
+
+    resp = requests.post(api_url, json=body, headers=headers)
+
+    if resp.status_code not in (200, 201):
+        raise RuntimeError(
+            f"Error creating index with dedicated read nodes: {resp.status_code} {resp.text}"
+        )
+
+    logger.info(
+        f"PineconeDB: Created index '{index_name}' with dedicated read nodes "
+        f"(node_type={node_type}, shards={shards}, replicas={replicas})"
+    )
+    return resp.json()
 
 
 class PineconeNamespace(Namespace):
@@ -70,10 +166,16 @@ class PineconeDB(DB):
         config: dict,
     ):
         self.pc = PineconeGRPC(config["pinecone_api_key"])
+        self.api_key = config["pinecone_api_key"]
         self.skip_populate = config["skip_populate"]
         self.overwrite = config["overwrite"]
         self.index_name = config["pinecone_index_name"]
         self.namespace = config["pinecone_namespace_name"]
+        self.use_dedicated_read_nodes = config.get("pinecone_dedicated_read_nodes", False)
+        self.dedicated_node_type = config.get("pinecone_dedicated_node_type", "b1")
+        self.dedicated_shards = config.get("pinecone_dedicated_shards", 1)
+        self.dedicated_replicas = config.get("pinecone_dedicated_replicas", 1)
+
         if self.index_name is None:
             # None specified, default to "vsb-<workload>"
             self.index_name = f"vsb-{name}"
@@ -95,12 +197,27 @@ class PineconeDB(DB):
                 f"PineconeDB: Specified index '{self.index_name}' was not found, or the "
                 f"specified API key cannot access it. Creating new index '{self.index_name}'."
             )
-            self.pc.create_index(
-                name=self.index_name,
-                dimension=dimensions,
-                metric=metric.value,
-                spec=spec,
-            )
+
+            # Use REST API if dedicated read nodes are enabled
+            if self.use_dedicated_read_nodes:
+                _create_index_with_dedicated_read_nodes(
+                    api_key=self.api_key,
+                    index_name=self.index_name,
+                    dimension=dimensions,
+                    metric=metric.value,
+                    spec=spec,
+                    node_type=self.dedicated_node_type,
+                    shards=self.dedicated_shards,
+                    replicas=self.dedicated_replicas,
+                )
+            else:
+                self.pc.create_index(
+                    name=self.index_name,
+                    dimension=dimensions,
+                    metric=metric.value,
+                    spec=spec,
+                )
+
             self.index = self.pc.Index(name=self.index_name)
             self.created_index = True
 
