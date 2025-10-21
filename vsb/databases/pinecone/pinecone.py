@@ -61,11 +61,8 @@ def _create_index_with_dedicated_read_nodes(
         "dedicated": {
             "node_type": node_type,
             "scaling": "Manual",
-            "manual": {
-                "shards": shards,
-                "replicas": replicas
-            }
-        }
+            "manual": {"shards": shards, "replicas": replicas},
+        },
     }
 
     body = {
@@ -75,9 +72,7 @@ def _create_index_with_dedicated_read_nodes(
         "vector_type": "dense",
         "deletion_protection": "disabled",
         "tags": {},
-        "spec": {
-            "serverless": serverless_config
-        }
+        "spec": {"serverless": serverless_config},
     }
 
     headers = {
@@ -99,7 +94,9 @@ def _create_index_with_dedicated_read_nodes(
             )
 
     # Use controller host from environment or default to production
-    controller_host = os.environ.get("PINECONE_CONTROLLER_HOST", "https://api.pinecone.io")
+    controller_host = os.environ.get(
+        "PINECONE_CONTROLLER_HOST", "https://api.pinecone.io"
+    )
     api_url = f"{controller_host}/indexes"
 
     resp = requests.post(api_url, json=body, headers=headers)
@@ -171,7 +168,9 @@ class PineconeDB(DB):
         self.overwrite = config["overwrite"]
         self.index_name = config["pinecone_index_name"]
         self.namespace = config["pinecone_namespace_name"]
-        self.use_dedicated_read_nodes = config.get("pinecone_dedicated_read_nodes", False)
+        self.use_dedicated_read_nodes = config.get(
+            "pinecone_dedicated_read_nodes", False
+        )
         self.dedicated_node_type = config.get("pinecone_dedicated_node_type", "b1")
         self.dedicated_shards = config.get("pinecone_dedicated_shards", 1)
         self.dedicated_replicas = config.get("pinecone_dedicated_replicas", 1)
