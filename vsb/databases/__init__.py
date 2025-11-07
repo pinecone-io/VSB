@@ -9,6 +9,7 @@ class Database(Enum):
     Pinecone = "pinecone"
     OpenSearch = "opensearch"
     PGVector = "pgvector"
+    Qdrant = "qdrant"
 
     def get_class(self) -> type[DB]:
         """Return the DB class to use, based on the value of the enum"""
@@ -25,3 +26,7 @@ class Database(Enum):
                 from .pgvector.pgvector import PgvectorDB
 
                 return PgvectorDB
+            case Database.Qdrant:
+                from .qdrant.qdrant import QdrantDB
+
+                return QdrantDB

@@ -293,9 +293,7 @@ def add_vsb_cmdline_args(
         help="JSON spec of Pinecone index to create (if it does not exist). Default is %(default)s.",
     )
 
-    opensearch_group = parser.add_argument_group(
-        "Options specific to OpenSearch database"
-    )
+    opensearch_group = parser.add_argument_group("Options specific to OpenSearch database")
     opensearch_group.add_argument(
         "--opensearch_index_name",
         type=str,
@@ -441,6 +439,35 @@ def add_vsb_cmdline_args(
             "at least as large as the index size. Specify as a string with size "
             "suffix (e.g. '2GB'). Default is %(default)s."
         ),
+    )
+
+    qdrant_group = parser.add_argument_group("Options specific to Qdrant database")
+    qdrant_group.add_argument(
+        "--qdrant_host",
+        type=str,
+        default="localhost",
+        help="qdrant host to connect to. Default is %(default)s.",
+        env_var="VSB__QDRANT_HOST",
+    )
+    qdrant_group.add_argument(
+        "--qdrant_port",
+        type=int,
+        default=6333,
+        help="qdrant port to connect to. Default is %(default)s.",
+        env_var="VSB__QDRANT_PORT",
+    )
+    qdrant_group.add_argument(
+        "--qdrant_api_key",
+        type=str,
+        help="qdrant api key to connect to. Default is %(default)s.",
+        env_var="VSB__QDRANT_API_KEY",
+    )
+    qdrant_group.add_argument(
+        "--qdrant_collection_name",
+        type=str,
+        default=None,
+        help="Name of Qdrant collection to connect to. One will be created if it does not exist. Default is vsb-<workload>.",
+        env_var="VSB__QDRANT_COLLECTION_NAME",
     )
 
 
