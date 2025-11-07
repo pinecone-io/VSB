@@ -2,6 +2,7 @@ import logging
 import time
 from locust.exception import StopUser
 import numpy as np
+import uuid
 
 import vsb
 from vsb import logger
@@ -12,6 +13,7 @@ from ...vsb_types import Record, SearchRequest, DistanceMetric, RecordList
 
 from qdrant_client import QdrantClient
 from qdrant_client.models import PointStruct
+from qdrant_client.models import VectorParams, Distance
 from tenacity import retry, stop_after_attempt, wait_exponential_jitter, after_log
 
 
@@ -46,7 +48,7 @@ class QdrantNamespace(Namespace):
             after=after_log(logger, logging.DEBUG),
         )
         def do_query_with_retry():
-            return self.index.query_points(
+            return self.client.query_points(
                 collection_name=self.index_name, query=request.values, limit=request.top_k, query_filter=request.filter
             )
 
@@ -67,7 +69,8 @@ class QdrantNamespace(Namespace):
         for rec in batch:
             points.append(
                 PointStruct(
-                    id=rec.id,
+                    id=rec.id,  # Qdrant only supports unsigned integer or a UUID
+                    #id=str(uuid.uuid4()),  # TODO: Remove this after testing
                     vector=rec.values,
                     payload=rec.metadata if hasattr(rec, "metadata") and isinstance(rec.metadata, dict) else {},
                 )
@@ -98,7 +101,7 @@ class QdrantDB(DB):
             self.index_name = f"vsb-{name}"
 
         # Create the Qdrant client
-        self.client = QdrantClient(url=f"http://{self.host}:{self.port}", api_key=self.api_key)
+        self.client = QdrantClient(url=f"{self.host}:{self.port}", api_key=self.api_key)
 
 
     def close(self):
@@ -110,8 +113,9 @@ class QdrantDB(DB):
             if not self.client.collection_exists(self.index_name):
                 self.client.create_collection(
                     collection_name=self.index_name,
-                    vectors_config=VectorParams(size=self.dimensions, distance=DistanceMetric._get_distance_func(self.metric.value)),
+                    vectors_config=VectorParams(size=self.dimensions, distance=QdrantDB._get_distance_func(self.metric)),
                 )
+                time.sleep(10)
                 self.created_index = True
             else:
                 self.check_index_config()
@@ -218,9 +222,9 @@ class QdrantDB(DB):
     def _get_distance_func(metric: DistanceMetric) -> str:
         match metric:
             case DistanceMetric.Cosine:
-                return "COSINE"
+                return "Cosine"
             case DistanceMetric.Euclidean:
-                return "EUCLID"
+                return "Euclid"
             case DistanceMetric.DotProduct:
-                return "DOT"
+                return "Dot"
         raise ValueError("Invalid metric:{}".format(metric))
