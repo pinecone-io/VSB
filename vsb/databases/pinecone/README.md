@@ -30,6 +30,30 @@ vsb --database=pinecone --workload=mnist-test \
     --pinecone_namespace_name=<YOUR_NAMESPACE_NAME>
 ```
 
+## Dedicated Read Nodes
+
+VSB supports creating Pinecone serverless indexes with [dedicated read nodes](https://docs.pinecone.io/guides/indexes/dedicated-read-nodes) for improved read performance and isolation.
+
+To create an index with dedicated read nodes, use the `--pinecone_dedicated_read_nodes` flag along with optional configuration parameters:
+
+```shell
+vsb --database=pinecone --workload=mnist-test \
+    --pinecone_api_key=<YOUR_API_KEY> \
+    --pinecone_dedicated_read_nodes \
+    --pinecone_dedicated_node_type=b1 \
+    --pinecone_dedicated_shards=2 \
+    --pinecone_dedicated_replicas=1
+```
+
+Available dedicated read node options:
+- `--pinecone_dedicated_read_nodes`: Enable dedicated read nodes (default: False)
+- `--pinecone_dedicated_node_type`: Node type (e.g., b1, b2). Default is b1
+- `--pinecone_dedicated_shards`: Number of shards. Default is 1
+- `--pinecone_dedicated_replicas`: Number of replicas. Default is 1
+
+> [!NOTE]
+> Dedicated read nodes are only available for serverless indexes and require Pinecone API version 2025-10 or later.
+
 > [!TIP]
 > The API key and/or index name can also be passed via environment variables
 > (`VSB__PINECONE_API_KEY` and `VSB__PINECONE_INDEX_NAME` respectively).
