@@ -525,7 +525,10 @@ def validate_parsed_args(
                     parser.error(
                         "multi_namespace mode requires --skip_populate. Multi-namespace benchmarking only works with existing populated indexes."
                     )
-                if getattr(args, "pinecone_namespace_name", "__default__") != "__default__":
+                if (
+                    getattr(args, "pinecone_namespace_name", "__default__")
+                    != "__default__"
+                ):
                     parser.error(
                         "multi_namespace mode does not support custom namespace names. Use --pinecone_multi_namespace to auto-discover all namespaces."
                     )
