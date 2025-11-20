@@ -168,6 +168,7 @@ class PineconeDB(DB):
         self.overwrite = config["overwrite"]
         self.index_name = config["pinecone_index_name"]
         self.namespace = config["pinecone_namespace_name"]
+        self.multi_namespace = config.get("pinecone_multi_namespace", False)
         self.use_dedicated_read_nodes = config.get(
             "pinecone_dedicated_read_nodes", False
         )
@@ -192,6 +193,13 @@ class PineconeDB(DB):
             )
             raise StopUser()
         except NotFoundException:
+            # Check if multi-namespace mode is enabled - if so, don't create index
+            if self.multi_namespace:
+                logger.critical(
+                    f"PineconeDB: Index '{self.index_name}' does not exist. Multi-namespace mode requires an existing populated index. Please create the index first or use single-namespace mode."
+                )
+                raise StopUser()
+
             logger.info(
                 f"PineconeDB: Specified index '{self.index_name}' was not found, or the "
                 f"specified API key cannot access it. Creating new index '{self.index_name}'."
@@ -232,6 +240,28 @@ class PineconeDB(DB):
                 f"PineconeDB index '{self.index_name}' has incorrect metric - expected:{metric.value}, found:{index_metric}"
             )
 
+        # Initialize namespaces list (empty for both modes to avoid AttributeError)
+        self.namespaces = []
+
+        # Multi-namespace mode: discover and validate namespaces
+        if self.multi_namespace:
+            if self.created_index:
+                logger.critical(
+                    f"PineconeDB: Cannot use multi_namespace mode with a newly created index. Index '{self.index_name}' must already exist and be populated."
+                )
+                raise StopUser()
+
+            self.namespaces = self._discover_all_namespaces()
+            if not self.namespaces:
+                logger.critical(
+                    f"PineconeDB: No populated namespaces found in index '{self.index_name}'. Multi-namespace mode requires at least one namespace with records."
+                )
+                raise StopUser()
+
+            logger.info(
+                f"PineconeDB: Discovered {len(self.namespaces)} namespaces: {', '.join(self.namespaces)}"
+            )
+
     def close(self):
         self.index.close()
 
@@ -260,7 +290,16 @@ class PineconeDB(DB):
         return batch_size
 
     def get_namespace(self, namespace: str) -> Namespace:
-        return PineconeNamespace(self.index, self.namespace)
+        if self.multi_namespace:
+            # Validate namespace exists in discovered namespaces
+            if namespace not in self.namespaces:
+                raise ValueError(
+                    f"PineconeDB: Namespace '{namespace}' not found in discovered namespaces. Available namespaces: {', '.join(self.namespaces)}"
+                )
+            return PineconeNamespace(self.index, namespace)
+        else:
+            # Single namespace mode: ignore parameter, use configured namespace
+            return PineconeNamespace(self.index, self.namespace)
 
     def initialize_population(self):
         # If the namespace already existed before VSB (we didn't create it) and
@@ -322,24 +361,60 @@ class PineconeDB(DB):
             self.index.describe_namespace(namespace=self.namespace)["record_count"]
         )
 
-    def check_namespace_exists(self, namespace: str) -> bool:
-        """Check if a namespace exists inside the current index using list_namespaces generator."""
+    def _discover_all_namespaces(self) -> list[str]:
+        """Discover all populated namespaces in the index."""
+        populated_namespaces = []
         try:
             # list_namespaces returns a generator of dicts with 'name' and 'record_count'
             for ns in self.index.list_namespaces():
-                if ns["name"] == namespace:
-                    logger.info(
-                        f"PineconeDB: Namespace '{namespace}' exists in index '{self.index_name}'."
+                # Convert record_count to int (API may return string)
+                record_count = int(ns["record_count"])
+                if record_count > 0:
+                    populated_namespaces.append(ns["name"])
+                    logger.debug(
+                        f"PineconeDB: Namespace '{ns['name']}' has {record_count} records"
                     )
-                    return True
+        except PineconeException as e:
+            logger.error(
+                f"PineconeDB: Error listing namespaces in index '{self.index_name}': {e}"
+            )
+            raise ValueError(
+                f"Failed to list namespaces in index '{self.index_name}': {e}"
+            ) from e
 
+        if not populated_namespaces:
+            raise ValueError(
+                f"No populated namespaces found in index '{self.index_name}'. Multi-namespace mode requires at least one namespace with records."
+            )
+
+        return sorted(populated_namespaces)
+
+    def _get_namespaces_for_user(self, user_id: int, num_users: int) -> list[str]:
+        """Distribute namespaces across users using round-robin algorithm."""
+        if num_users > len(self.namespaces):
+            raise ValueError(
+                f"Cannot distribute {num_users} users across {len(self.namespaces)} namespaces. Number of users must be <= number of namespaces."
+            )
+        return [
+            self.namespaces[i] for i in range(user_id, len(self.namespaces), num_users)
+        ]
+
+    def check_namespace_exists(self, namespace: str) -> bool:
+        """Check if a namespace exists inside the current index."""
+        try:
+            # Use describe_namespace which is a direct API call - much faster than listing all namespaces
+            self.index.describe_namespace(namespace=namespace)
+            logger.info(
+                f"PineconeDB: Namespace '{namespace}' exists in index '{self.index_name}'."
+            )
+            return True
+        except NotFoundException:
             logger.info(
                 f"PineconeDB: Namespace '{namespace}' does not exist in index '{self.index_name}'."
             )
             return False
-
         except PineconeException as e:
             logger.error(
-                f"PineconeDB: Error while listing namespaces in index '{self.index_name}' - {e}"
+                f"PineconeDB: Error while checking namespace '{namespace}' in index '{self.index_name}' - {e}"
             )
             return False

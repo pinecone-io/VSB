@@ -316,6 +316,12 @@ def add_vsb_cmdline_args(
         default=1,
         help="Number of replicas for dedicated read nodes. Default is %(default)s.",
     )
+    pinecone_group.add_argument(
+        "--pinecone_multi_namespace",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Enable benchmarking across all namespaces in an existing index. Auto-discovers all populated namespaces and distributes requests evenly. Requires --skip_populate and an existing index. Default is %(default)s.",
+    )
 
     opensearch_group = parser.add_argument_group(
         "Options specific to OpenSearch database"
@@ -513,6 +519,27 @@ def validate_parsed_args(
                     "The following arguments must be specified when --database is "
                     "'pinecone'" + formatter.format_help(),
                 )
+            # Validate multi-namespace mode requirements
+            if getattr(args, "pinecone_multi_namespace", False):
+                if not getattr(args, "skip_populate", False):
+                    parser.error(
+                        "multi_namespace mode requires --skip_populate. Multi-namespace benchmarking only works with existing populated indexes."
+                    )
+                if (
+                    getattr(args, "pinecone_namespace_name", "__default__")
+                    != "__default__"
+                ):
+                    parser.error(
+                        "multi_namespace mode does not support custom namespace names. Use --pinecone_multi_namespace to auto-discover all namespaces."
+                    )
+                if getattr(args, "overwrite", False):
+                    parser.error(
+                        "--overwrite is not applicable with --pinecone_multi_namespace. Multi-namespace mode only benchmarks existing indexes."
+                    )
+                if not getattr(args, "pinecone_index_name", None):
+                    parser.error(
+                        "multi_namespace mode requires --pinecone_index_name to be specified. Cannot auto-generate index name in multi-namespace mode."
+                    )
         case "opensearch":
             pass
         case "pgvector":
