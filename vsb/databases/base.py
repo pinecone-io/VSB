@@ -110,3 +110,9 @@ class DB(ABC):
         Returns the total number of records in the database.
         """
         pass
+
+    def supports_bulk_import(self) -> bool:
+        """
+        Returns True if this database supports bulk import from cloud storage.
+        """
+        return False

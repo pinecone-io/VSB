@@ -30,10 +30,14 @@ class ParquetWorkload(VectorWorkload, ABC):
         limit: int = 0,
         query_limit: int = 0,
         load_on_init: bool = True,
+        skip_passages: bool = False,
         **kwargs,
     ):
         super().__init__(name)
-        self.dataset = Dataset(dataset_name, cache_dir=cache_dir, limit=limit)
+        self.skip_passages = skip_passages
+        self.dataset = Dataset(
+            dataset_name, cache_dir=cache_dir, limit=limit, skip_passages=skip_passages
+        )
 
         if load_on_init:
             self.dataset.setup_queries(query_limit=query_limit)
@@ -43,6 +47,14 @@ class ParquetWorkload(VectorWorkload, ABC):
             self.query_limit = query_limit
 
     def get_sample_record(self) -> Record:
+        if self.skip_passages:
+            # When passages are skipped (bulk import mode), create a synthetic sample record
+            # based on the workload's dimensions for batch size calculation purposes.
+            return Record(
+                id="sample",
+                values=[0.0] * self.dimensions(),
+                metadata={},
+            )
         iter = self.get_record_batch_iter(1, 0, 1)
         (_, batch) = next(iter)
         sample = Record.model_validate(batch[0])
@@ -131,6 +143,7 @@ class ParquetSubsetWorkload(ParquetWorkload, ABC):
         cache_dir: str,
         limit: int = 0,
         query_limit: int = 0,
+        skip_passages: bool = False,
         **kwargs,
     ):
         super().__init__(
@@ -139,7 +152,16 @@ class ParquetSubsetWorkload(ParquetWorkload, ABC):
             cache_dir=cache_dir,
             limit=limit,
             query_limit=query_limit,
+            skip_passages=skip_passages,
         )
+
+        # When skip_passages is True (bulk import mode), we don't have local records
+        # to load or recalculate neighbors from - the data will be imported directly
+        # to the database from a remote source.
+        if skip_passages:
+            self.records = pandas.DataFrame()
+            return
+
         # Store records in memory; we run a k-NN search to find correct top-k
         # neighbors for each request.
         self.records: pandas.DataFrame = self._get_records()

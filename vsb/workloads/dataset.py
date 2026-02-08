@@ -59,10 +59,13 @@ class Dataset:
         recall = true_positives / relevant_size
         return recall
 
-    def __init__(self, name: str = "", cache_dir: str = "", limit: int = 0):
+    def __init__(
+        self, name: str = "", cache_dir: str = "", limit: int = 0, skip_passages: bool = False
+    ):
         self.name = name
         self.cache = pathlib.Path(cache_dir)
         self.limit = limit
+        self.skip_passages = skip_passages
         self.queries = pandas.DataFrame()
 
     @staticmethod
@@ -161,13 +164,13 @@ class Dataset:
             return files_to_batches(my_chunks)
 
     def setup_queries(self, query_limit=0):
-        self._download_dataset_files()
+        self._download_dataset_files(queries_only=self.skip_passages)
         self.queries = self._load_parquet_dataset("queries", limit=query_limit)
         logger.debug(
             f"Using {len(self.queries)} query vectors loaded from dataset 'queries' table"
         )
 
-    def _download_dataset_files(self):
+    def _download_dataset_files(self, queries_only: bool = False):
         with FileLock(self.cache / ".lock"):
             self.cache.mkdir(parents=True, exist_ok=True)
             client = Client.create_anonymous_client()
@@ -177,6 +180,18 @@ class Dataset:
             # (non-empty directories will have their files downloaded
             # anyway).
             blobs = [b for b in blobs if not b.name.endswith("/")]
+
+            # If skip_passages or queries_only is True, only download query files and metadata
+            if self.skip_passages or queries_only:
+                blobs = [
+                    b
+                    for b in blobs
+                    if "/queries/" in b.name or b.name.endswith("metadata.json")
+                ]
+                logger.info(
+                    f"Dataset: Skipping passage downloads (bulk import mode), "
+                    f"only downloading {len(blobs)} query/metadata files"
+                )
 
             def should_download(blob):
                 path = self.cache / blob.name

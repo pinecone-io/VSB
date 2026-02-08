@@ -18,11 +18,28 @@ class CohereBase(ParquetWorkload, ABC):
     def metric() -> DistanceMetric:
         return DistanceMetric.Cosine
 
+    def supports_bulk_import(self) -> bool:
+        return True
+
+    def get_import_uri(self) -> str:
+        return "gs://pinecone-datasets-dev/cohere-768"
+
+    def get_import_namespace(self) -> str:
+        return "passages"
+
 
 class Cohere768(CohereBase):
     def __init__(self, name: str, cache_dir: str, load_on_init: bool = True, **kwargs):
+        options = kwargs.get("options")
+        skip_passages = False
+        if options and getattr(options, "pinecone_bulk_import", False):
+            skip_passages = True
         super().__init__(
-            name, "cohere-768", cache_dir=cache_dir, load_on_init=load_on_init
+            name,
+            "cohere-768",
+            cache_dir=cache_dir,
+            load_on_init=load_on_init,
+            skip_passages=skip_passages,
         )
 
     @staticmethod
@@ -39,12 +56,17 @@ class Cohere768Test(ParquetSubsetWorkload, CohereBase):
     passages and 100 queries)."""
 
     def __init__(self, name: str, cache_dir: str, load_on_init: bool = True, **kwargs):
+        options = kwargs.get("options")
+        skip_passages = False
+        if options and getattr(options, "pinecone_bulk_import", False):
+            skip_passages = True
         super().__init__(
             name,
             "cohere-768",
             cache_dir=cache_dir,
             limit=self.record_count(),
             query_limit=self.request_count(),
+            skip_passages=skip_passages,
         )
 
     @staticmethod

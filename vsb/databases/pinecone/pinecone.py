@@ -7,7 +7,7 @@ from locust.exception import StopUser
 
 import vsb
 from vsb import logger
-from pinecone import PineconeException, NotFoundException, UnauthorizedException
+from pinecone import Pinecone, PineconeException, NotFoundException, UnauthorizedException, ImportErrorMode
 from pinecone.grpc import PineconeGRPC, GRPCIndex
 from tenacity import retry, stop_after_attempt, wait_exponential_jitter, after_log
 import grpc.experimental.gevent as grpc_gevent
@@ -175,29 +175,46 @@ class PineconeDB(DB):
         self.dedicated_shards = config.get("pinecone_dedicated_shards", 1)
         self.dedicated_replicas = config.get("pinecone_dedicated_replicas", 1)
 
+        # Bulk import configuration
+        self.use_bulk_import = config.get("pinecone_bulk_import", False)
+        self.import_uri = config.get("pinecone_import_uri")
+        self.import_error_mode = config.get("pinecone_import_error_mode", "abort")
+        self.active_import_id = None
+
+        # When bulk import is enabled, use "passages" namespace by default
+        # since that's where dataset records are stored in GCS
+        if self.use_bulk_import and self.namespace == "__default__":
+            self.namespace = "passages"
+            logger.info(f"PineconeDB: Bulk import enabled, using namespace 'passages'")
+
         if self.index_name is None:
             # None specified, default to "vsb-<workload>"
             self.index_name = f"vsb-{name}"
         spec = config["pinecone_index_spec"]
-        try:
-            self.index = self.pc.Index(name=self.index_name)
-            self.created_index = False
-        except UnauthorizedException:
-            api_key = config["pinecone_api_key"]
-            masked_api_key = api_key[:4] + "*" * (len(api_key) - 8) + api_key[-4:]
-            logger.critical(
-                f"PineconeDB: Got UnauthorizedException when attempting to connect "
-                f"to index '{self.index_name}' using API key '{masked_api_key}' - check "
-                f"your API key and permissions"
-            )
-            raise StopUser()
-        except NotFoundException:
-            logger.info(
-                f"PineconeDB: Specified index '{self.index_name}' was not found, or the "
-                f"specified API key cannot access it. Creating new index '{self.index_name}'."
-            )
 
-            # Use REST API if dedicated read nodes are enabled
+        # When bulk import is enabled and the index already exists, generate
+        # a unique name by appending -2, -3, etc. so each import creates a
+        # fresh index.
+        if self.use_bulk_import:
+            original_name = self.index_name
+            suffix = 1
+            while True:
+                try:
+                    self.pc.Index(name=self.index_name)
+                    # Index exists - increment suffix and try again
+                    suffix += 1
+                    self.index_name = f"{original_name}-{suffix}"
+                    logger.info(
+                        f"PineconeDB: Index '{original_name if suffix == 2 else original_name + '-' + str(suffix - 1)}' "
+                        f"already exists, trying '{self.index_name}'"
+                    )
+                except (NotFoundException, UnauthorizedException):
+                    # Name is available
+                    break
+
+            logger.info(
+                f"PineconeDB: Creating new index '{self.index_name}' for bulk import"
+            )
             if self.use_dedicated_read_nodes:
                 _create_index_with_dedicated_read_nodes(
                     api_key=self.api_key,
@@ -216,9 +233,49 @@ class PineconeDB(DB):
                     metric=metric.value,
                     spec=spec,
                 )
-
             self.index = self.pc.Index(name=self.index_name)
             self.created_index = True
+        else:
+            try:
+                self.index = self.pc.Index(name=self.index_name)
+                self.created_index = False
+            except UnauthorizedException:
+                api_key = config["pinecone_api_key"]
+                masked_api_key = api_key[:4] + "*" * (len(api_key) - 8) + api_key[-4:]
+                logger.critical(
+                    f"PineconeDB: Got UnauthorizedException when attempting to connect "
+                    f"to index '{self.index_name}' using API key '{masked_api_key}' - check "
+                    f"your API key and permissions"
+                )
+                raise StopUser()
+            except NotFoundException:
+                logger.info(
+                    f"PineconeDB: Specified index '{self.index_name}' was not found, or the "
+                    f"specified API key cannot access it. Creating new index '{self.index_name}'."
+                )
+
+                # Use REST API if dedicated read nodes are enabled
+                if self.use_dedicated_read_nodes:
+                    _create_index_with_dedicated_read_nodes(
+                        api_key=self.api_key,
+                        index_name=self.index_name,
+                        dimension=dimensions,
+                        metric=metric.value,
+                        spec=spec,
+                        node_type=self.dedicated_node_type,
+                        shards=self.dedicated_shards,
+                        replicas=self.dedicated_replicas,
+                    )
+                else:
+                    self.pc.create_index(
+                        name=self.index_name,
+                        dimension=dimensions,
+                        metric=metric.value,
+                        spec=spec,
+                    )
+
+                self.index = self.pc.Index(name=self.index_name)
+                self.created_index = True
 
         info = self.pc.describe_index(self.index_name)
         index_dims = info["dimension"]
@@ -231,6 +288,11 @@ class PineconeDB(DB):
             raise ValueError(
                 f"PineconeDB index '{self.index_name}' has incorrect metric - expected:{metric.value}, found:{index_metric}"
             )
+
+        # Create a REST-based client for bulk import operations (not available in gRPC)
+        if self.use_bulk_import:
+            self.rest_pc = Pinecone(api_key=self.api_key)
+            self.rest_index = self.rest_pc.Index(name=self.index_name)
 
     def close(self):
         self.index.close()
@@ -343,3 +405,53 @@ class PineconeDB(DB):
                 f"PineconeDB: Error while listing namespaces in index '{self.index_name}' - {e}"
             )
             return False
+
+    def supports_bulk_import(self) -> bool:
+        """Return True if bulk import is enabled."""
+        return self.use_bulk_import
+
+    def start_bulk_import(self, uri: str, namespace: str) -> str:
+        """Start bulk import, return import_id. Uses REST API (not available in gRPC)."""
+        error_mode = (
+            ImportErrorMode.ABORT
+            if self.import_error_mode == "abort"
+            else ImportErrorMode.CONTINUE
+        )
+        result = self.rest_index.start_import(
+            uri=uri,
+            error_mode=error_mode,
+        )
+        self.active_import_id = result.id
+        logger.info(f"PineconeDB: Started bulk import with id={result.id} from uri={uri}")
+        return result.id
+
+    def get_import_status(self, import_id: str):
+        """Get import status. Uses REST API (not available in gRPC)."""
+        return self.rest_index.describe_import(id=import_id)
+
+    def wait_for_import(self, import_id: str, poll_interval: float = 10.0):
+        """Poll until import completes or fails."""
+        while True:
+            status = self.get_import_status(import_id)
+            if status.status == "Completed":
+                logger.info(f"PineconeDB: Bulk import {import_id} completed successfully")
+                return status
+            elif status.status == "Failed":
+                raise Exception(f"Import failed: {status}")
+            time.sleep(poll_interval)
+
+    def delete_import_namespace(self, namespace: str):
+        """Delete a namespace from the index. Used to remove the 'queries'
+        namespace that gets created during bulk import from GCS datasets
+        that contain both passages/ and queries/ folders."""
+        try:
+            self.index.delete_namespace(namespace=namespace)
+            logger.info(
+                f"PineconeDB: Deleted namespace '{namespace}' from index '{self.index_name}'"
+            )
+        except PineconeException as e:
+            # Namespace may not exist if the GCS dataset didn't have a queries folder
+            logger.debug(
+                f"PineconeDB: Could not delete namespace '{namespace}' "
+                f"(may not exist): {e}"
+            )

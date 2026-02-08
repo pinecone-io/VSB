@@ -34,7 +34,7 @@ import locust.stats
 # Note: These are _not_ unused, they are required to register our User
 # and custom LoadShape classes with locust.
 import users
-from users import SetupUser, PopulateUser, FinalizeUser, RunUser, LoadShape
+from users import SetupUser, PopulateUser, BulkImportUser, FinalizeUser, RunUser, LoadShape
 
 # Display stats of benchmark so far to console very 5 seconds.
 locust.stats.CONSOLE_STATS_INTERVAL_SEC = 5

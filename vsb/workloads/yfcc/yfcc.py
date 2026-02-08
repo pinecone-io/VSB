@@ -14,14 +14,28 @@ class YFCCBase(ParquetWorkload, ABC):
     def metric() -> DistanceMetric:
         return DistanceMetric.Euclidean
 
+    def supports_bulk_import(self) -> bool:
+        return True
+
+    def get_import_uri(self) -> str:
+        return "gs://pinecone-datasets-dev/yfcc-10M-filter-euclidean-formatted-multipart"
+
+    def get_import_namespace(self) -> str:
+        return "passages"
+
 
 class YFCC(YFCCBase):
     def __init__(self, name: str, cache_dir: str, load_on_init: bool = True, **kwargs):
+        options = kwargs.get("options")
+        skip_passages = False
+        if options and getattr(options, "pinecone_bulk_import", False):
+            skip_passages = True
         super().__init__(
             name,
             "yfcc-10M-filter-euclidean-formatted-multipart",
             cache_dir=cache_dir,
             load_on_init=load_on_init,
+            skip_passages=skip_passages,
         )
 
     @staticmethod
@@ -38,13 +52,21 @@ class YFCCTest(ParquetSubsetWorkload, YFCCBase):
     of queries"""
 
     def __init__(self, name: str, cache_dir: str, load_on_init: bool = True, **kwargs):
+        options = kwargs.get("options")
+        skip_passages = False
+        if options and getattr(options, "pinecone_bulk_import", False):
+            skip_passages = True
         super().__init__(
             name,
             "yfcc-100K-filter-euclidean-formatted",
             limit=10_000,
             query_limit=500,
             cache_dir=cache_dir,
+            skip_passages=skip_passages,
         )
+
+    def get_import_uri(self) -> str:
+        return "gs://pinecone-datasets-dev/yfcc-100K-filter-euclidean-formatted"
 
     @staticmethod
     def record_count() -> int:

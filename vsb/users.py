@@ -175,6 +175,151 @@ class PopulateUser(User):
             raise StopUser
 
 
+class BulkImportUser(User):
+    """Handles bulk import from cloud storage."""
+
+    class State(Enum):
+        Starting = auto()
+        Importing = auto()
+        Done = auto()
+
+    def __init__(self, environment):
+        super().__init__(environment)
+        self.database = environment.database
+        self.workload = environment.workload_sequence[0]
+        self.state = BulkImportUser.State.Starting
+        self.import_id = None
+        self.start_time = None
+        self.progress_task_id = None
+        logger.debug(f"BulkImportUser.__init__() workload:{self.workload.name}")
+
+    @task
+    def request(self):
+        match self.state:
+            case BulkImportUser.State.Starting:
+                self.start_import()
+            case BulkImportUser.State.Importing:
+                self.check_progress()
+            case BulkImportUser.State.Done:
+                gevent.sleep(0.1)
+
+    def start_import(self):
+        try:
+            uri = self.database.import_uri or self.workload.get_import_uri()
+            if not uri:
+                logger.critical(
+                    "BulkImportUser: No import URI specified. "
+                    "Use --pinecone_import_uri or ensure workload provides get_import_uri()."
+                )
+                raise StopUser()
+            namespace = self.workload.get_import_namespace()
+            self.import_id = self.database.start_bulk_import(uri, namespace)
+            self.start_time = time.perf_counter()
+            self.state = BulkImportUser.State.Importing
+            logger.info(f"BulkImportUser: Started import {self.import_id}")
+
+            # Create progress bar for import (stop any existing one first)
+            if vsb.progress is not None:
+                vsb.progress.stop()
+                vsb.progress = None
+            vsb.progress = vsb.logging.make_progressbar()
+            self.progress_task_id = vsb.progress.add_task(
+                "  Bulk import in progress", total=100.0
+            )
+        except Exception as e:
+            logger.critical(f"BulkImportUser: Failed to start import: {e}")
+            traceback.print_exception(e)
+            self.environment.runner.send_message(
+                "update_progress",
+                {
+                    "user": 0,
+                    "phase": "populate",
+                    "error": str(e),
+                },
+            )
+            raise StopUser()
+
+    def check_progress(self):
+        try:
+            status = self.database.get_import_status(self.import_id)
+            percent_complete = getattr(status, "percent_complete", 0.0) or 0.0
+            logger.debug(
+                f"BulkImportUser: Import status: {status.status}, "
+                f"percent_complete: {percent_complete:.1f}%"
+            )
+
+            # Update progress bar
+            if vsb.progress is not None and self.progress_task_id is not None:
+                vsb.progress.update(self.progress_task_id, completed=percent_complete)
+
+            if status.status == "Completed":
+                elapsed = time.perf_counter() - self.start_time
+                records_imported = getattr(status, "records_imported", 0)
+
+                # Delete the 'queries' namespace that may have been created
+                # during bulk import (GCS datasets contain both passages/ and
+                # queries/ folders, and the import imports everything).
+                if hasattr(self.database, "delete_import_namespace"):
+                    self.database.delete_import_namespace("queries")
+
+                # Mark progress bar as complete and stop it
+                if vsb.progress is not None and self.progress_task_id is not None:
+                    vsb.progress.update(
+                        self.progress_task_id,
+                        completed=100.0,
+                        description="✔ Bulk import complete",
+                    )
+                    vsb.progress.stop()
+                    vsb.progress = None
+
+                logger.info(
+                    f"BulkImportUser: Import completed in {elapsed:.2f}s, "
+                    f"records imported: {records_imported}"
+                )
+                # Fire metrics event
+                self.environment.events.request.fire(
+                    request_type="BulkImport",
+                    name=self.workload.name,
+                    response_time=elapsed * 1000.0,
+                    response_length=0,
+                    counters={"records": records_imported},
+                )
+                self.environment.runner.send_message(
+                    "update_progress", {"user": 0, "phase": "populate"}
+                )
+                self.state = BulkImportUser.State.Done
+            elif status.status == "Failed":
+                # Stop progress bar on failure
+                if vsb.progress is not None:
+                    vsb.progress.stop()
+                    vsb.progress = None
+
+                logger.critical(f"BulkImportUser: Import failed: {status}")
+                self.environment.runner.send_message(
+                    "update_progress",
+                    {
+                        "user": 0,
+                        "phase": "populate",
+                        "error": f"Import failed: {status}",
+                    },
+                )
+                raise StopUser()
+            else:
+                # Still in progress, poll again after delay
+                gevent.sleep(10)
+        except StopUser:
+            raise
+        except Exception as e:
+            # Stop progress bar on error
+            if vsb.progress is not None:
+                vsb.progress.stop()
+                vsb.progress = None
+
+            logger.critical(f"BulkImportUser: Error checking progress: {e}")
+            traceback.print_exception(e)
+            raise StopUser()
+
+
 class FinalizeUser(User):
     """
     Represents a single user (aka client) finalizing the population phase of a workload
@@ -457,7 +602,10 @@ class LoadShape(LoadTestShape):
                 return 0, self.num_users, []
             case LoadShape.Phase.Populate:
                 self._update_progress_bar()
-                return self.num_users, self.num_users, [PopulateUser]
+                if self.runner.environment.database.supports_bulk_import():
+                    return 1, 1, [BulkImportUser]
+                else:
+                    return self.num_users, self.num_users, [PopulateUser]
             case LoadShape.Phase.TransitionToFinalize:
                 if self.get_current_user_count() == 0:
                     # stopped all previous Populate Users, can switch to Finalize
@@ -595,7 +743,12 @@ class LoadShape(LoadTestShape):
                 assert msg.data["phase"] == "populate"
                 self.completed_users["populate"].add(msg.data["user"])
                 num_completed = len(self.completed_users["populate"])
-                if num_completed == self.runner.environment.parsed_options.num_users:
+                # For bulk import, only 1 BulkImportUser exists regardless of num_users
+                expected_users = (
+                    1 if self.runner.environment.database.supports_bulk_import()
+                    else self.runner.environment.parsed_options.num_users
+                )
+                if num_completed == expected_users:
                     logger.debug(
                         f"VSBLoadShape.update_progress() - all "
                         f"{num_completed} Populate users completed - "
@@ -680,6 +833,10 @@ class LoadShape(LoadTestShape):
                     self.progress_task_id, total=1, completed=1 if mark_completed else 0
                 )
             case LoadShape.Phase.Populate:
+                # Skip progress bar updates for bulk import - BulkImportUser manages
+                # its own progress bar
+                if self.runner.environment.database.supports_bulk_import():
+                    return
 
                 env = self.runner.environment
                 workload = env.workload_sequence[env.iteration]

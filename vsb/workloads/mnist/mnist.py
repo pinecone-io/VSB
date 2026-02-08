@@ -17,10 +17,29 @@ class MnistBase(ParquetWorkload, ABC):
     def metric() -> DistanceMetric:
         return DistanceMetric.Euclidean
 
+    def supports_bulk_import(self) -> bool:
+        return True
+
+    def get_import_uri(self) -> str:
+        return "gs://pinecone-datasets-dev/mnist"
+
+    def get_import_namespace(self) -> str:
+        return "passages"
+
 
 class Mnist(MnistBase):
     def __init__(self, name: str, cache_dir: str, load_on_init: bool = True, **kwargs):
-        super().__init__(name, "mnist", cache_dir=cache_dir, load_on_init=load_on_init)
+        options = kwargs.get("options")
+        skip_passages = False
+        if options and getattr(options, "pinecone_bulk_import", False):
+            skip_passages = True
+        super().__init__(
+            name,
+            "mnist",
+            cache_dir=cache_dir,
+            load_on_init=load_on_init,
+            skip_passages=skip_passages,
+        )
 
     @staticmethod
     def record_count() -> int:
@@ -36,7 +55,18 @@ class MnistTest(ParquetSubsetWorkload, MnistBase):
     passages and 20 queries)."""
 
     def __init__(self, name: str, cache_dir: str, load_on_init: bool = True, **kwargs):
-        super().__init__(name, "mnist", cache_dir=cache_dir, limit=600, query_limit=20)
+        options = kwargs.get("options")
+        skip_passages = False
+        if options and getattr(options, "pinecone_bulk_import", False):
+            skip_passages = True
+        super().__init__(
+            name,
+            "mnist",
+            cache_dir=cache_dir,
+            limit=600,
+            query_limit=20,
+            skip_passages=skip_passages,
+        )
 
     @staticmethod
     def record_count() -> int:

@@ -14,11 +14,28 @@ class Nq768TasbBase(ParquetWorkload, ABC):
     def metric() -> DistanceMetric:
         return DistanceMetric.DotProduct
 
+    def supports_bulk_import(self) -> bool:
+        return True
+
+    def get_import_uri(self) -> str:
+        return "gs://pinecone-datasets-dev/nq-768-tasb"
+
+    def get_import_namespace(self) -> str:
+        return "passages"
+
 
 class Nq768Tasb(Nq768TasbBase):
     def __init__(self, name: str, cache_dir: str, load_on_init: bool = True, **kwargs):
+        options = kwargs.get("options")
+        skip_passages = False
+        if options and getattr(options, "pinecone_bulk_import", False):
+            skip_passages = True
         super().__init__(
-            name, "nq-768-tasb", cache_dir=cache_dir, load_on_init=load_on_init
+            name,
+            "nq-768-tasb",
+            cache_dir=cache_dir,
+            load_on_init=load_on_init,
+            skip_passages=skip_passages,
         )
 
     @staticmethod
@@ -34,8 +51,17 @@ class Nq768TasbTest(ParquetSubsetWorkload, Nq768TasbBase):
     """Reduced, "test" variant of nq768; with ~1% of the full dataset."""
 
     def __init__(self, name: str, cache_dir: str, load_on_init: bool = True, **kwargs):
+        options = kwargs.get("options")
+        skip_passages = False
+        if options and getattr(options, "pinecone_bulk_import", False):
+            skip_passages = True
         super().__init__(
-            name, "nq-768-tasb", cache_dir=cache_dir, limit=26809, query_limit=35
+            name,
+            "nq-768-tasb",
+            cache_dir=cache_dir,
+            limit=26809,
+            query_limit=35,
+            skip_passages=skip_passages,
         )
 
     @staticmethod

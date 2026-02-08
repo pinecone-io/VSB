@@ -101,6 +101,18 @@ class VectorWorkload(ABC):
         """
         return True
 
+    def supports_bulk_import(self) -> bool:
+        """Return True if this workload supports bulk import."""
+        return False
+
+    def get_import_uri(self) -> str | None:
+        """Return the cloud storage URI for bulk import."""
+        return None
+
+    def get_import_namespace(self) -> str:
+        """Return the namespace name for imported data."""
+        return "passages"
+
 
 class VectorWorkloadSequence(ABC):
     @abstractmethod

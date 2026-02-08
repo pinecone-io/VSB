@@ -316,6 +316,26 @@ def add_vsb_cmdline_args(
         default=1,
         help="Number of replicas for dedicated read nodes. Default is %(default)s.",
     )
+    pinecone_group.add_argument(
+        "--pinecone_bulk_import",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Use Pinecone's bulk import API instead of upsert for population.",
+    )
+    pinecone_group.add_argument(
+        "--pinecone_import_uri",
+        type=str,
+        default=None,
+        help="Cloud storage URI for bulk import (e.g., gs://bucket/path/).",
+        env_var="VSB__PINECONE_IMPORT_URI",
+    )
+    pinecone_group.add_argument(
+        "--pinecone_import_error_mode",
+        type=str,
+        default="abort",
+        choices=["abort", "continue"],
+        help="Error handling: 'abort' stops on first error, 'continue' skips failed records.",
+    )
 
     opensearch_group = parser.add_argument_group(
         "Options specific to OpenSearch database"
