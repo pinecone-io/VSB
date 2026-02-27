@@ -250,6 +250,8 @@ class RunUser(User):
             f"Initialising RunUser id:{self.user_id}, target request/sec:{target_throughput}"
         )
         self.query_iter = None
+        self._duration = self.workload.synthetic_duration()
+        self._deadline = None
 
     @task
     def request(self):
@@ -273,6 +275,19 @@ class RunUser(User):
             self.query_iter = self.workload.get_query_iter(
                 self.users_total, self.user_id, batch_size
             )
+            if self._duration is not None:
+                self._deadline = time.time() + self._duration
+
+        # Duration mode: check if time has expired
+        if self._deadline is not None and time.time() >= self._deadline:
+            logger.debug(
+                f"User id:{self.user_id} completed Run phase (duration expired)"
+            )
+            self.environment.runner.send_message(
+                "update_progress", {"user": self.user_id, "phase": "run"}
+            )
+            self.state = RunUser.State.Done
+            return
 
         tenant: str = None
         request: QueryRequest = None
@@ -793,23 +808,37 @@ class LoadShape(LoadTestShape):
                     + f"[magenta]Recall: {recall_str}"
                 )
 
-                # If --synthetic-no-aggregate-stats is set, the cumulative request
-                # count is stored in the stats[workload.name] object. We just use
-                # the total request count for the entire runbook as the total,
-                # although it breaks convention with non-runbook workloads.
-                if (
-                    isinstance(
-                        env.workload_sequence,
-                        vsb.workloads.synthetic_workload.synthetic_workload.SyntheticRunbook,
+                # Determine progress bar mode: time-based or count-based
+                duration = workload.synthetic_duration()
+                if duration is not None:
+                    # Duration mode: show elapsed time vs total duration
+                    elapsed = time.time() - search_stats.start_time
+                    vsb.progress.update(
+                        self.progress_task_id,
+                        completed=int(min(elapsed, duration)),
+                        total=int(duration),
+                        extra_info=metrics_str,
                     )
-                    and not self.no_aggregate_stats
-                ):
-                    total = env.workload_sequence.request_count()
                 else:
-                    total = self.request_count
-                vsb.progress.update(
-                    self.progress_task_id,
-                    completed=cumulative_num_requests,
-                    total=total,
-                    extra_info=metrics_str,
-                )
+                    # Count mode: show completed requests vs total
+                    # If --synthetic-no-aggregate-stats is set, the cumulative
+                    # request count is stored in the stats[workload.name]
+                    # object. We just use the total request count for the
+                    # entire runbook as the total, although it breaks
+                    # convention with non-runbook workloads.
+                    if (
+                        isinstance(
+                            env.workload_sequence,
+                            vsb.workloads.synthetic_workload.synthetic_workload.SyntheticRunbook,
+                        )
+                        and not self.no_aggregate_stats
+                    ):
+                        total = env.workload_sequence.request_count()
+                    else:
+                        total = self.request_count
+                    vsb.progress.update(
+                        self.progress_task_id,
+                        completed=cumulative_num_requests,
+                        total=total,
+                        extra_info=metrics_str,
+                    )

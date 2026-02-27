@@ -47,6 +47,7 @@ class InMemoryWorkload(VectorWorkload, ABC):
         self.queries = None
         self._record_count = options.synthetic_records
         self._request_count = options.synthetic_requests
+        self._synthetic_duration = getattr(options, "synthetic_duration", None)
         self._num_workers = options.expect_workers
         self._num_users = options.num_users
 
@@ -104,8 +105,26 @@ class InMemoryWorkload(VectorWorkload, ABC):
                 f"this shouldn't happen."
             )
             self.queries = self.setup_queries()
-        # Worker queries are worker-local - that is, each worker will only
-        # have the max potential queries for its users.
+
+        if self._synthetic_duration is not None:
+            # Duration mode: cycle through all queries indefinitely.
+            # RunUser will stop consuming when the deadline expires.
+            total_queries = self.queries.shape[0]
+
+            def make_cycling_query_iter():
+                while True:
+                    for index in range(total_queries):
+                        query = {
+                            "values": self.queries["values"].iat[index],
+                            "top_k": self.queries["top_k"].iat[index],
+                            "neighbors": self.queries["neighbors"].iat[index],
+                        }
+                        yield "", SearchRequest(**query)
+
+            return make_cycling_query_iter()
+
+        # Count mode: worker queries are worker-local - that is, each worker
+        # will only have the max potential queries for its users.
         quotient, remainder = divmod(self._request_count, num_users)
         chunks = [quotient + (1 if r < remainder else 0) for r in range(num_users)]
         user_q, user_r = divmod(self._num_users, self._num_workers)
@@ -152,7 +171,12 @@ class InMemoryWorkload(VectorWorkload, ABC):
         return self._record_count
 
     def request_count(self) -> int:
+        if self._synthetic_duration is not None:
+            return 0
         return self._request_count
+
+    def synthetic_duration(self) -> float | None:
+        return self._synthetic_duration
 
 
 class SyntheticWorkload(InMemoryWorkload, ABC):
@@ -212,13 +236,14 @@ class SyntheticWorkload(InMemoryWorkload, ABC):
     def get_random_query_idx(self, num_idxs: int) -> int:
         # Pick a random record from our records to use as a query,
         # based on the query distribution.
+        num_records = self._record_count
         match self._query_distribution:
             case "uniform":
-                return self.rng.integers(0, self._request_count, num_idxs)
+                return self.rng.integers(0, num_records, num_idxs)
             case "zipfian":
                 idxs = []
                 while len(idxs) < num_idxs:
-                    if (offset := self.rng.zipf(1.1)) < self._request_count:
+                    if (offset := self.rng.zipf(1.1)) < num_records:
                         idxs.append(offset)
                 return idxs
             case _:
@@ -240,20 +265,28 @@ class SyntheticWorkload(InMemoryWorkload, ABC):
     def setup_queries(self):
         # Pseudo-randomly generate the full RecordList of queries
         # Query will be generated with the same distribution as records
-        max_users_per_worker = int(np.ceil(self._num_users / self._num_workers))
-        # Give each worker a number of queries proportional to the maximum number of users
-        # any worker can have.
-        max_queries_per_worker = (
-            int(np.ceil(self._request_count * max_users_per_worker / self._num_users))
-            + self._num_users
-        )
+        if self._synthetic_duration is not None:
+            # Duration mode: generate a fixed pool of queries to cycle through
+            query_pool_size = min(self._record_count, 10000)
+        else:
+            max_users_per_worker = int(np.ceil(self._num_users / self._num_workers))
+            # Give each worker a number of queries proportional to the maximum
+            # number of users any worker can have.
+            query_pool_size = (
+                int(
+                    np.ceil(
+                        self._request_count * max_users_per_worker / self._num_users
+                    )
+                )
+                + self._num_users
+            )
         self.queries = pandas.DataFrame(
             {
                 "values": [
                     self.records["values"].iat[i]
-                    for i in self.get_random_query_idx(max_queries_per_worker)
+                    for i in self.get_random_query_idx(query_pool_size)
                 ],
-                "top_k": np.full(max_queries_per_worker, self._top_k),
+                "top_k": np.full(query_pool_size, self._top_k),
             }
         )
 
@@ -597,6 +630,7 @@ class SyntheticProportionalWorkload(InMemoryWorkload, ABC):
         super().__init__(name, options)
         self._record_count = options.synthetic_records
         self._request_count = options.synthetic_requests
+        self._synthetic_duration = getattr(options, "synthetic_duration", None)
         self._dimensions = options.synthetic_dimensions
         self._metric = DistanceMetric(options.synthetic_metric)
         self._metadata_gen = self.parse_synthetic_metadata_template(
@@ -747,14 +781,22 @@ class SyntheticProportionalWorkload(InMemoryWorkload, ABC):
     def get_query_iter(
         self, num_users: int, user_id: int, batch_size: int
     ) -> Iterator[tuple[str, QueryRequest]]:
-        user_n_queries = self._request_count // num_users + (
-            user_id < self._request_count % num_users
-        )
         user_n_records = self._record_count // num_users + (
             user_id < self._record_count % num_users
         )
-        # User-unique upsert id range to avoid conflicts
-        insert_index = self._record_count + user_id * (user_n_queries + 1)
+
+        if self._synthetic_duration is not None:
+            # Duration mode: generate requests indefinitely.
+            # RunUser will stop consuming when the deadline expires.
+            user_n_queries = None
+            insert_index = self._record_count + user_id * 1000000
+        else:
+            user_n_queries = self._request_count // num_users + (
+                user_id < self._request_count % num_users
+            )
+            # User-unique upsert id range to avoid conflicts
+            insert_index = self._record_count + user_id * (user_n_queries + 1)
+
         # User-unique delete/fetch id range to avoid conflicts
         original_index_start = self._record_count // num_users * user_id + (
             min(self._record_count % num_users, user_id)
@@ -770,9 +812,13 @@ class SyntheticProportionalWorkload(InMemoryWorkload, ABC):
         def make_query_iter(num_queries, insert_index, available_indexes):
             # Generate queries in batches. These batches will be homogenous, but a
             # single query iter may contain multiple types of queries.
-            for query_num in range(0, num_queries, self._batch_size):
-                # In case num_queries is not a multiple of batch_size
-                curr_batch_size = min(self._batch_size, num_queries - query_num)
+            query_num = 0
+            while num_queries is None or query_num < num_queries:
+                curr_batch_size = (
+                    self._batch_size
+                    if num_queries is None
+                    else min(self._batch_size, num_queries - query_num)
+                )
                 upsert_batch_size = min(curr_batch_size, batch_size)
                 # Choose a random request type based on proportions, and
                 # do _batch_size requests of that type
@@ -871,8 +917,17 @@ class SyntheticProportionalWorkload(InMemoryWorkload, ABC):
                         fetch_ids = [str(available_indexes[i][0]) for i in idxs]
 
                         yield "", FetchRequest(ids=fetch_ids)
+                query_num += self._batch_size
 
         return make_query_iter(user_n_queries, insert_index, available_indexes)
+
+    def request_count(self) -> int:
+        if self._synthetic_duration is not None:
+            return 0
+        return self._request_count
+
+    def synthetic_duration(self) -> float | None:
+        return self._synthetic_duration
 
     def recall_available(self) -> bool:
         return False

@@ -150,10 +150,19 @@ def add_vsb_cmdline_args(
         "--synthetic_requests",
         "-c",
         type=int,
-        default=100,
+        default=None,
         help="Number of requests to generate for the synthetic workload. For synthetic proportional "
         "workloads, this is the number of requests (including upserts) to run after the initial "
-        "population. Default is %(default)s.",
+        "population. Mutually exclusive with --synthetic_duration. Default is 100.",
+    )
+    synthetic_group.add_argument(
+        "--synthetic_duration",
+        type=float,
+        default=None,
+        help="Duration in seconds for the Run phase of synthetic workloads. "
+        "When specified, requests are generated continuously until the duration expires. "
+        "Mutually exclusive with --synthetic_requests. Not supported with synthetic-runbook. "
+        "Default is 300 (5 minutes) when used.",
     )
     synthetic_group.add_argument(
         "--synthetic_dimensions",
@@ -521,9 +530,30 @@ def validate_parsed_args(
             pass
     match args.workload:
         case "synthetic" | "synthetic-proportional" | "synthetic-runbook":
+            # Validate mutual exclusivity of --synthetic_requests and --synthetic_duration
+            if (
+                args.synthetic_requests is not None
+                and args.synthetic_duration is not None
+            ):
+                parser.error(
+                    "--synthetic_requests and --synthetic_duration are mutually exclusive. "
+                    "Please specify only one."
+                )
+            # Default to count mode with 100 requests if neither is specified
+            if args.synthetic_requests is None and args.synthetic_duration is None:
+                args.synthetic_requests = 100
+            # --synthetic_duration is not supported with synthetic-runbook
+            if (
+                args.synthetic_duration is not None
+                and args.workload == "synthetic-runbook"
+            ):
+                parser.error(
+                    "--synthetic_duration is not supported with the synthetic-runbook workload. "
+                    "Please use --synthetic_requests instead."
+                )
+
             required = (
                 "synthetic_records",
-                "synthetic_requests",
                 "synthetic_dimensions",
                 "synthetic_metric",
                 "synthetic_top_k",
