@@ -150,10 +150,10 @@ def add_vsb_cmdline_args(
         "--synthetic_requests",
         "-c",
         type=int,
-        default=None,
+        default=100,
         help="Number of requests to generate for the synthetic workload. For synthetic proportional "
         "workloads, this is the number of requests (including upserts) to run after the initial "
-        "population. Mutually exclusive with --synthetic_duration. Default is 100.",
+        "population. Ignored when --synthetic_duration is specified. Default is %(default)s.",
     )
     synthetic_group.add_argument(
         "--synthetic_duration",
@@ -530,18 +530,10 @@ def validate_parsed_args(
             pass
     match args.workload:
         case "synthetic" | "synthetic-proportional" | "synthetic-runbook":
-            # Validate mutual exclusivity of --synthetic_requests and --synthetic_duration
-            if (
-                args.synthetic_requests is not None
-                and args.synthetic_duration is not None
-            ):
-                parser.error(
-                    "--synthetic_requests and --synthetic_duration are mutually exclusive. "
-                    "Please specify only one."
-                )
-            # Default to count mode with 100 requests if neither is specified
-            if args.synthetic_requests is None and args.synthetic_duration is None:
-                args.synthetic_requests = 100
+            # When --synthetic_duration is specified, it takes precedence over
+            # --synthetic_requests (which has a default of 100).
+            if args.synthetic_duration is not None:
+                args.synthetic_requests = None
             # --synthetic_duration is not supported with synthetic-runbook
             if (
                 args.synthetic_duration is not None
