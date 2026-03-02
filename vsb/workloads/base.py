@@ -101,6 +101,13 @@ class VectorWorkload(ABC):
         """
         return True
 
+    def synthetic_duration(self) -> float | None:
+        """
+        The duration in seconds for the Run phase when using time-based mode,
+        or None if using request-count mode.
+        """
+        return None
+
 
 class VectorWorkloadSequence(ABC):
     @abstractmethod

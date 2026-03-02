@@ -153,7 +153,16 @@ def add_vsb_cmdline_args(
         default=100,
         help="Number of requests to generate for the synthetic workload. For synthetic proportional "
         "workloads, this is the number of requests (including upserts) to run after the initial "
-        "population. Default is %(default)s.",
+        "population. Ignored when --synthetic_duration is specified. Default is %(default)s.",
+    )
+    synthetic_group.add_argument(
+        "--synthetic_duration",
+        type=float,
+        default=None,
+        help="Duration in seconds for the Run phase of synthetic workloads. "
+        "When specified, requests are generated continuously until the duration expires. "
+        "Mutually exclusive with --synthetic_requests. Not supported with synthetic-runbook. "
+        "Default is 300 (5 minutes) when used.",
     )
     synthetic_group.add_argument(
         "--synthetic_dimensions",
@@ -521,9 +530,22 @@ def validate_parsed_args(
             pass
     match args.workload:
         case "synthetic" | "synthetic-proportional" | "synthetic-runbook":
+            # When --synthetic_duration is specified, it takes precedence over
+            # --synthetic_requests (which has a default of 100).
+            if args.synthetic_duration is not None:
+                args.synthetic_requests = None
+            # --synthetic_duration is not supported with synthetic-runbook
+            if (
+                args.synthetic_duration is not None
+                and args.workload == "synthetic-runbook"
+            ):
+                parser.error(
+                    "--synthetic_duration is not supported with the synthetic-runbook workload. "
+                    "Please use --synthetic_requests instead."
+                )
+
             required = (
                 "synthetic_records",
-                "synthetic_requests",
                 "synthetic_dimensions",
                 "synthetic_metric",
                 "synthetic_top_k",
