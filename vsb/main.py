@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import math
 import sys
 from pathlib import Path
 
@@ -40,6 +41,18 @@ def main():
     # message (and exit) if args fail validation or --help passed.
     args = parser.parse_args()
     validate_parsed_args(parser, args)
+
+    # Auto-calculate the number of users if not explicitly specified.
+    # Assuming a conservative 500ms request latency, each user can issue
+    # at most 2 requests/sec. We provision enough users to comfortably
+    # achieve the target QPS.
+    if args.num_users is None:
+        if args.requests_per_sec > 0:
+            assumed_latency = 0.5  # 500ms
+            args.num_users = max(1, math.ceil(args.requests_per_sec * assumed_latency))
+        else:
+            args.num_users = 1
+        sys.argv += ["--users", str(args.num_users)]
 
     log_base = Path(args.log_dir) / args.database
     vsb.log_dir = setup_logging(log_base=log_base, level=args.loglevel)
