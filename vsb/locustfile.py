@@ -109,7 +109,7 @@ def qutting_listener(environment, **_kwargs):
 def setup_environment(environment, **_kwargs):
     env = environment
     options = env.parsed_options
-    num_users = options.num_users or 1
+    num_users = options.num_users
 
     logger.debug(f"setup_environment(): runner={type(environment.runner)}")
 

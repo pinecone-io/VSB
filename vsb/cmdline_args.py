@@ -124,9 +124,11 @@ def add_vsb_cmdline_args(
             type=int,
             metavar="<int>",
             dest="num_users",
-            default=1,
-            help="Number of database clients to execute the workload. Default is %("
-            "default)s",
+            default=None,
+            help="Number of database clients to execute the workload. If not specified "
+            "and --requests_per_sec is set, the number of users is automatically "
+            "calculated to achieve the target QPS (assuming 500ms request latency). "
+            "Otherwise defaults to 1.",
         )
         general_group.add_argument(
             "--processes",
