@@ -114,10 +114,12 @@ def _create_index_with_dedicated_read_nodes(
 
 
 class PineconeNamespace(Namespace):
-    def __init__(self, index: GRPCIndex, namespace: str):
+    def __init__(self, index: GRPCIndex, namespace: str, scan_factor: float, max_candidates: int):
         # TODO: Support multiple namespaces
         self.index = index
         self.namespace = namespace
+        self.query_scan_factor = scan_factor
+        self.query_max_candidates = max_candidates
 
     def insert_batch(self, batch: RecordList):
         # Pinecone expects a list of dicts (or tuples).
@@ -140,6 +142,8 @@ class PineconeNamespace(Namespace):
                 top_k=request.top_k,
                 filter=request.filter,
                 namespace=self.namespace,
+                scan_factor=self.query_scan_factor,
+                max_candidates=self.query_max_candidates
             )
 
         result = do_query_with_retry()
@@ -174,6 +178,8 @@ class PineconeDB(DB):
         self.dedicated_node_type = config.get("pinecone_dedicated_node_type", "b1")
         self.dedicated_shards = config.get("pinecone_dedicated_shards", 1)
         self.dedicated_replicas = config.get("pinecone_dedicated_replicas", 1)
+        self.query_scan_factor = config.get("pinecone_query_scan_factor", 4.0)
+        self.query_max_candidates = config.get("pinecone_query_max_candidates", 100)
 
         if self.index_name is None:
             # None specified, default to "vsb-<workload>"
@@ -209,6 +215,8 @@ class PineconeDB(DB):
                     shards=self.dedicated_shards,
                     replicas=self.dedicated_replicas,
                 )
+                logger.info(f"PineconeDB: Sleepig for 60sec, while the Index is being provisioned")
+                time.sleep(60)
             else:
                 self.pc.create_index(
                     name=self.index_name,
@@ -216,6 +224,8 @@ class PineconeDB(DB):
                     metric=metric.value,
                     spec=spec,
                 )
+                logger.info(f"PineconeDB: Sleepig for 30sec, while the Index is being provisioned")
+                time.sleep(30)
 
             self.index = self.pc.Index(name=self.index_name)
             self.created_index = True
@@ -259,8 +269,8 @@ class PineconeDB(DB):
         logger.debug(f"PineconeDB.get_batch_size() - Using batch size of {batch_size}")
         return batch_size
 
-    def get_namespace(self, namespace: str) -> Namespace:
-        return PineconeNamespace(self.index, self.namespace)
+    def get_namespace(self, namespace: str, scan_factor: float, max_candidates: int) -> Namespace:
+        return PineconeNamespace(self.index, self.namespace, self.query_scan_factor, self.query_max_candidates)
 
     def initialize_population(self):
         # If the namespace already existed before VSB (we didn't create it) and

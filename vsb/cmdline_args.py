@@ -327,6 +327,18 @@ def add_vsb_cmdline_args(
         default=1,
         help="Number of replicas for dedicated read nodes. Default is %(default)s.",
     )
+    pinecone_group.add_argument(
+        "--pinecone_query_scan_factor",
+        type=float,
+        default=4.0,
+        help="Scan factor controls how much of index is scanned during search. Ranges from 0.5 to 4.0,  Default is %(default)s.",
+    )
+    pinecone_group.add_argument(
+        "--pinecone_query_max_candidates",
+        type=int,
+        default=100,
+        help="Max Candidates considers the number of candidate vectors considered during search. Default is %(default)s.",
+    )
 
     opensearch_group = parser.add_argument_group(
         "Options specific to OpenSearch database"
