@@ -269,7 +269,7 @@ class PineconeDB(DB):
         logger.debug(f"PineconeDB.get_batch_size() - Using batch size of {batch_size}")
         return batch_size
 
-    def get_namespace(self, namespace: str, scan_factor: float, max_candidates: int) -> Namespace:
+    def get_namespace(self, namespace: str) -> Namespace:
         return PineconeNamespace(self.index, self.namespace, self.query_scan_factor, self.query_max_candidates)
 
     def initialize_population(self):
