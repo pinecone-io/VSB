@@ -114,12 +114,29 @@ def _create_index_with_dedicated_read_nodes(
 
 
 class PineconeNamespace(Namespace):
-    def __init__(self, index: GRPCIndex, namespace: str, scan_factor: float, max_candidates: int):
+    def __init__(self, index: GRPCIndex, namespace: str, scan_factor: float, max_candidates: int, dedicated_read_nodes: bool):
         # TODO: Support multiple namespaces
         self.index = index
         self.namespace = namespace
-        self.query_scan_factor = scan_factor
-        self.query_max_candidates = max_candidates
+        self.use_dedicated_read_nodes = dedicated_read_nodes
+
+        # Validate scan_factor and max_candidates if DRN is used
+        if self.use_dedicated_read_nodes:
+            if not (0.5 <= scan_factor <= 4.0):
+                raise ValueError(
+                    f"Invalid scan_factor={scan_factor}. Valid range is 0.5 to 4.0."
+                )
+            self.query_scan_factor = scan_factor
+
+            if not (0 < max_candidates <= 100_000):
+                raise ValueError(
+                    f"Invalid max_candidates={max_candidates}. Valid range is 1 to 100,000."
+                )
+            self.query_max_candidates = max_candidates
+        else:
+            # DRN not used, ignore the parameters
+            self.query_scan_factor = None
+            self.query_max_candidates = None
 
     def insert_batch(self, batch: RecordList):
         # Pinecone expects a list of dicts (or tuples).
@@ -131,20 +148,27 @@ class PineconeNamespace(Namespace):
         self.insert_batch(batch)
 
     def search(self, request: SearchRequest) -> list[str]:
+        if self.use_dedicated_read_nodes and self.query_max_candidates < request.top_k:
+            raise ValueError(f"Invalid configuration: max_candidates={self.query_max_candidates} cannot be less than top_k={request.top_k}.")
+
         @retry(
             wait=wait_exponential_jitter(initial=0.1, jitter=0.1),
             stop=stop_after_attempt(5),
             after=after_log(logger, logging.DEBUG),
         )
         def do_query_with_retry():
-            return self.index.query(
-                vector=request.values,
-                top_k=request.top_k,
-                filter=request.filter,
-                namespace=self.namespace,
-                scan_factor=self.query_scan_factor,
-                max_candidates=self.query_max_candidates
-            )
+            query_kwargs = {
+                "vector": request.values,
+                "top_k": request.top_k,
+                "filter": request.filter,
+                "namespace": self.namespace,
+            }
+            # Including scan_factor and max_candidates only if index is type DRN
+            if self.use_dedicated_read_nodes:
+                query_kwargs["scan_factor"] = self.query_scan_factor
+                query_kwargs["max_candidates"] = self.query_max_candidates
+
+            return self.index.query(**query_kwargs)
 
         result = do_query_with_retry()
         matches = [m["id"] for m in result["matches"]]
@@ -215,7 +239,7 @@ class PineconeDB(DB):
                     shards=self.dedicated_shards,
                     replicas=self.dedicated_replicas,
                 )
-                logger.info(f"PineconeDB: Sleepig for 60sec, while the Index is being provisioned")
+                logger.info(f"PineconeDB: Sleeping for 60sec, while the Index is being provisioned")
                 time.sleep(60)
             else:
                 self.pc.create_index(
@@ -224,7 +248,7 @@ class PineconeDB(DB):
                     metric=metric.value,
                     spec=spec,
                 )
-                logger.info(f"PineconeDB: Sleepig for 30sec, while the Index is being provisioned")
+                logger.info(f"PineconeDB: Sleeping for 30sec, while the Index is being provisioned")
                 time.sleep(30)
 
             self.index = self.pc.Index(name=self.index_name)
@@ -270,7 +294,7 @@ class PineconeDB(DB):
         return batch_size
 
     def get_namespace(self, namespace: str) -> Namespace:
-        return PineconeNamespace(self.index, self.namespace, self.query_scan_factor, self.query_max_candidates)
+        return PineconeNamespace(self.index, self.namespace, self.query_scan_factor, self.query_max_candidates, self.use_dedicated_read_nodes)
 
     def initialize_population(self):
         # If the namespace already existed before VSB (we didn't create it) and

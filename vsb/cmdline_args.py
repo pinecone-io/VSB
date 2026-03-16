@@ -336,7 +336,7 @@ def add_vsb_cmdline_args(
     pinecone_group.add_argument(
         "--pinecone_query_max_candidates",
         type=int,
-        default=100,
+        default=None,
         help="Max Candidates considers the number of candidate vectors considered during search. Default is %(default)s.",
     )
 
