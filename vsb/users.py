@@ -253,6 +253,24 @@ class RunUser(User):
         self._duration = self.workload.synthetic_duration()
         self._deadline = None
 
+        # Multi-namespace mode: get namespaces assigned to this user
+        if hasattr(self.database, "multi_namespace") and self.database.multi_namespace:
+            self.user_namespaces = self.database._get_namespaces_for_user(
+                self.user_id, self.users_total
+            )
+            if not self.user_namespaces:
+                logger.critical(
+                    f"User {self.user_id} has no namespaces assigned. This should not happen - check namespace distribution logic."
+                )
+                raise StopUser()
+            self.namespace_index = 0
+            logger.debug(
+                f"RunUser id:{self.user_id} assigned namespaces: {', '.join(self.user_namespaces)}"
+            )
+        else:
+            self.user_namespaces = None
+            self.namespace_index = None
+
     @task
     def request(self):
         match self.state:
@@ -272,7 +290,7 @@ class RunUser(User):
     def do_run(self):
         if not self.query_iter:
             batch_size = self.database.get_batch_size(self.workload.get_sample_record())
-            self.query_iter = self.workload.get_query_iter(
+            base_iter = self.workload.get_query_iter(
                 self.users_total, self.user_id, batch_size
             )
             if self._duration is not None:
@@ -288,6 +306,26 @@ class RunUser(User):
             )
             self.state = RunUser.State.Done
             return
+
+            # Multi-namespace mode: wrap iterator to inject namespace names
+            if (
+                hasattr(self.database, "multi_namespace")
+                and self.database.multi_namespace
+            ):
+
+                def namespace_wrapper():
+                    for tenant, request in base_iter:
+                        # Select next namespace using round-robin
+                        namespace = self.user_namespaces[
+                            self.namespace_index % len(self.user_namespaces)
+                        ]
+                        self.namespace_index += 1
+                        yield (namespace, request)
+
+                self.query_iter = namespace_wrapper()
+            else:
+                # Single namespace mode: use iterator as-is
+                self.query_iter = base_iter
 
         tenant: str = None
         request: QueryRequest = None

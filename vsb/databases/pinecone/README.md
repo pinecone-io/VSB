@@ -57,3 +57,34 @@ Available dedicated read node options:
 > [!TIP]
 > The API key and/or index name can also be passed via environment variables
 > (`VSB__PINECONE_API_KEY` and `VSB__PINECONE_INDEX_NAME` respectively).
+
+## Multi-Namespace Benchmarking
+
+VSB supports benchmarking across multiple namespaces in an existing Pinecone index. When `--pinecone_multi_namespace=True`, VSB automatically discovers all populated namespaces in the index and distributes requests evenly across them.
+
+**Requirements:**
+- The index must already exist and be populated
+- Must use `--skip_populate` (multi-namespace mode only benchmarks existing indexes)
+- Must specify `--pinecone_index_name` (cannot auto-generate index name)
+- Cannot use `--overwrite` or custom `--pinecone_namespace_name` with multi-namespace mode
+
+**Usage:**
+
+```shell
+vsb --database=pinecone --workload=mnist-test \
+    --pinecone_api_key=<YOUR_API_KEY> \
+    --pinecone_index_name=<EXISTING_INDEX> \
+    --pinecone_multi_namespace=True \
+    --skip_populate
+```
+
+**How it works:**
+- VSB automatically discovers all namespaces in the index that have records (`record_count > 0`)
+- Namespaces are distributed across users/workers using a round-robin algorithm
+- Requests from each user are distributed evenly across their assigned namespaces
+- Metrics are aggregated across all namespaces (same display format as single-namespace mode)
+
+**Example:** If an index has 3 namespaces (ns1, ns2, ns3) and you run with 2 users:
+- User 0 will handle requests to ns1 and ns3
+- User 1 will handle requests to ns2
+- Requests are distributed evenly across the assigned namespaces for each user
