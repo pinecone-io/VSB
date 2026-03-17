@@ -128,10 +128,11 @@ class PineconeNamespace(Namespace):
                 )
             self.query_scan_factor = scan_factor
 
-            if not (0 < max_candidates <= 100_000):
-                raise ValueError(
-                    f"Invalid max_candidates={max_candidates}. Valid range is 1 to 100,000."
-                )
+            if max_candidates:
+                if not (0 < max_candidates <= 100_000):
+                    raise ValueError(
+                        f"Invalid max_candidates={max_candidates}. Valid range is 1 to 100,000."
+                    )
             self.query_max_candidates = max_candidates
         else:
             # DRN not used, ignore the parameters
@@ -148,8 +149,9 @@ class PineconeNamespace(Namespace):
         self.insert_batch(batch)
 
     def search(self, request: SearchRequest) -> list[str]:
-        if self.use_dedicated_read_nodes and self.query_max_candidates < request.top_k:
-            raise ValueError(f"Invalid configuration: max_candidates={self.query_max_candidates} cannot be less than top_k={request.top_k}.")
+        if self.use_dedicated_read_nodes and self.query_max_candidates:
+            if self.query_max_candidates < request.top_k:
+                raise ValueError(f"Invalid configuration: max_candidates={self.query_max_candidates} cannot be less than top_k={request.top_k}.")
 
         @retry(
             wait=wait_exponential_jitter(initial=0.1, jitter=0.1),
