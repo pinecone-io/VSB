@@ -4,7 +4,7 @@
    <img src=docs/images/splash.jpg width="180px"/>
 </p>
 
-**VSB** is a benchmarking suite for vector search. It lets you quickly measure how 
+**VSB** is a benchmarking suite for vector search. It lets you quickly measure how
 different workloads perform on a range of vector databases.
 
 ## Quickstart
@@ -13,14 +13,13 @@ different workloads perform on a range of vector databases.
 
 VSB has the following requirements:
 
-* Python >= 3.11
-* [Docker Compose](https://docs.docker.com/compose/) >= 2.27 (for non-cloud hosted databases)
+- Python >= 3.11
+- [Docker Compose](https://docs.docker.com/compose/) >= 2.27 (for non-cloud hosted databases)
 
 > [!NOTE]
-> macOS ships with an older version of Python (3.9 or earlier). Ensure you have a new enough version of  Python or VSB installation will fail. For example, you can use [Homebrew](https://brew.sh) with the following command:
-> 
->`brew install python@3.11`
-
+> macOS ships with an older version of Python (3.9 or earlier). Ensure you have a new enough version of Python or VSB installation will fail. For example, you can use [Homebrew](https://brew.sh) with the following command:
+>
+> `brew install python@3.11`
 
 ### Install
 
@@ -37,7 +36,7 @@ Install VSB by following these steps:
    ```shell
    cd VSB
    pip3 install poetry && poetry install
-   ``` 
+   ```
 
 1. Activate an environment containing dependencies:
 
@@ -50,13 +49,13 @@ Install VSB by following these steps:
 #### Cloud-hosted
 
 To run VSB against a cloud-hosted vector database,
-provide suitable credentials for an existing database instance. 
+provide suitable credentials for an existing database instance.
 
 For example, to run the _mnist-test_ workload against a Pinecone index, provide parameters like the following, where `--api_key` specifies the [Pinecone](https://app.pinecone.io) API key to use.
 
 ```shell
 vsb --database=pinecone --workload=mnist-test \
-    --pinecone_api_key=<API_KEY> 
+    --pinecone_api_key=<API_KEY>
 ```
 
 When no index name is specified, VSB creates an index during the setup phase. The new index has a name of the form `vsb-<workload_name>`. For example, the command above creates an index named `vsb-mnist-test`.
@@ -67,7 +66,6 @@ Alternatively, VSB can run against a locally hosted vector database such as
 pgvector running in Docker.
 
 To run VSB against a local vector database, follow these steps:
-
 
 1. Launch the database via `docker compose` in one terminal:
 
@@ -90,46 +88,48 @@ Example output:
 
 ## Overview
 
-VSB is a CLI tool that runs various workloads against a range of 
+VSB is a CLI tool that runs various workloads against a range of
 vector databases and measure how they perform.
 
 Each experiment consists of three phases: _Setup_, _Populate_, and _Run_:
 
-* **Setup**: Prepares the database and workload for the experiment by creating tables and 
+- **Setup**: Prepares the database and workload for the experiment by creating tables and
   indexes and downloading or generating data.
-* **Populate**: Loads the database with data, creates indexes, etc.
-* **Run**: Executes the workload against the database, measuring throughput, latency, 
+- **Populate**: Loads the database with data, creates indexes, etc.
+- **Run**: Executes the workload against the database, measuring throughput, latency,
   and other metrics.
 
-VSB automatically runs these phases in sequence, and reports the results at the 
+VSB automatically runs these phases in sequence, and reports the results at the
 end. VSB writes detailed results to the `stats.json` file and displays a summary.
 
 ### Supported databases
 
 The following databases are currently supported by VSB:
 
-* [Pinecone](vsb/databases/pinecone/README.md)
-* [pgvector](vsb/databases/pgvector/README.md)
-* [OpenSearch](vsb/databases/opensearch/README.md)
+- [Pinecone](vsb/databases/pinecone/README.md)
+- [pgvector](vsb/databases/pgvector/README.md)
+- [OpenSearch](vsb/databases/opensearch/README.md)
 
 > [!TIP]
-> You can also display the list of supported databases using the following command: 
+> You can also display the list of supported databases using the following command:
 > `vsb --database=help`
 
 ### Supported workloads
 
 VSB currently supports the following workloads:
 
-| Name        | Cardinality | Dimensions |    Metric | Description                                                                                                                                 |
-|-------------|------------:|-----------:|----------:|---------------------------------------------------------------------------------------------------------------------------------------------|
-| `mnist`     |      60,000 |        784 | euclidean | Images of handwritten digits from [MNIST](https://en.wikipedia.org/wiki/MNIST_database)                                                     |
-| `nq768`     |   2,680,893 |        768 | dot product | Natural language questions from [Google Research](https://ai.google.com/research/NaturalQuestions).                                         |
-| `yfcc-10M`  |  10,000,000 |        192 | euclidean | Images from [Yahoo Flickr Creative Commons 100M](https://paperswithcode.com/dataset/yfcc100m) annotated with a "bag" of tags                |
-| `cohere768` |  10,000,000 |        768 | cosine | English Wikipedia articles embedded with Cohere from [wikipedia-22-12](https://huggingface.co/datasets/Cohere/wikipedia-22-12/tree/main/en) |
-| `msmarco-v2-ada` | 138,364,198 | 1536 | cosine | [MSMarco-V2-Ada](https://microsoft.github.io/msmarco/) dataset - 138M records from Microsoft's MSMARCOv2 dataset, embedded with Ada |
-| `synthetic` | (user-specified) | (user-specified) | (user-specified) | Synthetic records and queries pseudo-randomly generated of a custom distribution, dimensionality, metric, and cardinality. |
+| Name                |      Cardinality |       Dimensions |           Metric | Description                                                                                                                                                      |
+| ------------------- | ---------------: | ---------------: | ---------------: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mnist`             |           60,000 |              784 |        euclidean | Images of handwritten digits from [MNIST](https://en.wikipedia.org/wiki/MNIST_database)                                                                          |
+| `nq768`             |        2,680,893 |              768 |      dot product | Natural language questions from [Google Research](https://ai.google.com/research/NaturalQuestions).                                                              |
+| `yfcc-10M`          |       10,000,000 |              192 |        euclidean | Images from [Yahoo Flickr Creative Commons 100M](https://paperswithcode.com/dataset/yfcc100m) annotated with a "bag" of tags                                     |
+| `cohere768`         |       10,000,000 |              768 |           cosine | English Wikipedia articles embedded with Cohere from [wikipedia-22-12](https://huggingface.co/datasets/Cohere/wikipedia-22-12/tree/main/en)                      |
+| `msmarco-v2-ada`    |      138,364,198 |             1536 |           cosine | [MSMarco-V2-Ada](https://microsoft.github.io/msmarco/) dataset - 138M records from Microsoft's MSMARCOv2 dataset, embedded with Ada                              |
+| `synthetic`         | (user-specified) | (user-specified) | (user-specified) | Synthetic records and queries pseudo-randomly generated of a custom distribution, dimensionality, metric, and cardinality.                                       |
+| `at-scale-poc-10m`  |       10,000,000 |             1024 |           cosine | [Amazon Reviews](https://huggingface.co/datasets/McAuley-Lab/Amazon-Reviews-2023) This is a large-scale Amazon Reviews dataset, collected in 2023 by McAuley Lab |
+| `at-scale-poc-100m` |      100,000,000 |             1024 |           cosine | [Amazon Reviews](https://huggingface.co/datasets/McAuley-Lab/Amazon-Reviews-2023) This is a large-scale Amazon Reviews dataset, collected in 2023 by McAuley Lab |
 
-> You can also display the list of supported workloads using the following command: 
+> You can also display the list of supported workloads using the following command:
 > `vsb --workload=help`
 
 There are also smaller test workloads available for most workloads, such as
@@ -141,95 +141,96 @@ so load times may be long for larger tests like `cohere768-test`.
 
 The `vsb` command requires two parameters:
 
-* `--database=<database>`: the database to run against.
-* `--workload=<workload>`: the workload to execute.
+- `--database=<database>`: the database to run against.
+- `--workload=<workload>`: the workload to execute.
 
-Omitting the value for either `database` or `workload` displays a list of 
-available choices. 
+Omitting the value for either `database` or `workload` displays a list of
+available choices.
 
-Specify additional parameters to further configure the database 
+Specify additional parameters to further configure the database
 or workload. Some databases require additional parameters, such as  
-credentials or a target index. 
+credentials or a target index.
 
 Common parameters include the following:
 
-* `--requests_per_sec=<float>`: Cap the rate at which requests are issued to the 
+- `--requests_per_sec=<float>`: Cap the rate at which requests are issued to the
   database.
-* `--users=<int>`: Specify the number of concurrent users (connections) to simulate.
-* `--skip_populate`: Skip populating the database with data and immediately perform the Run 
+- `--users=<int>`: Specify the number of concurrent users (connections) to simulate.
+- `--skip_populate`: Skip populating the database with data and immediately perform the Run
   phase.
 
 ## Use cases
 
-VSB is designed to help you quickly measure how different workloads perform on a 
+VSB is designed to help you quickly measure how different workloads perform on a
 range of vector databases. It can be used to perform a range of tasks, including the following:
 
-* Compare the performance of differente vector databases, including throughput, latency, and accuracy;
-* Benchmark the performance of a single database across different workloads;
-* Evaluate the performance of a database under different conditions, such as different 
+- Compare the performance of differente vector databases, including throughput, latency, and accuracy;
+- Benchmark the performance of a single database across different workloads;
+- Evaluate the performance of a database under different conditions, such as different
   data sizes, dimensions, metrics, and access patterns;
-* Understand the performance characteristics and identify the bottlenecks of a database;
-* Perform regression testing to ensure that changes to a database do not degrade performance.
+- Understand the performance characteristics and identify the bottlenecks of a database;
+- Perform regression testing to ensure that changes to a database do not degrade performance.
 
 ### Synthetic Workloads
 
 Sometimes the workload you want to model doesn't exist in any provided dataset, or you want
-to test a specific aspect of a database's performance. In these cases, you can use 
-a _synthetic_ workload to generate custom workloads with specific 
+to test a specific aspect of a database's performance. In these cases, you can use
+a _synthetic_ workload to generate custom workloads with specific
 characteristics.
 
-There are three modes of synthetic workloads, however the most common is the 
-`synthetic-proportional` workload: 
+There are three modes of synthetic workloads, however the most common is the
+`synthetic-proportional` workload:
 
-* `synthetic-proportional` workloads populate the database with an initial set of 
-records, then run a series of assorted request operations (inserts, queries, deletes, updates) in proportion to the given ratios.
+- `synthetic-proportional` workloads populate the database with an initial set of
+  records, then run a series of assorted request operations (inserts, queries, deletes, updates) in proportion to the given ratios.
 
-* `synthetic` workloads generate a fixed number of records and queries with the given 
-distribution, then runs population and query phases in sequence.
+- `synthetic` workloads generate a fixed number of records and queries with the given
+  distribution, then runs population and query phases in sequence.
 
-* `synthetic-runbook` workloads generate a fixed number of records and queries, and 
-splits them into a series of multiple 'populate -> run' steps. This is useful 
+- `synthetic-runbook` workloads generate a fixed number of records and queries, and
+  splits them into a series of multiple 'populate -> run' steps. This is useful
   for testing how a database performs when data is loaded incrementally.
 
 Some important parameters for synthetic workloads include:
 
-* `--synthetic_records`: The number of records to generate for the synthetic workload.
-* `--synthetic_requests`: The number of requests to generate for the run phase of 
+- `--synthetic_records`: The number of records to generate for the synthetic workload.
+- `--synthetic_requests`: The number of requests to generate for the run phase of
   the synthetic workload.
-* `--synthetic_dimensions`: The dimensionality of generated vectors.
-* `--synthetic_query_distribution`: The distribution of query/fetch IDs for synthetic proportional workloads.
-* `--synthetic_record_ratio`: The distribution of record vectors in space for synthetic proportional workloads.
-* `--synthetic_insert_ratio`: The proportion of insert operations for synthetic proportional workloads.
-* `--synthetic_query_ratio`: The proportion of query operations for synthetic proportional workloads.
-* `--synthetic_metadata`: The metadata schema to use for each record.
+- `--synthetic_dimensions`: The dimensionality of generated vectors.
+- `--synthetic_query_distribution`: The distribution of query/fetch IDs for synthetic proportional workloads.
+- `--synthetic_record_ratio`: The distribution of record vectors in space for synthetic proportional workloads.
+- `--synthetic_insert_ratio`: The proportion of insert operations for synthetic proportional workloads.
+- `--synthetic_query_ratio`: The proportion of query operations for synthetic proportional workloads.
+- `--synthetic_metadata`: The metadata schema to use for each record.
 
 #### **Defining Synthetic Metadata**
 
-Metadata can optionally be generated for each record in a synthetic workload. 
-Metadata is specified using one or more `--synthetic_metadata` flags. Each flag 
-defines a *metadata field* with a *name* and a *format specification*.
+Metadata can optionally be generated for each record in a synthetic workload.
+Metadata is specified using one or more `--synthetic_metadata` flags. Each flag
+defines a _metadata field_ with a _name_ and a _format specification_.
 
 ##### **Supported Metadata Types**
-| Type | Format Spec            | Example |
-|------|------------------------|---------|
-| Random integer with `#` digits | `<# digits>n`          | `id:10n` → `{"id": 1234567890}` |
-| Random alphanumeric string of `#` characters | `<# chars>s`           | `username:8s` → `{"username": "aZb3Xy91"}` |
+
+| Type                                                    | Format Spec            | Example                                                     |
+| ------------------------------------------------------- | ---------------------- | ----------------------------------------------------------- |
+| Random integer with `#` digits                          | `<# digits>n`          | `id:10n` → `{"id": 1234567890}`                             |
+| Random alphanumeric string of `#` characters            | `<# chars>s`           | `username:8s` → `{"username": "aZb3Xy91"}`                  |
 | List of `<# items>` strings, each of length `<# chars>` | `<# chars>s<# items>l` | `tags:5s10l` → `{"tags": ["apple", "delta", "omega", ...]}` |
-| Random boolean (`true` or `false`) | `b`                    | `active:b` → `{"active": true}` |
+| Random boolean (`true` or `false`)                      | `b`                    | `active:b` → `{"active": true}`                             |
 
 ##### **Example Metadata Usage**
-- `--synthetic_metadata=id:10n` → Generates a numeric `id` with 10 random digits*
+
+- `--synthetic_metadata=id:10n` → Generates a numeric `id` with 10 random digits\*
 - `--synthetic_metadata=tags:5s10l` → Generates a `tags` field containing a list of 10 random words, each 5 characters long.
 - `--synthetic_metadata=username:8s` → Generates a random username with 8 characters.
 - `--synthetic_metadata=active:b` → Generates an active/inactive flag as `true` or `false`.
 
 You can see the full list of parameters by running `vsb --help`.
 
-
 **Example**
 
 The following command runs a synthetic workload against Pinecone, with 1,000 initial records,
-then performs 100 requests in a zipfian query distribution, made up of 30% inserts, 
+then performs 100 requests in a zipfian query distribution, made up of 30% inserts,
 50% queries, 10% deletes, and 10% updates:
 
 ```shell
@@ -246,7 +247,6 @@ vsb --database=pinecone --pinecone_api_key=<API_KEY> \
 > You can use shorter versions of the parameters, such as `-N` for records and `-c` for queries.
 > The full list of flags is available by running `vsb --help`.
 
-
 The following command runs a series of 4 synthetic workloads against Pinecone, in order,
 each with 10,000 records and 500 queries, with custom dimensionality and metrics:
 
@@ -261,20 +261,21 @@ vsb --database=pinecone --pinecone_api_key=<API_KEY> \
 
 ### Measuring latency
 
-VSB measures latency by sending a query to the database and measuring the duration 
+VSB measures latency by sending a query to the database and measuring the duration
 between issuing the request and receiving the database's response.
-This includes both the send/receive time and the time for the database to 
-process the request. As such, latency is affected by the RTT between the VSB 
+This includes both the send/receive time and the time for the database to
+process the request. As such, latency is affected by the RTT between the VSB
 client and the database in addition to how long the database takes to issue a response.
 
-VSB records latency values for each request, then reports these as percentiles 
-when the workload completes. It also displays Live values from the last 10 seconds during the 
+VSB records latency values for each request, then reports these as percentiles
+when the workload completes. It also displays Live values from the last 10 seconds during the
 run for selected percentiles:
+
 <p align="center" width="100%">
 <img src=docs/images/vsb_example_live_metrics.png/>
 </p>
 
-**Example** 
+**Example**
 
 The following command runs the `yfcc-10M` workload against Pinecone at 10 QPS:
 
@@ -288,29 +289,30 @@ vsb --database=pinecone --workload=yfcc-10M \
 
 When measuring latency, consider the following factors:
 
-* **Requests per second** This is the rate at which requests are issued, specified by the  `--requests_per_sec` parameter. Choose a request rate that is representative of the expected production workload. Avoid values that saturate the client machine or the database server, resulting in elevated latencies.
+- **Requests per second** This is the rate at which requests are issued, specified by the `--requests_per_sec` parameter. Choose a request rate that is representative of the expected production workload. Avoid values that saturate the client machine or the database server, resulting in elevated latencies.
 
-* **The number of concurrent requests**  to simulate. This is specified by the `--users` parameter. Most production workloads have multiple clients issuing requests to the database concurrently, so it's important to represent this in the experiment.
+- **The number of concurrent requests** to simulate. This is specified by the `--users` parameter. Most production workloads have multiple clients issuing requests to the database concurrently, so it's important to represent this in the experiment.
 
-* **Which metrics to report**. Latency and throughput are classic measures of
+- **Which metrics to report**. Latency and throughput are classic measures of
   many database systems, but vector database experiments must also consider the
   quality of the responses to queries, such as what
   [recall](https://www.pinecone.io/learn/offline-evaluation/) is achieved at a
   given latency.
- 
+
   Also consider the distribution of recall values. A median (p50) recall of 80% may seem good, but if p10 recall is 0%, then 10% of your queries are returning no relevent results.
 
 ### Measuring throughput
 
 VSB measures throughput by calculating the number of responses received over a given period of time. It maintains a running count of the requests issued over the course of the Run phase, and reports the overall rate when the experiment finishes. It also displays a live value over last 10 seconds during the run.
 
-**Example** 
+**Example**
 
 The following command runs the `nq-768` workload against pgvector with multiple users and processes. The goal is to saturate it the database server.
 
 ```shell
 vsb --database=pgvector --workload=nq768 --users=10 --processes=10
 ```
+
 #### Designing a throughput experiment
 
 Throughput experiments are typically trying to answer one of two questions:
@@ -318,7 +320,7 @@ Throughput experiments are typically trying to answer one of two questions:
 1. Can the system handle the expected production workload?
 1. How far can the system scale within acceptable latency bounds?
 
-In the first case, throughput is an _input_ to the experiment: you can specify the expected 
+In the first case, throughput is an _input_ to the experiment: you can specify the expected
 workload via `--requests_per_sec=N`. In the second case, throughput is an _output_:
 you want to generate increasing amounts of load until the response time exceeds
 your acceptable bounds, thus identifying the maximum real-world throughput.
@@ -326,6 +328,18 @@ your acceptable bounds, thus identifying the maximum real-world throughput.
 By default, VSB only simulates one user (`--users=1`), so the throughput is
 effectively the reciprocal of the latency. Bear this in mind when trying to
 measure throughput of a system: you typically need to increase the number of `--users` (and potentially `--processes`) to ensure there's sufficient concurrent work given to the database system under test.
+
+#### Optimizing query Latency and Recall with the fine tuning control knobs with scan_factor and max_candidates
+
+max_candidates and scan_factor allow customers to trade off recall vs. query performance/throughput. Today, Pinecone queries always execute at maximum recall which means there's no way for latency-sensitive applications to opt into faster, lower-recall searches. max_candidates and scan_factor gives users explicit control over search behavior.
+
+- **scan_factor** (Float Range: 0.5 - 4.0 (default)) controls how much of the index is scanned during search, specified by the `--pinecone_query_scan_factor` parameter. Choose a value between 0.5 to 4, where 4 is for maximum recall.
+
+- **max_candidates** The maximum number of candidate vectors to consider during search, higher values increase recall at the cost of latency, specified by the `--pinecone_query_max_candidates` parameter. Choose a value between top_k value to 100,000.
+
+> [!NOTE]
+> Currently scan_ratio and max_candidates are only supported for DRN indexes. So speccify the index type as DRN by enabling this flag `--pinecone_dedicated_read_nodes`
+> Sample query with the above parameters look like `vsb --database=pinecone --workload=at-scale-poc-100m --pinecone_index_name=vsb-atscalepoc-100m --pinecone_namespace_name=ns_1 --pinecone_api_key=<> --skip_populate --pinecone_dedicated_read_nodes --pinecone_query_scan_factor=4.0 --pinecone_query_max_candidates=10000`.
 
 ## Extending VSB
 
@@ -340,48 +354,47 @@ and implement 5 required methods, then register with VSB:
    for `mydb` create `vsb/databases/mydb/mydb.py`.
 2. **Implement a Database class in this module**. This class inherits from
    [`database.DB`](vsb/databases/base.py) and implements the required methods:
-    * `__init__()` - Set up the connection to your database and any other required 
-      initialization.
-    * `get_namespace()` - Returns a `Namespace` object to use for 
-      the given namespace name. This may be called a "table" or "sub-index." If the database doesn't support multiple namespaces, or if you are developing an initial implemenation, this can return just a single `Namespace` object.
-    * `get_batch_size()` - Returns the preferred size of record batch for the populate phase. 
-     
-3. **Implement optional methods** if applicable to your database, implement the following methods: 
-   * `initialize_populate()` - Prepares the database for the populate phase, including tasks like 
+   - `__init__()` - Set up the connection to your database and any other required
+     initialization.
+   - `get_namespace()` - Returns a `Namespace` object to use for
+     the given namespace name. This may be called a "table" or "sub-index." If the database doesn't support multiple namespaces, or if you are developing an initial implemenation, this can return just a single `Namespace` object.
+   - `get_batch_size()` - Returns the preferred size of record batch for the populate phase.
+3. **Implement optional methods** if applicable to your database, implement the following methods:
+   - `initialize_populate()` - Prepares the database for the populate phase, including tasks like
      creating a table or clearing existing data.
-   * `finalize_populate()` - Finalizes the populate phase, including tasks like creating an index 
+   - `finalize_populate()` - Finalizes the populate phase, including tasks like creating an index
      or waiting for upserted data to be processed.
 4. **Implement a Namespace class** in this module that inherits from
    [`database.Namespace`](vsb/databases/base.py) and implements the following required
    methods:
-    * `upsert_batch()` - Upserts the given batch of records into the namespace. 
-    * `search()` - Performs a search for the given query vector.
-5. **Register the database with VSB** by adding an entry to the `Database` enum in 
+   - `upsert_batch()` - Upserts the given batch of records into the namespace.
+   - `search()` - Performs a search for the given query vector.
+5. **Register the database with VSB** by adding an entry to the `Database` enum in
    [`vsb/databases/__init__.py`](vsb/databases/__init__.py) and updating `get_class()`.
-6. (Optional) **Add database-specific command-line arguments** to the `add_vsb_cmdline_args()` 
-   method in [`vsb/cmdline_args.py`](vsb/cmdline_args.py), such as arguments for passing 
+6. (Optional) **Add database-specific command-line arguments** to the `add_vsb_cmdline_args()`
+   method in [`vsb/cmdline_args.py`](vsb/cmdline_args.py), such as arguments for passing
    credentials, connection parameters, or index tunables.
-7. (Optional) **Add Docker compose file** to the [`docker`/](docker/) directory to 
-   launch a local instance of the database to run tests against. This is only applicable to 
+7. (Optional) **Add Docker compose file** to the [`docker`/](docker/) directory to
+   launch a local instance of the database to run tests against. This is only applicable to
    locally running databases.
 
-You can now run VSB against your database by specifying 
+You can now run VSB against your database by specifying
 `--database=mydb`.
 
 #### Tips and tricks
 
-* When implementing a new database module, use the existing database modules in VSB as a reference. For example, refer to 
+- When implementing a new database module, use the existing database modules in VSB as a reference. For example, refer to
   [`databases/pgvector`](vsb/databases/pgvector) for an example of a locally-running DB, or
   [`database/pinecone`](vsb/databases/pinecone) for a cloud-hosted DB.
-* Integration tests exist for each supported database. Run these via `pytest` 
+- Integration tests exist for each supported database. Run these via `pytest`
   to check that the module is working correctly. Create a similar test suite for your database.
-* The `*-test` workloads are quick to run and a good starting 
+- The `*-test` workloads are quick to run and a good starting
   point for testing your database module. For example,
-  [workloads/mnist-test](vsb/workloads/mnist/mnist.py) is only 600 records and 20 
-  queries and should complete in a few seconds on most databases. 
+  [workloads/mnist-test](vsb/workloads/mnist/mnist.py) is only 600 records and 20
+  queries and should complete in a few seconds on most databases.
   Once you have the test workloads working, you can move on to the larger workloads.
-* VSB uses standard Python logging, so you can use `logging` to output debug 
-  information from your database module. The default emitted log level is `INFO`, 
+- VSB uses standard Python logging, so you can use `logging` to output debug
+  information from your database module. The default emitted log level is `INFO`,
   but this can be changed via `--loglevel=DEBUG`.
 
 ### Adding a new workload
@@ -399,27 +412,29 @@ base class.
 
 #### Parquet-based workloads
 
-VSB has support for loading static datasets from Parquet files, assuming the 
+VSB has support for loading static datasets from Parquet files, assuming the
 files match the
 [pinecone-datasets](https://github.com/pinecone-io/pinecone-datasets) schema.
 
-1. **Create a new module** in [`vsb/workloads/`](vsb/workloads/) for your 
+1. **Create a new module** in [`vsb/workloads/`](vsb/workloads/) for your
    workload. For example, for `my-workload`, create `vsb/workloads/my-workload/my_workload.py`.
 2. **Implement a Workload class** in this module that inherits from
    [`parquet_workload.ParquetWorkload`](vsb/workloads/parquet_workload/parquet_workload.py)
    and implements the required methods and properties:
-    * `__init__()` - Calls to the superclass constructor passing the dataset path. For example:
+   - `__init__()` - Calls to the superclass constructor passing the dataset path. For example:
 
-      ```python
-      class MyWorkload(ParquetWorkload):
-          def __init__(self, name: str, cache_dir: str):
-              super().__init__(name, "gs://bucket/my_workload", cache_dir=cache_dir)
-       ```
-    * `dimensions` - The dimensionality of the vectors in the dataset.
-    * `metric` - The distance metric to use for the workload.
-    * `record_count` - The number of records in the dataset.
-    * `request_count` - The number of queries to perform.
-3. **Register the workload with VSB** by adding an entry to the `Workload` enum in 
+     ```python
+     class MyWorkload(ParquetWorkload):
+         def __init__(self, name: str, cache_dir: str):
+             super().__init__(name, "gs://bucket/my_workload", cache_dir=cache_dir)
+     ```
+
+   - `dimensions` - The dimensionality of the vectors in the dataset.
+   - `metric` - The distance metric to use for the workload.
+   - `record_count` - The number of records in the dataset.
+   - `request_count` - The number of queries to perform.
+
+3. **Register the workload with VSB** by adding an entry to the `Workload` enum in
    [`vsb/workloads/__init__.py`](vsb/workloads/__init__.py) and updating `get_class()`.
 
 You can now run this workload by specifying `--workload=my-workload`.
@@ -434,17 +449,17 @@ operation of it, then implement the [`VectorWorkload`](vsb/workloads/base.py) ba
 2. **Implement a Workload class** in this module that inherits from
    [`base.VectorWorkload`](vsb/workloads/base.py) and
    implements the required methods and properties:
-    * `__init__()` - Whatever initialisation is needed for the workload.
-    * `dimensions` - The dimensionality of the vectors in the dataset.
-    * `metric` - The distance metric to use for the workload.
-    * `record_count` - The number of records in the dataset.
-    * `request_count` - The number of queries to perform.
-    * `get_sample_record()` - Returns a sample record from the dataset. This is used by
-      specific databases to calculate a suitable batch size for the populate phase.
-    * `get_record_batch_iter()` - Returns an iterator over a batch of records to
-      initially populate the database.
-    * `get_query_iter()` - Returns an iterator over the queries a client should
-      perform during the Run phase.
+   - `__init__()` - Whatever initialisation is needed for the workload.
+   - `dimensions` - The dimensionality of the vectors in the dataset.
+   - `metric` - The distance metric to use for the workload.
+   - `record_count` - The number of records in the dataset.
+   - `request_count` - The number of queries to perform.
+   - `get_sample_record()` - Returns a sample record from the dataset. This is used by
+     specific databases to calculate a suitable batch size for the populate phase.
+   - `get_record_batch_iter()` - Returns an iterator over a batch of records to
+     initially populate the database.
+   - `get_query_iter()` - Returns an iterator over the queries a client should
+     perform during the Run phase.
 3. **Register the workload with VSB** by adding an entry to the `Workload` enum in
    [`vsb/workloads/__init__.py`](vsb/workloads/__init__.py) and updating `get_class()`.
 
@@ -460,10 +475,10 @@ workloads in a subclass of [`VectorWorkloadSequence`](vsb/workloads/base.py).
 1. **Implement a WorkloadSequence class** in this module that inherits from
    [`base.VectorWorkloadSequence`](vsb/workloads/base.py) and
    implements the required methods and properties:
-    * `__init__()` - Whatever initialisation is needed for the sequence. If you need to
-      pass parameters to each workload, you can do so here. Assign a list[VectorWorkload]
-      to `self.workloads` to take advantage of the default `__getitem__` implementation.
-    * `workload_count()` - Returns the number of workloads in the sequence.
-    * `__getitem__()` - (optional with `self.workloads`) Returns the workload at the given index.
+   - `__init__()` - Whatever initialisation is needed for the sequence. If you need to
+     pass parameters to each workload, you can do so here. Assign a list[VectorWorkload]
+     to `self.workloads` to take advantage of the default `__getitem__` implementation.
+   - `workload_count()` - Returns the number of workloads in the sequence.
+   - `__getitem__()` - (optional with `self.workloads`) Returns the workload at the given index.
 2. **Register the workload with VSB** by adding an entry to the `WorkloadSequence` enum in
    [`vsb/workloads/__init__.py`](vsb/workloads/__init__.py) and updating `get_class()`.
