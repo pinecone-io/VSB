@@ -118,16 +118,16 @@ The following databases are currently supported by VSB:
 
 VSB currently supports the following workloads:
 
-| Name                |      Cardinality |       Dimensions |           Metric | Description                                                                                                                                                                                                 |
-| ------------------- | ---------------: | ---------------: | ---------------: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `mnist`             |           60,000 |              784 |        euclidean | Images of handwritten digits from [MNIST](https://en.wikipedia.org/wiki/MNIST_database)                                                                                                                     |
-| `nq768`             |        2,680,893 |              768 |      dot product | Natural language questions from [Google Research](https://ai.google.com/research/NaturalQuestions).                                                                                                         |
-| `yfcc-10M`          |       10,000,000 |              192 |        euclidean | Images from [Yahoo Flickr Creative Commons 100M](https://paperswithcode.com/dataset/yfcc100m) annotated with a "bag" of tags                                                                                |
-| `cohere768`         |       10,000,000 |              768 |           cosine | English Wikipedia articles embedded with Cohere from [wikipedia-22-12](https://huggingface.co/datasets/Cohere/wikipedia-22-12/tree/main/en)                                                                 |
-| `msmarco-v2-ada`    |      138,364,198 |             1536 |           cosine | [MSMarco-V2-Ada](https://microsoft.github.io/msmarco/) dataset - 138M records from Microsoft's MSMARCOv2 dataset, embedded with Ada                                                                         |
-| `synthetic`         | (user-specified) | (user-specified) | (user-specified) | Synthetic records and queries pseudo-randomly generated of a custom distribution, dimensionality, metric, and cardinality.                                                                                  |
-| `at-scale-poc-10m`  |       10,000,000 |             1024 |           cosine | [Amazon Reviews](https://huggingface.co/datasets/McAuley-Lab/Amazon-Reviews-2023) This is a large-scale, 10 Million Amazon Reviews dataset, derived from original dataset collected in 2023 by McAuley Lab  |
-| `at-scale-poc-100m` |      100,000,000 |             1024 |           cosine | [Amazon Reviews](https://huggingface.co/datasets/McAuley-Lab/Amazon-Reviews-2023) This is a large-scale, 100 Million Amazon Reviews dataset, derived from original dataset collected in 2023 by McAuley Lab |
+| Name                |      Cardinality |       Dimensions |           Metric | Description                                                                                                                                                                                                |
+| ------------------- | ---------------: | ---------------: | ---------------: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mnist`             |           60,000 |              784 |        euclidean | Images of handwritten digits from [MNIST](https://en.wikipedia.org/wiki/MNIST_database)                                                                                                                    |
+| `nq768`             |        2,680,893 |              768 |      dot product | Natural language questions from [Google Research](https://ai.google.com/research/NaturalQuestions).                                                                                                        |
+| `yfcc-10M`          |       10,000,000 |              192 |        euclidean | Images from [Yahoo Flickr Creative Commons 100M](https://paperswithcode.com/dataset/yfcc100m) annotated with a "bag" of tags                                                                               |
+| `cohere768`         |       10,000,000 |              768 |           cosine | English Wikipedia articles embedded with Cohere from [wikipedia-22-12](https://huggingface.co/datasets/Cohere/wikipedia-22-12/tree/main/en)                                                                |
+| `msmarco-v2-ada`    |      138,364,198 |             1536 |           cosine | [MSMarco-V2-Ada](https://microsoft.github.io/msmarco/) dataset - 138M records from Microsoft's MSMARCOv2 dataset, embedded with Ada                                                                        |
+| `synthetic`         | (user-specified) | (user-specified) | (user-specified) | Synthetic records and queries pseudo-randomly generated of a custom distribution, dimensionality, metric, and cardinality.                                                                                 |
+| `at-scale-poc-10m`  |          500,000 |             1024 |           cosine | [Amazon Reviews](https://huggingface.co/datasets/McAuley-Lab/Amazon-Reviews-2023) This is a large-scale, 500K Amazon Reviews dataset, derived from original dataset collected in 2023 by McAuley Lab       |
+| `at-scale-poc-100m` |       10,000,000 |             1024 |           cosine | [Amazon Reviews](https://huggingface.co/datasets/McAuley-Lab/Amazon-Reviews-2023) This is a large-scale, 10 Million Amazon Reviews dataset, derived from original dataset collected in 2023 by McAuley Lab |
 
 > You can also display the list of supported workloads using the following command:
 > `vsb --workload=help`
@@ -340,7 +340,7 @@ max_candidates and scan_factor allow customers to trade off recall vs. query per
 > [!NOTE]
 > Currently scan_ratio and max_candidates are only supported for DRN indexes. So speccify the index type as DRN by enabling this flag `--pinecone_dedicated_read_nodes`
 
-> Sample query with the above parameters look like `vsb --database=pinecone --workload=at-scale-poc-100m --pinecone_index_name=vsb-atscalepoc-100m --pinecone_namespace_name=ns_1 --pinecone_api_key=<> --skip_populate --pinecone_dedicated_read_nodes --pinecone_query_scan_factor=4.0 --pinecone_query_max_candidates=10000`.
+> Sample query with the above parameters look like `vsb --database=pinecone --workload=at-scale-poc-10m --pinecone_index_name=vsb-atscalepoc-10m --pinecone_namespace_name=ns_1 --pinecone_api_key=<> --skip_populate --pinecone_dedicated_read_nodes --pinecone_query_scan_factor=4.0 --pinecone_query_max_candidates=10000`.
 
 ## Extending VSB
 
