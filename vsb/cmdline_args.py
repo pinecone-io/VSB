@@ -292,8 +292,12 @@ def add_vsb_cmdline_args(
     pinecone_group.add_argument(
         "--pinecone_namespace_name",
         type=str,
-        default="__default__",
-        help="Name of Pinecone namespace to connect to. Default is __default__.",
+        default=None,
+        help=(
+            "Name of Pinecone namespace to connect to. If not specified and the index "
+            "has exactly one namespace, that namespace is used automatically. "
+            "Otherwise defaults to '__default__'."
+        ),
         env_var="VSB__PINECONE_NAMESPACE_NAME",
     )
 
@@ -326,6 +330,29 @@ def add_vsb_cmdline_args(
         type=int,
         default=1,
         help="Number of replicas for dedicated read nodes. Default is %(default)s.",
+    )
+    pinecone_group.add_argument(
+        "--pinecone_scan_factor",
+        type=float,
+        default=None,
+        help=(
+            "Scan factor for dedicated read node indexes. Controls how much of the IVF "
+            "index is scanned to find vector candidates. Valid range: 0.5-4.0. "
+            "Default (when unset) is 4.0 (Pinecone server-side default). "
+            "Only valid with --pinecone_dedicated_read_nodes."
+        ),
+    )
+    pinecone_group.add_argument(
+        "--pinecone_max_candidates",
+        type=int,
+        default=None,
+        help=(
+            "Maximum number of candidate vectors to rerank with exact distance computation "
+            "for dedicated read node indexes. Must be >= top_k and <= 100,000. "
+            "Default (when unset) is min(top_k * 10, 1000) or top_k if top_k > 1000, "
+            "with a floor of 2500 (Pinecone server-side default). "
+            "Only valid with --pinecone_dedicated_read_nodes."
+        ),
     )
 
     opensearch_group = parser.add_argument_group(
