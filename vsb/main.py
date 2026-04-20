@@ -43,10 +43,13 @@ def main():
     validate_parsed_args(parser, args)
 
     # Auto-detect synthetic dimensions from an existing Pinecone index.
+    # Only attempt when skip_populate is set — that guarantees the index
+    # already exists and avoids redundant API calls when creating a new index.
     if (
         args.database == "pinecone"
         and args.workload.startswith("synthetic")
         and getattr(args, "pinecone_index_name", None) is not None
+        and getattr(args, "skip_populate", False)
         and "--synthetic_dimensions" not in sys.argv
     ):
         try:
