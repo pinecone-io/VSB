@@ -118,8 +118,10 @@ def _describe_index_rest(
     index_name: str,
     api_version: str = "2025-10",
 ) -> dict:
-    """Fetch index details via REST API (exposes fields not in the SDK response)."""
-    controller_host = os.environ.get("PINECONE_CONTROLLER_HOST", "https://api.pinecone.io")
+    """Fetch index details via REST API (exposes fields not in SDK)."""
+    controller_host = os.environ.get(
+        "PINECONE_CONTROLLER_HOST", "https://api.pinecone.io"
+    )
     headers = {
         "Api-Key": api_key,
         "X-Pinecone-API-Version": api_version,
@@ -133,13 +135,19 @@ def _describe_index_rest(
     resp = requests.get(f"{controller_host}/indexes/{index_name}", headers=headers)
     if resp.status_code != 200:
         raise RuntimeError(
-            f"Error fetching index '{index_name}': {resp.status_code} {resp.text}"
+            f"Error fetching index '{index_name}': " f"{resp.status_code} {resp.text}"
         )
     return resp.json()
 
 
 class PineconeNamespace(Namespace):
-    def __init__(self, index: GRPCIndex, namespace: str, scan_factor: float = None, max_candidates: int = None):
+    def __init__(
+        self,
+        index: GRPCIndex,
+        namespace: str,
+        scan_factor: float = None,
+        max_candidates: int = None,
+    ):
         # TODO: Support multiple namespaces
         self.index = index
         self.namespace = namespace
@@ -200,7 +208,9 @@ class PineconeDB(DB):
         self.skip_populate = config["skip_populate"]
         self.overwrite = config["overwrite"]
         self.index_name = config["pinecone_index_name"]
-        namespace_config = config["pinecone_namespace_name"]  # None if not specified by user
+        namespace_config = config[
+            "pinecone_namespace_name"
+        ]  # None if not specified by user
         self.use_dedicated_read_nodes = config.get(
             "pinecone_dedicated_read_nodes", False
         )
@@ -222,8 +232,8 @@ class PineconeDB(DB):
                 if len(namespaces) == 1:
                     self.namespace = namespaces[0]["name"]
                     logger.info(
-                        f"PineconeDB: Auto-detected namespace '{self.namespace}' "
-                        f"(index has exactly one namespace)"
+                        f"PineconeDB: Auto-detected namespace"
+                        f" '{self.namespace}' (only one namespace on index)"
                     )
                 else:
                     self.namespace = "__default__"
@@ -266,21 +276,22 @@ class PineconeDB(DB):
 
             self.index = self.pc.Index(name=self.index_name)
             self.created_index = True
-            self.namespace = namespace_config if namespace_config is not None else "__default__"
+            self.namespace = (
+                namespace_config if namespace_config is not None else "__default__"
+            )
 
         info = self.pc.describe_index(self.index_name)
 
         if self.scan_factor is not None or self.max_candidates is not None:
             rest_info = _describe_index_rest(self.api_key, self.index_name)
             read_capacity = (
-                rest_info.get("spec", {})
-                .get("serverless", {})
-                .get("read_capacity", {})
+                rest_info.get("spec", {}).get("serverless", {}).get("read_capacity", {})
             )
             if read_capacity.get("mode") != "Dedicated":
                 raise ValueError(
-                    f"pinecone_scan_factor and pinecone_max_candidates require an index with "
-                    f"dedicated read nodes, but '{self.index_name}' does not have them configured."
+                    f"pinecone_scan_factor and pinecone_max_candidates require"
+                    f" an index with dedicated read nodes, but"
+                    f" '{self.index_name}' does not have them configured."
                 )
 
         index_dims = info["dimension"]
@@ -322,7 +333,9 @@ class PineconeDB(DB):
         return batch_size
 
     def get_namespace(self, namespace: str) -> Namespace:
-        return PineconeNamespace(self.index, self.namespace, self.scan_factor, self.max_candidates)
+        return PineconeNamespace(
+            self.index, self.namespace, self.scan_factor, self.max_candidates
+        )
 
     def initialize_population(self):
         # If the namespace already existed before VSB (we didn't create it) and

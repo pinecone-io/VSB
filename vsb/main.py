@@ -51,6 +51,7 @@ def main():
     ):
         try:
             from pinecone.grpc import PineconeGRPC
+
             pc = PineconeGRPC(args.pinecone_api_key)
             index_info = pc.describe_index(args.pinecone_index_name)
             index_dims = index_info["dimension"]
