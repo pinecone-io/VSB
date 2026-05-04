@@ -42,6 +42,34 @@ def main():
     args = parser.parse_args()
     validate_parsed_args(parser, args)
 
+    # Auto-detect synthetic dimensions from an existing Pinecone index.
+    # Only attempt when skip_populate is set — that guarantees the index
+    # already exists and avoids redundant API calls when creating a new index.
+    if (
+        args.database == "pinecone"
+        and args.workload.startswith("synthetic")
+        and getattr(args, "pinecone_index_name", None) is not None
+        and getattr(args, "skip_populate", False)
+        and "--synthetic_dimensions" not in sys.argv
+    ):
+        try:
+            from pinecone.grpc import PineconeGRPC
+
+            pc = PineconeGRPC(args.pinecone_api_key)
+            index_info = pc.describe_index(args.pinecone_index_name)
+            index_dims = index_info["dimension"]
+            args.synthetic_dimensions = index_dims
+            sys.argv += ["--synthetic_dimensions", str(index_dims)]
+            logger.info(
+                f"Auto-detected synthetic_dimensions={index_dims} "
+                f"from index '{args.pinecone_index_name}'"
+            )
+        except Exception as e:
+            logger.warning(
+                f"Could not auto-detect dimensions from index "
+                f"'{args.pinecone_index_name}': {e}"
+            )
+
     # Auto-calculate the number of users if not explicitly specified.
     # Assuming a conservative 500ms request latency, each user can issue
     # at most 2 requests/sec. We provision enough users to comfortably

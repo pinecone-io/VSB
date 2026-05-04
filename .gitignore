@@ -164,3 +164,6 @@ reports/
 
 # DS_Store
 .DS_Store
+
+# Local run scripts
+run_dense_midpage.sh
